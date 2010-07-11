@@ -1,11 +1,11 @@
 
 import unittest
-import lupy
+import lupa
 
 class TestLuaRuntime(unittest.TestCase):
 
     def setUp(self):
-        self.lua = lupy.LuaRuntime()
+        self.lua = lupa.LuaRuntime()
     
     def test_eval(self):
         self.assertEqual(2, self.lua.eval('1+1'))

@@ -1,15 +1,15 @@
-Installing lupy
+Installing lupa
 ================
 
-#) Download and unpack lupy
+#) Download and unpack lupa
 
 #) Download LuaJIT2
 
    http://luajit.org/download.html
 
-#) Unpack the archive into the lupy base directory, e.g.::
+#) Unpack the archive into the lupa base directory, e.g.::
 
-     .../lupy-0.1/LuaJIT-2.0.0-beta4
+     .../lupa-0.1/LuaJIT-2.0.0-beta4
 
 #) Build LuaJIT::
 
@@ -21,7 +21,7 @@ Installing lupy
 
      make CFLAGS="..."
 
-#) Build lupy::
+#) Build lupa::
 
    python setup.py build
 

@@ -1,7 +1,7 @@
-Lupy
+Lupa
 =====
 
-Lupy integrates the LuaJIT2 runtime into CPython.  It is a partial
+Lupa integrates the LuaJIT2 runtime into CPython.  It is a partial
 rewrite of LunaticPython_ in Cython_.  Note that it is currently
 lacking a lot of features and testing compared to LunaticPython, so if
 you need a production-ready Lua integration, use that instead.

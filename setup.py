@@ -19,7 +19,7 @@ except ImportError:
 # support 'test' target if setuptools/distribute is available
 
 if 'setuptools' in sys.modules:
-    extra_setup_args['test_suite'] = 'lupy.tests.suite'
+    extra_setup_args['test_suite'] = 'lupa.tests.suite'
 
 # check if LuaJIT is in a subdirectory and build statically against it
 
@@ -44,18 +44,18 @@ def find_luajit_build():
 
 ext_modules = [
     Extension(
-        'lupy._lupy',
-        sources = ['lupy/_lupy'+source_extension],
+        'lupa._lupa',
+        sources = ['lupa/_lupa'+source_extension],
         **find_luajit_build()
         )
     ]
 
 setup(
-    name = "lupy",
+    name = "lupa",
     version = '0.1',
     author="Stefan Behnel",
-#    author_email="",
-#    url="",
+    author_email="stefan_ml@behnel.de",
+    url="http://pypi.python.org/pypi/lupa",
 #    download_url="",
 
     description="Simple wrapper around LuaJIT",
@@ -75,7 +75,7 @@ setup(
     ],
 
 #    package_dir = {'': 'src'},
-    packages = ['lupy'],
+    packages = ['lupa'],
 #    package_data = {},
     ext_modules = ext_modules,
     **extra_setup_args
