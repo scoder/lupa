@@ -4,6 +4,8 @@ from lua cimport lua_State
 
 cimport cpython, cpython.ref
 
+__all__ = ['LuaRuntime', 'LuaError']
+
 DEF POBJECT = "POBJECT" # as used by LunaticPython
 
 cdef class _LuaObject
@@ -155,7 +157,7 @@ cdef bint py_to_lua(lua_State *L, object o, bint withnone) except -1:
     else:
         asindx =  isinstance(o, dict) or isinstance(o, list) or isinstance(o, tuple)
         ret = py_to_lua_custom(L, o, asindx)
-        if ret and not asindx and callable(o):
+        if ret and not asindx and hasattr(o, '__call__'):
             lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
     return ret
 
