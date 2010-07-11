@@ -54,7 +54,7 @@ setup(
     name = "lupa",
     version = '0.1',
     author="Stefan Behnel",
-    author_email="stefan_ml@behnel.de",
+    author_email="stefan_ml (at) behnel.de",
     url="http://pypi.python.org/pypi/lupa",
 #    download_url="",
 
