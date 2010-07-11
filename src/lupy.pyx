@@ -15,7 +15,7 @@ cdef struct py_object:
 class LuaError(Exception):
     pass
 
-cdef class LuaInterpreter:
+cdef class LuaRuntime:
     cdef lua_State *_state
 
     def __cinit__(self):
