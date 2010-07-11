@@ -3,6 +3,8 @@ Installing lupa
 
 #) Download and unpack lupa
 
+   http://pypi.python.org/pypi/lupa
+
 #) Download LuaJIT2
 
    http://luajit.org/download.html
@@ -23,5 +25,5 @@ Installing lupa
 
 #) Build lupa::
 
-   python setup.py build
+     python setup.py build
 

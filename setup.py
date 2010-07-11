@@ -50,6 +50,11 @@ ext_modules = [
         )
     ]
 
+long_description = '\n\n'.join(
+    open(os.path.join(basedir, text_file)).read()
+    for text_file in ['README.txt', 'INSTALL.txt'])
+    
+
 setup(
     name = "lupa",
     version = '0.1',
@@ -60,7 +65,7 @@ setup(
 
     description="Simple wrapper around LuaJIT",
 
-    long_description=open(os.path.join(basedir, 'README.txt')).read(),
+    long_description=long_description,
     classifiers = [
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
