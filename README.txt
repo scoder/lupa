@@ -3,8 +3,8 @@ Lupa
 
 Lupa integrates the LuaJIT2 runtime into CPython.  It is a partial
 rewrite of LunaticPython_ in Cython_.  Note that it is currently
-lacking a lot of features and testing compared to LunaticPython, so if
-you need a production-ready Lua integration, use that instead.
+lacking many features and a lot of testing compared to LunaticPython,
+so if you need a production-ready Lua integration, use that instead.
 
 The advantages over LunaticPython are:
 
@@ -13,9 +13,10 @@ The advantages over LunaticPython are:
 * supports Python 2.x and 3.x, potentially starting with Python 2.3
   (currently untested)
 
-* written for LuaJIT2, as opposed to the Lua interpreter
+* written for LuaJIT2, as opposed to the Lua interpreter (tested with
+  LuaJIT 2.0.0-beta4)
 
-* written in Cython, as opposed to C
+* much easier to extend as it is written in Cython, not C
 
 
 .. _LunaticPython: http://labix.org/lunatic-python

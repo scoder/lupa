@@ -52,7 +52,7 @@ ext_modules = [
 
 long_description = '\n\n'.join(
     open(os.path.join(basedir, text_file)).read()
-    for text_file in ['README.txt', 'INSTALL.txt'])
+    for text_file in ['README.txt', 'INSTALL.txt', 'CHANGES.txt'])
     
 
 setup(

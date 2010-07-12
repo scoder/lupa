@@ -1,0 +1,7 @@
+Lupa change log
+================
+
+0.1 (2010-07-12)
+-----------------
+
+* first public release
