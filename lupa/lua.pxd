@@ -117,7 +117,7 @@ cdef extern from "lua.h" nogil:
     char *lua_pushvfstring (lua_State *L, char *fmt, va_list argp)
     char *lua_pushfstring (lua_State *L, char *fmt, ...)
     void  lua_pushcclosure (lua_State *L, lua_CFunction fn, int n)
-    void  lua_pushboolean (lua_State *L, int b)
+    void  lua_pushboolean (lua_State *L, bint b)
     void  lua_pushlightuserdata (lua_State *L, void *p)
     int   lua_pushthread (lua_State *L)
 
