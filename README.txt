@@ -8,6 +8,8 @@ you need a production-ready Lua integration, use that instead.
 
 The advantages over LunaticPython are:
 
+* separate Lua runtime states through a ``LuaRuntime`` class
+
 * supports Python 2.x and 3.x, potentially starting with Python 2.3
   (currently untested)
 
