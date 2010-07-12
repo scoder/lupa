@@ -318,9 +318,8 @@ cdef int py_object_gc(lua_State* L):
 
 # calling Python objects
 
-cdef bint call_python(LuaRuntime runtime) except -1:
+cdef bint call_python(LuaRuntime runtime, py_object* py_obj) except -1:
     cdef lua_State *L = runtime._state
-    cdef py_object* py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT)
     cdef int nargs = lua.lua_gettop(L) - 1
     cdef bint ret = 0
     cdef int i = -1
@@ -346,8 +345,8 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
         if runtime._state is not L:
             lua.luaL_argerror(L, 1, "cannot mix objects from different Lua runtimes")
             return 0
-        return call_python(runtime)
-    except Exception, e:
+        return call_python(runtime, py_obj)
+    except Exception as e:
         try:
             message = (u"error during Python call: %r" % e).encode('UTF-8')
         except:
@@ -372,6 +371,13 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
         if runtime._state is not L:
             lua.luaL_argerror(L, 1, "cannot mix objects from different Lua runtimes")
             return 0
+        s = str(<object>py_obj.obj)
+        if isinstance(s, unicode):
+            s = (<unicode>s).encode('UTF-8')
+        else:
+            assert isinstance(s, bytes)
+        lua.lua_pushlstring(L, <bytes>s, len(<bytes>s))
+        return 1 # returning 1 value
     except Exception as e:
         try:
             message = (u"error during Python str() call: %r" % e).encode('UTF-8')

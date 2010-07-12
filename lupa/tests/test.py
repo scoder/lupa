@@ -53,6 +53,22 @@ class TestLuaRuntime(unittest.TestCase):
     def test_call_none(self):
         self.assertRaises(lupa.LuaError, self.lua.eval, 'python.none()')
 
+    def test_call_str(self):
+        self.assertEqual("test-None", self.lua.eval('"test-" .. tostring(python.none)'))
+
+    def test_call_str_py(self):
+        function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
+        self.assertEqual("test-nil", function(None))
+        self.assertEqual("test-1", function(1))
+
+    def test_call_str_class(self):
+        class test(object):
+            def __str__(self):
+                return 'STR!!'
+
+        function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
+        self.assertEqual("test-STR!!", function(test()))
+
     def test_eval(self):
         function = self.lua.eval('function() return python.eval end')
         self.assertEqual(2, eval('1+1'))
