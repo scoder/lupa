@@ -2,7 +2,8 @@
 cimport lua
 from lua cimport lua_State
 
-cimport cpython, cpython.ref
+cimport cpython, cpython.ref, cpython.tuple
+from cpython.ref cimport PyObject
 from cpython cimport pythread
 
 __all__ = ['LuaRuntime', 'LuaError']
@@ -12,8 +13,17 @@ DEF POBJECT = "POBJECT" # as used by LunaticPython
 cdef class _LuaObject
 
 cdef struct py_object:
-    cpython.ref.PyObject* obj
+    PyObject* obj
+    PyObject* runtime
     int as_index
+
+cdef lua.luaL_Reg py_object_lib[6]
+cdef lua.luaL_Reg py_lib[6]
+
+# empty for now
+py_lib[0].name = NULL
+py_lib[0].func = NULL
+
 
 class LuaError(Exception):
     pass
@@ -23,10 +33,11 @@ cdef class LuaRuntime:
     cdef pythread.PyThread_type_lock _thread_lock
 
     def __cinit__(self):
+        self._thread_lock = self._state = NULL
         cdef lua_State* L = lua.lua_open()
-        self._state = L
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
+        self._state = L
 
         self._thread_lock = pythread.PyThread_allocate_lock()
         if self._thread_lock is NULL:
@@ -38,13 +49,16 @@ cdef class LuaRuntime:
         lua.luaopen_string(L)
         lua.luaopen_debug(L)
         #lua.luaopen_loadlib(L)
-        #luaopen_python(L)
+        self.init_python_lib()
         lua.lua_settop(L, 0)
 
     def __dealloc__(self):
         if self._state is not NULL:
             lua.lua_close(self._state)
             self._state = NULL
+        if self._thread_lock is not NULL:
+            pythread.PyThread_free_lock(self._thread_lock)
+            self._thread_lock = NULL
 
     cdef int lock(self) except -1:
         if not pythread.PyThread_acquire_lock(self._thread_lock, pythread.WAIT_LOCK):
@@ -63,6 +77,35 @@ cdef class LuaRuntime:
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode('UTF-8')
         return run_lua(self, lua_code)
+
+    cdef int register_py_object(self, bytes cname, bytes pyname, object obj) except -1:
+        cdef lua_State *L = self._state
+        lua.lua_pushlstring(L, cname, len(cname))
+        if not py_to_lua_custom(self, obj, 0):
+            lua.lua_pop(L, 1)
+            message = b"failed to convert %s object" % pyname
+            lua.luaL_error(L, message)
+            raise LuaError(message.decode('ASCII'))
+        lua.lua_pushlstring(L, pyname, len(pyname))
+        lua.lua_pushvalue(L, -2)
+        lua.lua_rawset(L, -5)
+        lua.lua_rawset(L, lua.LUA_REGISTRYINDEX)
+        return 0
+
+    cdef int init_python_lib(self) except -1:
+        cdef lua_State *L = self._state
+
+        # create 'python' lib and register our own object metatable
+        lua.luaL_openlib(L, "python", py_lib, 0)
+        lua.luaL_newmetatable(L, POBJECT)
+        lua.luaL_openlib(L, NULL, py_object_lib, 0)
+        lua.lua_pop(L, 1)
+
+        # register global names in the module
+        self.register_py_object('Py_None', 'none', None)
+        self.register_py_object('eval',    'eval', eval)
+
+        return 0 # nothing left to return on the stack
 
 
 cdef _LuaObject new_lua_object(LuaRuntime runtime, int n):
@@ -118,10 +161,9 @@ cdef class _LuaObject:
 
 
 cdef int py_asfunc_call(lua_State *L):
-    # FIXME: LuaRuntime???
     lua.lua_pushvalue(L, lua.lua_upvalueindex(1))
     lua.lua_insert(L, 1)
-    #return call_python(runtime)
+    return py_object_call(L)
 
 
 cdef object py_from_lua(LuaRuntime runtime, int n):
@@ -153,54 +195,57 @@ cdef object py_from_lua(LuaRuntime runtime, int n):
 
 cdef bint py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
     cdef lua_State *L = runtime._state
-    cdef bint ret = 0
-    cdef bint asindx = 0
+    cdef bint pushed_values_count = 0
+    cdef bint as_index = 0
 
     if o is None:
         if withnone:
-            lua.lua_pushlstring(L, "Py_None", sizeof("Py_None")-1)
+            lua.lua_pushlstring(L, "Py_None", 7)
             lua.lua_rawget(L, lua.LUA_REGISTRYINDEX)
             if lua.lua_isnil(L, -1):
                 lua.lua_pop(L, 1)
                 lua.luaL_error(L, "lost none from registry")
         else:
             # Not really needed, but this way we may check for errors
-            # with ret == 0.
+            # with pushed_values_count == 0.
             lua.lua_pushnil(L)
-            ret = 1
+            pushed_values_count = 1
     elif o is True or o is False:
         lua.lua_pushboolean(L, o is True)
-        ret = 1
+        pushed_values_count = 1
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
-        ret = 1
+        pushed_values_count = 1
     elif isinstance(o, int) or isinstance(o, float):
         lua.lua_pushnumber(L, <lua.lua_Number><double>o)
-        ret = 1
+        pushed_values_count = 1
     elif isinstance(o, _LuaObject):
+        if (<_LuaObject>o).runtime is not runtime:
+            raise LuaError("cannot mix objects from different Lua runtimes")
         lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, (<_LuaObject>o)._ref)
-        ret = 1
+        pushed_values_count = 1
     else:
-        asindx =  isinstance(o, dict) or isinstance(o, list) or isinstance(o, tuple)
-        ret = py_to_lua_custom(runtime, o, asindx)
-        if ret and not asindx and hasattr(o, '__call__'):
+        as_index =  isinstance(o, dict) or isinstance(o, list) or isinstance(o, tuple)
+        pushed_values_count = py_to_lua_custom(runtime, o, as_index)
+        if pushed_values_count and not as_index and hasattr(o, '__call__'):
             lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
-    return ret
+    return pushed_values_count
 
-cdef int py_to_lua_custom(LuaRuntime runtime, object o, int as_index):
+cdef bint py_to_lua_custom(LuaRuntime runtime, object o, int as_index):
     cdef lua_State *L = runtime._state
-    cdef bint ret = 0
     cdef py_object *py_obj = <py_object*> lua.lua_newuserdata(L, sizeof(py_object))
     if py_obj:
         cpython.ref.Py_INCREF(o)
-        py_obj.obj = <cpython.ref.PyObject*>o
+        cpython.ref.Py_INCREF(runtime)
+        py_obj.obj = <PyObject*>o
+        py_obj.runtime = <PyObject*>runtime
         py_obj.as_index = as_index
         lua.luaL_getmetatable(L, POBJECT)
         lua.lua_setmetatable(L, -2)
-        return 1
+        return 1 # values pushed
     else:
         lua.luaL_error(L, "failed to allocate userdata object")
-        return 0
+        return 0 # values pushed
 
 
 cdef run_lua(LuaRuntime runtime, bytes lua_code):
@@ -255,17 +300,106 @@ cdef call_lua(LuaRuntime runtime, tuple args):
     finally:
         runtime.unlock()
 
-cdef bint call_python(LuaRuntime runtime):
+
+################################################################################
+# Python support in Lua
+
+# ref-counting support for Python objects
+
+cdef void decref_with_gil(py_object *py_obj) with gil:
+    cpython.ref.Py_XDECREF(py_obj.obj)
+    cpython.ref.Py_XDECREF(py_obj.runtime)
+
+cdef int py_object_gc(lua_State* L):
+    cdef py_object *py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT)
+    if py_obj is not NULL and py_obj.obj is not NULL:
+        decref_with_gil(py_obj)
+    return 0
+
+# calling Python objects
+
+cdef bint call_python(LuaRuntime runtime) except -1:
     cdef lua_State *L = runtime._state
     cdef py_object* py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT)
-    cdef int nargs = lua.lua_gettop(L)-1
+    cdef int nargs = lua.lua_gettop(L) - 1
     cdef bint ret = 0
-    cdef int i
+    cdef int i = -1
 
     if not py_obj:
         lua.luaL_argerror(L, 1, "not a python object")
-    args = cpython.tuple.PyTuple_New(nargs)
-    for i in range(nargs):
-        cpython.tuple.PyTuple_SetItem(args, i, py_from_lua(runtime, i+2))
+        return 0
+    try:
+        args = cpython.tuple.PyTuple_New(nargs)
+        for i in range(nargs):
+            cpython.tuple.PyTuple_SetItem(args, i, py_from_lua(runtime, i+2))
+    except:
+        if i > -1:
+            raise LuaError("failed to convert argument #%d" % i+1)
+        raise
 
-    return py_to_lua(runtime, (<object>py_obj.obj)(*args), 0 )
+    return py_to_lua(runtime, (<object>py_obj.obj)(*args), 0)
+
+cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
+    cdef LuaRuntime runtime
+    try:
+        runtime = <LuaRuntime?>py_obj.runtime
+        if runtime._state is not L:
+            lua.luaL_argerror(L, 1, "cannot mix objects from different Lua runtimes")
+            return 0
+        return call_python(runtime)
+    except Exception, e:
+        try:
+            message = (u"error during Python call: %r" % e).encode('UTF-8')
+        except:
+            message = b"error during Python call"
+        lua.luaL_error(L, message)
+        return 0
+
+cdef int py_object_call(lua_State* L):
+    cdef py_object *py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT)
+    if not py_obj:
+        lua.luaL_argerror(L, 1, "not a python object")
+        return 0
+
+    return py_call_with_gil(L, py_obj)
+
+# str() support for Python objects
+
+cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
+    cdef LuaRuntime runtime
+    try:
+        runtime = <LuaRuntime?>py_obj.runtime
+        if runtime._state is not L:
+            lua.luaL_argerror(L, 1, "cannot mix objects from different Lua runtimes")
+            return 0
+    except Exception as e:
+        try:
+            message = (u"error during Python str() call: %r" % e).encode('UTF-8')
+        except:
+            message = b"error during Python str() call"
+        lua.luaL_error(L, message)
+        return 0
+
+cdef int py_object_str(lua_State* L):
+    cdef py_object *py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT)
+    if not py_obj:
+        lua.luaL_argerror(L, 1, "not a python object")
+        return 0
+    return py_str_with_gil(L, py_obj)
+
+# special methods for Lua
+
+py_object_lib[0] = lua.luaL_Reg(name = "__gc",       func = <lua.lua_CFunction> py_object_gc)
+py_object_lib[1] = lua.luaL_Reg(name = "__call",     func = <lua.lua_CFunction> py_object_call)
+py_object_lib[2] = lua.luaL_Reg(name = "__tostring", func = <lua.lua_CFunction> py_object_str)
+py_object_lib[3] = lua.luaL_Reg(name = NULL, func = NULL)
+
+## static const luaL_reg py_object_lib[] = {
+## 	{"__call",	py_object_call},
+## 	{"__index",	py_object_index},
+## 	{"__newindex",	py_object_newindex},
+## 	{"__gc",	py_object_gc},
+## 	{"__tostring",	py_object_tostring},
+## 	{NULL, NULL}
+## };
+

@@ -22,6 +22,16 @@ class TestLuaRuntime(unittest.TestCase):
         self.assertNotEqual(None, function)
         self.assertEqual(2, function())
 
+    def test_multiple_functions(self):
+        function1 = self.lua.eval('function() return 0+1 end')
+        function2 = self.lua.eval('function() return 1+1 end')
+        self.assertEqual(1, function1())
+        self.assertEqual(2, function2())
+        function3 = self.lua.eval('function() return 1+2 end')
+        self.assertEqual(3, function3())
+        self.assertEqual(2, function2())
+        self.assertEqual(1, function1())
+
     def test_recursive_function(self):
         fac = self.lua.run('''\
         function fac(i)
@@ -36,6 +46,18 @@ class TestLuaRuntime(unittest.TestCase):
         self.assertEqual(6,       fac(3))
         self.assertEqual(3628800, fac(10))
 
+    def test_none(self):
+        function = self.lua.eval('function() return python.none end')
+        self.assertEqual(None, function())
+
+    def test_call_none(self):
+        self.assertRaises(lupa.LuaError, self.lua.eval, 'python.none()')
+
+    def test_eval(self):
+        function = self.lua.eval('function() return python.eval end')
+        self.assertEqual(2, eval('1+1'))
+        self.assertEqual(2, self.lua.eval('python.eval("1+1")'))
+
     def test_string_values(self):
         function = self.lua.eval('function(s) return s .. "abc" end')
         self.assertEqual('ABCabc', function('ABC'))
@@ -43,6 +65,12 @@ class TestLuaRuntime(unittest.TestCase):
     def test_int_values(self):
         function = self.lua.eval('function(i) return i + 5 end')
         self.assertEqual(3+5, function(3))
+
+    def test_callable_values(self):
+        function = self.lua.eval('function(f) return f() + 5 end')
+        def test():
+            return 3
+        self.assertEqual(3+5, function(test))
 
 
 class TestMultipleLuaRuntimes(unittest.TestCase):
