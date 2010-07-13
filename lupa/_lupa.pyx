@@ -32,6 +32,21 @@ class LuaError(Exception):
     pass
 
 cdef class LuaRuntime:
+    """The main entry point to the Lua runtime.
+
+    Example usage::
+
+      >>> from lupa import LuaRuntime
+      >>> lua = LuaRuntime()
+
+      >>> lua.eval('1+1')
+      2
+
+      >>> def add1(n): return n+1
+      >>> func = lua.eval('function(f, n) return f(n) end')
+      >>> func(add1, 2)
+      3
+    """
     cdef lua_State *_state
     cdef pythread.PyThread_type_lock _thread_lock
     cdef tuple _raised_exception

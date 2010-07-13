@@ -22,3 +22,16 @@ The advantages over LunaticPython are:
 .. _LunaticPython: http://labix.org/lunatic-python
 .. _Cython: http://cython.org
 
+
+Example usage::
+
+      >>> from lupa import LuaRuntime
+      >>> lua = LuaRuntime()
+
+      >>> lua.eval('1+1')
+      2
+
+      >>> def add1(n): return n+1
+      >>> func = lua.eval('function(f, n) return f(n) end')
+      >>> func(add1, 2)
+      3

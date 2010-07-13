@@ -3,6 +3,8 @@ import sys
 import os
 from distutils.core import setup, Extension
 
+VERSION = '0.2'
+
 extra_setup_args = {}
 
 # check if Cython is installed, and use it if available
@@ -57,15 +59,15 @@ long_description = '\n\n'.join(
 
 setup(
     name = "lupa",
-    version = '0.1',
-    author="Stefan Behnel",
-    author_email="stefan_ml (at) behnel.de",
-    url="http://pypi.python.org/pypi/lupa",
-#    download_url="",
+    version = VERSION,
+    author = "Stefan Behnel",
+    author_email = "stefan_ml (at) behnel.de",
+    url = "http://pypi.python.org/pypi/lupa",
+    download_url = "http://pypi.python.org/packages/source/l/lupa/lupa-%s.tar.gz" % VERSION,
 
     description="Simple wrapper around LuaJIT",
 
-    long_description=long_description,
+    long_description = long_description,
     classifiers = [
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',

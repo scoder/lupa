@@ -1,6 +1,12 @@
 Lupa change log
 ================
 
+0.2 (2010-07-13)
+-----------------
+
+* propagate Python exceptions through Lua calls
+
+
 0.1 (2010-07-12)
 -----------------
 
