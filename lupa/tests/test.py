@@ -1,4 +1,5 @@
 
+import threading
 import unittest
 import lupa
 
@@ -45,6 +46,42 @@ class TestLuaRuntime(unittest.TestCase):
         self.assertNotEqual(None, fac)
         self.assertEqual(6,       fac(3))
         self.assertEqual(3628800, fac(10))
+
+    def test_double_recursive_function(self):
+        func_code = '''\
+        function calc(i)
+            if i > 2
+                then return calc(i-1) + calc(i-2) + 1
+                else return 1
+            end
+        end
+        return calc
+        '''
+        calc = self.lua.run(func_code)
+        self.assertNotEqual(None, calc)
+        self.assertEqual(3,     calc(3))
+        self.assertEqual(109,   calc(10))
+        self.assertEqual(13529, calc(20))
+
+    def test_double_recursive_function_pycallback(self):
+        func_code = '''\
+        function calc(pyfunc, i)
+            if i > 2
+                then return pyfunc(i) + calc(pyfunc, i-1) + calc(pyfunc, i-2) + 1
+                else return 1
+            end
+        end
+        return calc
+        '''
+        def pycallback(i):
+            return i**2
+
+        calc = self.lua.run(func_code)
+
+        self.assertNotEqual(None, calc)
+        self.assertEqual(12,     calc(pycallback, 3))
+        self.assertEqual(1342,   calc(pycallback, 10))
+        self.assertEqual(185925, calc(pycallback, 20))
 
     def test_none(self):
         function = self.lua.eval('function() return python.none end')
@@ -100,6 +137,33 @@ class TestLuaRuntime(unittest.TestCase):
             raise ValueError("huhu")
         self.assertRaises(ValueError, function, test)
 
+    def test_sequential_threading(self):
+        func_code = '''\
+        function calc(i)
+            if i > 2
+                then return calc(i-1) + calc(i-2) + 1
+                else return 1
+            end
+        end
+        return calc
+        '''
+        functions = [ self.lua.run(func_code) for _ in range(10) ]
+        results = [None] * len(functions)
+
+        def test(i, func, *args):
+            results[i] = func(*args)
+
+        threads = [ threading.Thread(target=test, args=(i, func, 20))
+                    for i, func in enumerate(functions) ]
+
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(1, len(set(results)))
+        self.assertEqual(13529, results[0])
+
 
 class TestMultipleLuaRuntimes(unittest.TestCase):
 
@@ -131,6 +195,67 @@ class TestMultipleLuaRuntimes(unittest.TestCase):
         self.assertEqual(2, function2())
         self.assertEqual(3, function3())
 
+    def test_threading(self):
+        func_code = '''\
+        function calc(i)
+            if i > 2
+                then return calc(i-1) + calc(i-2) + 1
+                else return 1
+            end
+        end
+        return calc
+        '''
+        runtimes  = [ lupa.LuaRuntime() for _ in range(10) ]
+        functions = [ lua.run(func_code) for lua in runtimes ]
+
+        results = [None] * len(runtimes)
+
+        def test(i, func, *args):
+            results[i] = func(*args)
+
+        threads = [ threading.Thread(target=test, args=(i, func, 20))
+                    for i, func in enumerate(functions) ]
+
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(1, len(set(results)))
+        self.assertEqual(13529, results[0])
+
+    def test_threading_pycallback(self):
+        func_code = '''\
+        function calc(pyfunc, i)
+            if i > 2
+                then return pyfunc(i) + calc(pyfunc, i-1) + calc(pyfunc, i-2) + 1
+                else return 1
+            end
+        end
+        return calc
+        '''
+        runtimes  = [ lupa.LuaRuntime() for _ in range(10) ]
+        functions = [ lua.run(func_code) for lua in runtimes ]
+
+        results = [None] * len(runtimes)
+
+        def pycallback(i):
+            return i**2
+
+        def test(i, func, *args):
+            results[i] = func(*args)
+
+        threads = [ threading.Thread(target=test, args=(i, luafunc, pycallback, 20))
+                    for i, luafunc in enumerate(functions) ]
+
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(1, len(set(results)))
+        self.assertEqual(185925, results[0])
+        
 
 if __name__ == '__main__':
     import unittest

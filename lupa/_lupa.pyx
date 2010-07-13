@@ -2,7 +2,7 @@
 cimport lua
 from lua cimport lua_State
 
-cimport cpython, cpython.ref, cpython.tuple
+cimport cpython, cpython.ref
 from cpython.ref cimport PyObject
 from cpython cimport pythread
 
@@ -80,11 +80,13 @@ cdef class LuaRuntime:
             self._thread_lock = NULL
 
     cdef int lock(self) except -1:
-        if not pythread.PyThread_acquire_lock(self._thread_lock, pythread.WAIT_LOCK):
+        with nogil:
+            locked = pythread.PyThread_acquire_lock(self._thread_lock, pythread.WAIT_LOCK)
+        if not locked:
             raise LuaError("Failed to acquire thread lock")
         return 0
 
-    cdef void unlock(self):
+    cdef void unlock(self) nogil:
         pythread.PyThread_release_lock(self._thread_lock)
 
     cdef int reraise_on_exception(self) except -1:
@@ -96,6 +98,7 @@ cdef class LuaRuntime:
 
     cdef int store_raised_exception(self) except -1:
         self._raised_exception = exc_info()
+        return 0
 
     def eval(self, lua_code):
         if isinstance(lua_code, unicode):
@@ -169,9 +172,13 @@ cdef class _LuaObject:
     def __call__(self, *args):
         assert self._runtime is not None
         cdef lua_State* L = self._runtime._state
-        lua.lua_settop(L, 0)
-        lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
-        return call_lua(self._runtime, args)
+        self._runtime.lock()
+        try:
+            lua.lua_settop(L, 0)
+            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
+            return call_lua(self._runtime, args)
+        finally:
+            self._runtime.unlock()
 
     def __getattr__(self, name):
         assert self._runtime is not None
@@ -278,6 +285,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, object o, int as_index):
 
 
 cdef run_lua(LuaRuntime runtime, bytes lua_code):
+    # locks the runtime
     cdef lua_State* L = runtime._state
     cdef bint result
     runtime.lock()
@@ -298,41 +306,35 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code):
 
 
 cdef call_lua(LuaRuntime runtime, tuple args):
+    # does not lock the runtime!
     cdef lua_State *L = runtime._state
     cdef Py_ssize_t i, nargs
     cdef int result_status
-    runtime.lock()
-    try:
-        # convert arguments
-        for i, arg in enumerate(args):
-            if not py_to_lua(runtime, arg, 0):
-                lua.lua_settop(L, 0)
-                raise TypeError("failed to convert argument at index %d" % i)
-
-        # call into Lua
-        nargs = len(args)
-        with nogil:
-            result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
-        runtime.reraise_on_exception()
-        if result_status:
-            raise LuaError("error: %s" % lua.lua_tostring(L, -1))
-
-        # extract return values
-        try:
-            nargs = lua.lua_gettop(L)
-            if nargs == 1:
-                return py_from_lua(runtime, 1)
-            elif nargs == 0:
-                return None
-            else:
-                ret_tuple = cpython.tuple.PyTuple_New(nargs)
-                for i in range(nargs):
-                    cpython.tuple.PyTuple_SetItem(ret_tuple, i, py_from_lua(runtime, i+1))
-                return ret_tuple
-        finally:
+    # convert arguments
+    for i, arg in enumerate(args):
+        if not py_to_lua(runtime, arg, 0):
             lua.lua_settop(L, 0)
+            raise TypeError("failed to convert argument at index %d" % i)
+
+    # call into Lua
+    nargs = len(args)
+    with nogil:
+        result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
+    runtime.reraise_on_exception()
+    if result_status:
+        raise LuaError("error: %s" % lua.lua_tostring(L, -1))
+
+    # extract return values
+    try:
+        nargs = lua.lua_gettop(L)
+        if nargs == 1:
+            return py_from_lua(runtime, 1)
+        elif nargs == 0:
+            return None
+        else:
+            return tuple([ py_from_lua(runtime, i+1) for i in range(nargs) ])
     finally:
-        runtime.unlock()
+        lua.lua_settop(L, 0)
 
 
 ################################################################################
@@ -356,20 +358,12 @@ cdef bint call_python(LuaRuntime runtime, py_object* py_obj) except -1:
     cdef lua_State *L = runtime._state
     cdef int nargs = lua.lua_gettop(L) - 1
     cdef bint ret = 0
-    cdef int i = -1
 
     if not py_obj:
         lua.luaL_argerror(L, 1, "not a python object")
         return 0
-    try:
-        args = cpython.tuple.PyTuple_New(nargs)
-        for i in range(nargs):
-            cpython.tuple.PyTuple_SetItem(args, i, py_from_lua(runtime, i+2))
-    except:
-        if i > -1:
-            raise LuaError("failed to convert argument #%d" % i+1)
-        raise
 
+    args = [ py_from_lua(runtime, i+2) for i in range(nargs) ]
     return py_to_lua(runtime, (<object>py_obj.obj)(*args), 0)
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:

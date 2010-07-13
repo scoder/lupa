@@ -3,7 +3,7 @@ import sys
 import os
 from distutils.core import setup, Extension
 
-VERSION = '0.2'
+VERSION = '0.3'
 
 extra_setup_args = {}
 
@@ -22,6 +22,7 @@ except ImportError:
 
 if 'setuptools' in sys.modules:
     extra_setup_args['test_suite'] = 'lupa.tests.suite'
+    extra_setup_args["zip_safe"] = False
 
 # check if LuaJIT is in a subdirectory and build statically against it
 

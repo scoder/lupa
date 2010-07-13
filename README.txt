@@ -10,13 +10,15 @@ The advantages over LunaticPython are:
 
 * separate Lua runtime states through a ``LuaRuntime`` class
 
+* frees the GIL and supports threading when calling into Lua
+
 * supports Python 2.x and 3.x, potentially starting with Python 2.3
   (currently untested)
 
 * written for LuaJIT2, as opposed to the Lua interpreter (tested with
   LuaJIT 2.0.0-beta4)
 
-* much easier to extend as it is written in Cython, not C
+* much easier to hack on and extend as it is written in Cython, not C
 
 
 .. _LunaticPython: http://labix.org/lunatic-python
