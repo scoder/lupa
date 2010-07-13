@@ -51,7 +51,7 @@ class TestLuaRuntime(unittest.TestCase):
         self.assertEqual(None, function())
 
     def test_call_none(self):
-        self.assertRaises(lupa.LuaError, self.lua.eval, 'python.none()')
+        self.assertRaises(TypeError, self.lua.eval, 'python.none()')
 
     def test_call_str(self):
         self.assertEqual("test-None", self.lua.eval('"test-" .. tostring(python.none)'))
@@ -87,6 +87,12 @@ class TestLuaRuntime(unittest.TestCase):
         def test():
             return 3
         self.assertEqual(3+5, function(test))
+
+    def test_reraise(self):
+        function = self.lua.eval('function(f) return f() + 5 end')
+        def test():
+            raise ValueError("huhu")
+        self.assertRaises(ValueError, function, test)
 
 
 class TestMultipleLuaRuntimes(unittest.TestCase):

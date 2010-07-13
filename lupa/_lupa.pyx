@@ -6,6 +6,9 @@ cimport cpython, cpython.ref, cpython.tuple
 from cpython.ref cimport PyObject
 from cpython cimport pythread
 
+cdef object exc_info
+from sys import exc_info
+
 __all__ = ['LuaRuntime', 'LuaError']
 
 DEF POBJECT = "POBJECT" # as used by LunaticPython
@@ -31,6 +34,7 @@ class LuaError(Exception):
 cdef class LuaRuntime:
     cdef lua_State *_state
     cdef pythread.PyThread_type_lock _thread_lock
+    cdef tuple _raised_exception
 
     def __cinit__(self):
         self._thread_lock = self._state = NULL
@@ -67,6 +71,16 @@ cdef class LuaRuntime:
 
     cdef void unlock(self):
         pythread.PyThread_release_lock(self._thread_lock)
+
+    cdef int reraise_on_exception(self) except -1:
+        if self._raised_exception is not None:
+            exception = self._raised_exception
+            self._raised_exception = None
+            raise exception[0], exception[1], exception[2]
+        return 0
+
+    cdef int store_raised_exception(self) except -1:
+        self._raised_exception = exc_info()
 
     def eval(self, lua_code):
         if isinstance(lua_code, unicode):
@@ -250,11 +264,15 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, object o, int as_index):
 
 cdef run_lua(LuaRuntime runtime, bytes lua_code):
     cdef lua_State* L = runtime._state
+    cdef bint result
     runtime.lock()
     try:
         if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
             raise LuaError("error loading code: %s" % lua.lua_tostring(L, -1))
-        if lua.lua_pcall(L, 0, 1, 0):
+        with nogil:
+            result = lua.lua_pcall(L, 0, 1, 0)
+        runtime.reraise_on_exception()
+        if result:
             raise LuaError("error executing code: %s" % lua.lua_tostring(L, -1))
         try:
             return py_from_lua(runtime, -1)
@@ -280,6 +298,7 @@ cdef call_lua(LuaRuntime runtime, tuple args):
         nargs = len(args)
         with nogil:
             result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
+        runtime.reraise_on_exception()
         if result_status:
             raise LuaError("error: %s" % lua.lua_tostring(L, -1))
 
@@ -339,7 +358,7 @@ cdef bint call_python(LuaRuntime runtime, py_object* py_obj) except -1:
     return py_to_lua(runtime, (<object>py_obj.obj)(*args), 0)
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
-    cdef LuaRuntime runtime
+    cdef LuaRuntime runtime = None
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         if runtime._state is not L:
@@ -347,11 +366,12 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
             return 0
         return call_python(runtime, py_obj)
     except Exception as e:
+        runtime.store_raised_exception()
         try:
             message = (u"error during Python call: %r" % e).encode('UTF-8')
+            lua.luaL_error(L, message)
         except:
-            message = b"error during Python call"
-        lua.luaL_error(L, message)
+            lua.luaL_error(L, b"error during Python call")
         return 0
 
 cdef int py_object_call(lua_State* L):
@@ -379,11 +399,12 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
         lua.lua_pushlstring(L, <bytes>s, len(<bytes>s))
         return 1 # returning 1 value
     except Exception as e:
+        runtime.store_raised_exception()
         try:
             message = (u"error during Python str() call: %r" % e).encode('UTF-8')
+            lua.luaL_error(L, message)
         except:
-            message = b"error during Python str() call"
-        lua.luaL_error(L, message)
+            lua.luaL_error(L, b"error during Python str() call")
         return 0
 
 cdef int py_object_str(lua_State* L):
