@@ -88,6 +88,12 @@ class TestLuaRuntime(unittest.TestCase):
             return 3
         self.assertEqual(3+5, function(test))
 
+    def test_callable_values_pass_through(self):
+        function = self.lua.eval('function(f, n) return f(n) + 5 end')
+        def test(n):
+            return n
+        self.assertEqual(2+5, function(test, 2))
+
     def test_reraise(self):
         function = self.lua.eval('function(f) return f() + 5 end')
         def test():
