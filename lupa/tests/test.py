@@ -119,6 +119,25 @@ class TestLuaRuntime(unittest.TestCase):
         function = self.lua.eval('function(i) return i + 5 end')
         self.assertEqual(3+5, function(3))
 
+    def test_str_function(self):
+        func = self.lua.eval('function() return 1 end')
+        self.assertEqual('<Lua function at ', str(func)[:17])
+
+    def test_str_table(self):
+        table = self.lua.eval('{}')
+        self.assertEqual('<Lua table at ', str(table)[:14])
+
+    def test_getattr(self):
+        stringlib = self.lua.eval('string')
+        self.assertEqual('abc'.encode('ASCII'), stringlib.lower('ABC'.encode('ASCII')))
+
+    def test_getattr_table(self):
+        table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
+        self.assertEqual(1, table.val)
+        self.assertEqual('Pi', table.const.name)
+        self.assertEqual('light speed', table.const2.name)
+        self.assertEqual(3e8, table.const2.value)
+
     def test_callable_values(self):
         function = self.lua.eval('function(f) return f() + 5 end')
         def test():

@@ -2,7 +2,9 @@
 cimport lua
 from lua cimport lua_State
 
-cimport cpython, cpython.ref
+cimport cpython
+cimport cpython.ref
+cimport cpython.bytes
 from cpython.ref cimport PyObject
 from cpython cimport pythread
 
@@ -42,9 +44,10 @@ cdef class LuaRuntime:
       >>> lua.eval('1+1')
       2
 
-      >>> def add1(n): return n+1
-      >>> func = lua.eval('function(f, n) return f(n) end')
-      >>> func(add1, 2)
+      >>> lua_func = lua.eval('function(f, n) return f(n) end')
+
+      >>> def py_add1(n): return n+1
+      >>> lua_func(py_add1, 2)
       3
     """
     cdef lua_State *_state
@@ -163,9 +166,10 @@ cdef class _LuaObject:
     def __dealloc__(self):
         if self._runtime is None:
             return
-        lua.luaL_unref(self._runtime._state, lua.LUA_REGISTRYINDEX, self._ref)
+        cdef lua_State* L = self._runtime._state
+        lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
         if self._refiter:
-            lua.luaL_unref(self._runtime._state, lua.LUA_REGISTRYINDEX, self._refiter)
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
 
@@ -180,20 +184,68 @@ cdef class _LuaObject:
         finally:
             self._runtime.unlock()
 
+    def __str__(self):
+        assert self._runtime is not None
+        cdef lua_State* L = self._runtime._state
+        cdef unicode py_string = None
+        cdef bytes py_bytes = None
+        cdef char* s
+        cdef void* ptr
+        cdef int lua_type
+        self._runtime.lock()
+        try:
+            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
+            if lua.luaL_callmeta(L, -1, "__tostring"):
+                s = lua.lua_tostring(L, -1)
+                lua.lua_pop(L, 1)
+                if s:
+                    try:
+                        py_string = s.decode('UTF-8')
+                    except UnicodeDecodeError:
+                        # safe 'decode'
+                        py_string = s.decode('ISO-8859-1')
+            if py_string is None:
+                lua_type = lua.lua_type(L, -1)
+                ptr = NULL
+                if lua_type in (lua.LUA_TTABLE, lua.LUA_TFUNCTION):
+                    ptr = <void*>lua.lua_topointer(L, -1)
+                elif lua_type in (lua.LUA_TUSERDATA, lua.LUA_TLIGHTUSERDATA):
+                    ptr = <void*>lua.lua_touserdata(L, -1)
+                elif lua_type == lua.LUA_TTHREAD:
+                    ptr = <void*>lua.lua_tothread(L, -1)
+                if ptr is not NULL:
+                    py_bytes = cpython.bytes.PyBytes_FromFormat(
+                        "<Lua %s at %p>", lua.lua_typename(L, lua_type), ptr)
+                else:
+                    py_bytes = cpython.bytes.PyBytes_FromFormat(
+                        "<Lua %s>", lua.lua_typename(L, lua_type))
+                try:
+                    py_string = py_bytes.decode('UTF-8')
+                except UnicodeDecodeError:
+                    # safe 'decode'
+                    py_string = py_bytes.decode('ISO-8859-1')
+        finally:
+            self._runtime.unlock()
+        return py_string
+
     def __getattr__(self, name):
         assert self._runtime is not None
-        pass
-        ## lua_rawgeti(self._state, lua.LUA_REGISTRYINDEX, self._ref)
-        ## if lua.lua_isnil(self._state, -1):
-        ##     lua.lua_pop(self._state, 1)
-        ##     raise RuntimeError("lost reference")
-	## py_convert(self._state, attr, 0, "can't convert attr/key")
-        ## lua_gettable(L, -2);
-	## 	ret = LuaConvert(L, -1);
-	## } else {
-	## 	PyErr_SetString(PyExc_ValueError, "can't convert attr/key");
-	## }
-	## lua.lua_settop(L, 0)
+        cdef lua_State* L = self._runtime._state
+        cdef bytes name_utf = name if isinstance(name, bytes) else name.encode('UTF-8')
+        self._runtime.lock()
+        try:
+            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
+            if lua.lua_isnil(L, -1):
+                lua.lua_pop(L, 1)
+                raise LuaError("lost reference")
+            py_to_lua(self._runtime, name_utf, 0)
+            lua.lua_gettable(L, -2)
+            try:
+                return py_from_lua(self._runtime, -1)
+            finally:
+                lua.lua_settop(L, 0)
+        finally:
+            self._runtime.unlock()
 
 
 cdef int py_asfunc_call(lua_State *L):
