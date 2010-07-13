@@ -1,6 +1,15 @@
 Lupa change log
 ================
 
+0.4 (2010-07-14)
+-----------------
+
+* attribute read access on Lua objects, e.g. to read Lua table values
+  from Python
+
+* str() on Lua objects
+
+
 0.3 (2010-07-13)
 -----------------
 
