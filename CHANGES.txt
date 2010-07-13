@@ -9,6 +9,10 @@ Lupa change log
 
 * str() on Lua objects
 
+* include .hg repository in source downloads
+
+* added missing files to source distribution
+
 
 0.3 (2010-07-13)
 -----------------

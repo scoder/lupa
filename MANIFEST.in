@@ -1,0 +1,4 @@
+include MANIFEST.in MANIFEST
+include CHANGES.txt INSTALL.txt LICENSE.txt README.txt
+recursive-include lupa *.py *.pyx *.pxd *.c
+recursive-include .hg *
