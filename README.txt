@@ -33,6 +33,9 @@ Advantages over LunaticPython
 
 * separate Lua runtime states through a ``LuaRuntime`` class
 
+* proper encoding and decoding of strings (configurable, UTF-8 by
+  default)
+
 * frees the GIL and supports threading in separate runtimes when
   calling into Lua
 

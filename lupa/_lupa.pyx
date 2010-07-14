@@ -5,6 +5,7 @@ from lua cimport lua_State
 cimport cpython
 cimport cpython.ref
 cimport cpython.bytes
+cimport cpython.tuple
 from cpython.ref cimport PyObject
 from cpython cimport pythread
 
@@ -36,6 +37,18 @@ class LuaError(Exception):
 cdef class LuaRuntime:
     """The main entry point to the Lua runtime.
 
+    Available options:
+
+    * ``encoding``: the string encoding, defaulting to UTF-8.  If set
+      to ``None``, all string values will be returned as byte strings.
+      Otherwise, they will be decoded to unicode strings on the way
+      from Lua to Python and unicode strings will be encoded on the
+      way to Lua.  Note that ``str()`` calls on Lua objects will
+      always return a unicode object.
+
+    * ``source_encoding``: the encoding used for Lua code, defaulting to
+      the string encoding or UTF-8 if the string encoding is ``None``.
+
     Example usage::
 
       >>> from lupa import LuaRuntime
@@ -53,8 +66,10 @@ cdef class LuaRuntime:
     cdef lua_State *_state
     cdef pythread.PyThread_type_lock _thread_lock
     cdef tuple _raised_exception
+    cdef bytes _encoding
+    cdef bytes _source_encoding
 
-    def __cinit__(self):
+    def __cinit__(self, encoding='UTF-8', source_encoding=None):
         self._thread_lock = self._state = NULL
         cdef lua_State* L = lua.lua_open()
         if L is NULL:
@@ -64,6 +79,9 @@ cdef class LuaRuntime:
         self._thread_lock = pythread.PyThread_allocate_lock()
         if self._thread_lock is NULL:
             raise LuaError("Failed to initialise thread lock")
+
+        self._encoding = None if encoding is None else encoding.encode('ASCII')
+        self._source_encoding = self._encoding or b'UTF-8'
 
         lua.luaopen_base(L)
         lua.luaopen_table(L)
@@ -105,12 +123,12 @@ cdef class LuaRuntime:
 
     def eval(self, lua_code):
         if isinstance(lua_code, unicode):
-            lua_code = (<unicode>lua_code).encode('UTF-8')
+            lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, b'return ' + lua_code)
 
     def run(self, lua_code):
         if isinstance(lua_code, unicode):
-            lua_code = (<unicode>lua_code).encode('UTF-8')
+            lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, lua_code)
 
     cdef int register_py_object(self, bytes cname, bytes pyname, object obj) except -1:
@@ -137,8 +155,8 @@ cdef class LuaRuntime:
         lua.lua_pop(L, 1)
 
         # register global names in the module
-        self.register_py_object('Py_None', 'none', None)
-        self.register_py_object('eval',    'eval', eval)
+        self.register_py_object(b'Py_None', b'none', None)
+        self.register_py_object(b'eval',    b'eval', eval)
 
         return 0 # nothing left to return on the stack
 
@@ -192,6 +210,7 @@ cdef class _LuaObject:
         cdef char* s
         cdef void* ptr
         cdef int lua_type
+        encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
         self._runtime.lock()
         try:
             lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
@@ -200,7 +219,7 @@ cdef class _LuaObject:
                 lua.lua_pop(L, 1)
                 if s:
                     try:
-                        py_string = s.decode('UTF-8')
+                        py_string = s.decode(encoding)
                     except UnicodeDecodeError:
                         # safe 'decode'
                         py_string = s.decode('ISO-8859-1')
@@ -220,7 +239,7 @@ cdef class _LuaObject:
                     py_bytes = cpython.bytes.PyBytes_FromFormat(
                         "<Lua %s>", lua.lua_typename(L, lua_type))
                 try:
-                    py_string = py_bytes.decode('UTF-8')
+                    py_string = py_bytes.decode(encoding)
                 except UnicodeDecodeError:
                     # safe 'decode'
                     py_string = py_bytes.decode('ISO-8859-1')
@@ -231,7 +250,8 @@ cdef class _LuaObject:
     def __getattr__(self, name):
         assert self._runtime is not None
         cdef lua_State* L = self._runtime._state
-        cdef bytes name_utf = name if isinstance(name, bytes) else name.encode('UTF-8')
+        cdef bytes name_utf = ((<unicode>name).encode(self._runtime._source_encoding)
+                               if isinstance(name, unicode) else name)
         self._runtime.lock()
         try:
             lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
@@ -266,7 +286,10 @@ cdef object py_from_lua(LuaRuntime runtime, int n):
         return None
     elif lua_type == lua.LUA_TSTRING:
         s = lua.lua_tolstring(L, n, &size)
-        return s[:size]
+        if runtime._encoding is not None:
+            return s[:size].decode(runtime._encoding)
+        else:
+            return s[:size]
     elif lua_type == lua.LUA_TNUMBER:
         number = lua.lua_tonumber(L, n)
         if number != <long>number:
@@ -285,6 +308,7 @@ cdef bint py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
     cdef lua_State *L = runtime._state
     cdef bint pushed_values_count = 0
     cdef bint as_index = 0
+    cdef bytes bytes_string
 
     if o is None:
         if withnone:
@@ -303,6 +327,10 @@ cdef bint py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
         pushed_values_count = 1
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
+        pushed_values_count = 1
+    elif isinstance(o, unicode) and runtime._encoding is not None:
+        bytes_string = (<unicode>o).encode(runtime._encoding)
+        lua.lua_pushlstring(L, <char*>bytes_string, len(bytes_string))
         pushed_values_count = 1
     elif isinstance(o, int) or isinstance(o, float):
         lua.lua_pushnumber(L, <lua.lua_Number><double>o)
@@ -383,8 +411,13 @@ cdef call_lua(LuaRuntime runtime, tuple args):
             return py_from_lua(runtime, 1)
         elif nargs == 0:
             return None
-        else:
-            return tuple([ py_from_lua(runtime, i+1) for i in range(nargs) ])
+
+        args = cpython.tuple.PyTuple_New(nargs)
+        for i in range(nargs):
+            arg = py_from_lua(runtime, i+1)
+            cpython.ref.Py_INCREF(arg)
+            cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
+        return args
     finally:
         lua.lua_settop(L, 0)
 
@@ -415,7 +448,12 @@ cdef bint call_python(LuaRuntime runtime, py_object* py_obj) except -1:
         lua.luaL_argerror(L, 1, "not a python object")
         return 0
 
-    args = [ py_from_lua(runtime, i+2) for i in range(nargs) ]
+    args = cpython.tuple.PyTuple_New(nargs)
+    for i in range(nargs):
+        arg = py_from_lua(runtime, i+2)
+        cpython.ref.Py_INCREF(arg)
+        cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
+
     return py_to_lua(runtime, (<object>py_obj.obj)(*args), 0)
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:

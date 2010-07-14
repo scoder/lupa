@@ -1,6 +1,13 @@
 Lupa change log
 ================
 
+0.5 (2010-07-14)
+-----------------
+
+* explicit encoding options per LuaRuntime instance to decode/encode
+  strings and Lua code
+
+
 0.4 (2010-07-14)
 -----------------
 

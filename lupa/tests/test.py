@@ -1,7 +1,13 @@
+# -*- coding: utf-8 -*-
 
 import threading
 import unittest
+import sys
+
 import lupa
+
+IS_PYTHON3 = sys.version_info[0] >= 3
+
 
 class TestLuaRuntime(unittest.TestCase):
 
@@ -129,7 +135,7 @@ class TestLuaRuntime(unittest.TestCase):
 
     def test_getattr(self):
         stringlib = self.lua.eval('string')
-        self.assertEqual('abc'.encode('ASCII'), stringlib.lower('ABC'.encode('ASCII')))
+        self.assertEqual('abc', stringlib.lower('ABC'))
 
     def test_getattr_table(self):
         table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
@@ -150,7 +156,7 @@ class TestLuaRuntime(unittest.TestCase):
             return n
         self.assertEqual(2+5, function(test, 2))
 
-    def test_reraise(self):
+    def _test_reraise(self):
         function = self.lua.eval('function(f) return f() + 5 end')
         def test():
             raise ValueError("huhu")
@@ -182,6 +188,42 @@ class TestLuaRuntime(unittest.TestCase):
 
         self.assertEqual(1, len(set(results)))
         self.assertEqual(13529, results[0])
+
+
+class TestLuaRuntimeEncoding(unittest.TestCase):
+    unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
+
+    test_string = '"abcüöä"'
+    if not IS_PYTHON3:
+        test_string = test_string.decode('UTF-8')
+
+    def _encoding_test(self, encoding, expected_length):
+        lua = lupa.LuaRuntime(encoding)
+
+        self.assertEqual(self.unicode_type,
+                         type(lua.eval(self.test_string)))
+
+        self.assertEqual(self.test_string[1:-1],
+                         lua.eval(self.test_string))
+
+        self.assertEqual(expected_length,
+                         lua.eval('string.len(%s)' % self.test_string))
+
+    def test_utf8(self):
+        self._encoding_test('UTF-8', 9)
+
+    def test_latin9(self):
+        self._encoding_test('ISO-8859-15', 6)
+
+    def test_stringlib_utf8(self):
+        lua = lupa.LuaRuntime('UTF-8')
+        stringlib = lua.eval('string')
+        self.assertEqual('abc', stringlib.lower('ABC'))
+
+    def test_stringlib_no_encoding(self):
+        lua = lupa.LuaRuntime(encoding=None)
+        stringlib = lua.eval('string')
+        self.assertEqual('abc'.encode('ASCII'), stringlib.lower('ABC'.encode('ASCII')))
 
 
 class TestMultipleLuaRuntimes(unittest.TestCase):
