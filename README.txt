@@ -1,11 +1,12 @@
 Lupa
 =====
 
-Lupa integrates the LuaJIT2 runtime into CPython.  It is a partial
+Lupa integrates the LuaJIT2_ runtime into CPython.  It is a partial
 rewrite of LunaticPython_ in Cython_.  Note that it is currently
 lacking some features and a lot of testing compared to LunaticPython,
 so it does not yet make for a production-ready Lua integration.
 
+.. _LuaJIT2: http://luajit.org/
 .. _LunaticPython: http://labix.org/lunatic-python
 .. _Cython: http://cython.org
 
