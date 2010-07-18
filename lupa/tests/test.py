@@ -205,7 +205,7 @@ class TestLuaRuntime(unittest.TestCase):
             return n
         self.assertEqual(2+5, function(test, 2))
 
-    def _test_reraise(self):
+    def test_reraise(self):
         function = self.lua.eval('function(f) return f() + 5 end')
         def test():
             raise ValueError("huhu")
