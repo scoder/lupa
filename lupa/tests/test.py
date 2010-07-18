@@ -168,7 +168,7 @@ class TestLuaRuntime(unittest.TestCase):
         table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
         l = list(table.items())
         l.sort()
-        self.assertEqual(zip(keys,range(len('abcdefg'))), l)
+        self.assertEqual(zip(keys,range(len(keys))), l)
 
     def test_string_values(self):
         function = self.lua.eval('function(s) return s .. "abc" end')
