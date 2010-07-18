@@ -4,7 +4,9 @@ Lupa change log
 0.6 (??)
 -----------------
 
-* iteration support for Lua objects (e.g. tables)
+* Python oiteration support for Lua objects (e.g. tables)
+
+* threading fixes
 
 * fix compile warnings
 

@@ -186,8 +186,14 @@ cdef class _LuaObject:
         if self._runtime is None:
             return
         cdef lua_State* L = self._runtime._state
-        # FIXME: does this require the runtime lock? we hold the GIL, at least ...
+        try:
+            self._runtime.lock()
+            locked = True
+        except:
+            locked = False
         lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
+        if locked:
+            self._runtime.unlock()
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
 
@@ -321,8 +327,14 @@ cdef class _LuaIter:
             return
         cdef lua_State* L = self._runtime._state
         if self._refiter:
-            # FIXME: does this require the runtime lock? we hold the GIL, at least ...
+            try:
+                self._runtime.lock()
+                locked = True
+            except:
+                locked = False
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
+            if locked:
+                self._runtime.unlock()
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
 
