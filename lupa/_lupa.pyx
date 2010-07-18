@@ -334,9 +334,9 @@ cdef class _LuaIter:
             raise StopIteration
         cdef lua_State* L = self._runtime._state
         self._runtime.lock()
-        if self._obj is None:
-            raise StopIteration
         try:
+            if self._obj is None:
+                raise StopIteration
             # iterable object
             lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._obj._ref)
             if lua.lua_isnil(L, -1):
