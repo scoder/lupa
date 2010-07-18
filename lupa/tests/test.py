@@ -27,8 +27,8 @@ class TestLuaRuntime(unittest.TestCase):
     def test_eval(self):
         self.assertEqual(2, self.lua.eval('1+1'))
 
-    def test_run(self):
-        self.assertEqual(2, self.lua.run('return 1+1'))
+    def test_execute(self):
+        self.assertEqual(2, self.lua.execute('return 1+1'))
 
     def test_function(self):
         function = self.lua.eval('function() return 1+1 end')
@@ -46,7 +46,7 @@ class TestLuaRuntime(unittest.TestCase):
         self.assertEqual(1, function1())
 
     def test_recursive_function(self):
-        fac = self.lua.run('''\
+        fac = self.lua.execute('''\
         function fac(i)
             if i <= 1
                 then return 1
@@ -69,7 +69,7 @@ class TestLuaRuntime(unittest.TestCase):
         end
         return calc
         '''
-        calc = self.lua.run(func_code)
+        calc = self.lua.execute(func_code)
         self.assertNotEqual(None, calc)
         self.assertEqual(3,     calc(3))
         self.assertEqual(109,   calc(10))
@@ -88,7 +88,7 @@ class TestLuaRuntime(unittest.TestCase):
         def pycallback(i):
             return i**2
 
-        calc = self.lua.run(func_code)
+        calc = self.lua.execute(func_code)
 
         self.assertNotEqual(None, calc)
         self.assertEqual(12,     calc(pycallback, 3))
@@ -410,7 +410,7 @@ class TestThreading(unittest.TestCase):
         return calc
         '''
         lua = lupa.LuaRuntime()
-        functions = [ lua.run(func_code) for _ in range(10) ]
+        functions = [ lua.execute(func_code) for _ in range(10) ]
         results = [None] * len(functions)
 
         def test(i, func, *args):
@@ -435,7 +435,7 @@ class TestThreading(unittest.TestCase):
         return calc
         '''
         runtimes  = [ lupa.LuaRuntime() for _ in range(10) ]
-        functions = [ lua.run(func_code) for lua in runtimes ]
+        functions = [ lua.execute(func_code) for lua in runtimes ]
 
         results = [None] * len(runtimes)
 
@@ -461,7 +461,7 @@ class TestThreading(unittest.TestCase):
         return calc
         '''
         runtimes  = [ lupa.LuaRuntime() for _ in range(10) ]
-        functions = [ lua.run(func_code) for lua in runtimes ]
+        functions = [ lua.execute(func_code) for lua in runtimes ]
 
         results = [None] * len(runtimes)
 

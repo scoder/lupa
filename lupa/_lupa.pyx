@@ -140,7 +140,7 @@ cdef class LuaRuntime:
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, b'return ' + lua_code)
 
-    def run(self, lua_code):
+    def execute(self, lua_code):
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, lua_code)
