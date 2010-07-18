@@ -308,6 +308,8 @@ cdef class _LuaIter:
         self._what = what
 
     def __dealloc__(self):
+        if self._runtime is None:
+            return
         cdef lua_State* L = self._runtime._state
         if self._refiter:
             self._runtime.lock()
