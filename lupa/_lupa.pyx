@@ -174,24 +174,20 @@ cdef _LuaObject new_lua_object(LuaRuntime runtime, int n):
     return obj
 
 cdef class _LuaObject:
+    """A wrapper around a Lua object such as a table of function.
+    """
     cdef LuaRuntime _runtime
     cdef int _ref
 
     def __init__(self):
         raise TypeError("Type cannot be instantiated manually")
 
-    def __cinit__(self):
-        self._ref = 0
-
     def __dealloc__(self):
         if self._runtime is None:
             return
         cdef lua_State* L = self._runtime._state
-        self._runtime.lock()
-        try:
-            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
-        finally:
-            self._runtime.unlock()
+        # FIXME: does this require the runtime lock? we hold the GIL, at least ...
+        lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
 
@@ -207,15 +203,28 @@ cdef class _LuaObject:
             self._runtime.unlock()
 
     def __iter__(self):
+        assert self._runtime is not None
         return _LuaIter(self, KEYS)
 
     def keys(self):
+        """Returns an iterator over the keys of a table (or other
+        iterable) that this object represents.  Same as iter(obj).
+        """
+        assert self._runtime is not None
         return _LuaIter(self, KEYS)
 
     def values(self):
+        """Returns an iterator over the values of a table (or other
+        iterable) that this object represents.
+        """
+        assert self._runtime is not None
         return _LuaIter(self, VALUES)
 
     def items(self):
+        """Returns an iterator over the key-value pairs of a table (or
+        other iterable) that this object represents.
+        """
+        assert self._runtime is not None
         return _LuaIter(self, ITEMS)
 
     def __str__(self):
@@ -312,11 +321,8 @@ cdef class _LuaIter:
             return
         cdef lua_State* L = self._runtime._state
         if self._refiter:
-            self._runtime.lock()
-            try:
-                lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
-            finally:
-                self._runtime.unlock()
+            # FIXME: does this require the runtime lock? we hold the GIL, at least ...
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
 
