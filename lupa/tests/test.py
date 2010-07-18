@@ -8,7 +8,6 @@ import lupa
 
 IS_PYTHON3 = sys.version_info[0] >= 3
 
-
 class TestLuaRuntime(unittest.TestCase):
 
     def setUp(self):
@@ -162,32 +161,53 @@ class TestLuaRuntime(unittest.TestCase):
             raise ValueError("huhu")
         self.assertRaises(ValueError, function, test)
 
-    def test_sequential_threading(self):
-        func_code = '''\
-        function calc(i)
-            if i > 2
-                then return calc(i-1) + calc(i-2) + 1
-                else return 1
-            end
+
+class TestLuaApplications(unittest.TestCase):
+    def test_mandelbrot(self):
+        # copied from Computer Language Benchmarks Game
+        code = '''\
+function(N)
+    local char, unpack = string.char, unpack
+    local result = ""
+    local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
+    for y=0,N-1 do
+      local Ci, b, p = y*M-1, 1, 0
+      for x=0,N-1 do
+        local Cr = x*M-1.5
+        local Zr, Zi, Zrq, Ziq = Cr, Ci, Cr*Cr, Ci*Ci
+        b = b + b
+        for i=1,49 do
+          Zi = Zr*Zi*2 + Ci
+          Zr = Zrq-Ziq + Cr
+          Ziq = Zi*Zi
+          Zrq = Zr*Zr
+          if Zrq+Ziq > 4.0 then b = b + 1; break; end
         end
-        return calc
-        '''
-        functions = [ self.lua.run(func_code) for _ in range(10) ]
-        results = [None] * len(functions)
+        if b >= 256 then p = p + 1; buf[p] = 511 - b; b = 1; end
+      end
+      if b ~= 1 then p = p + 1; buf[p] = (ba-b)*bb; end
+      result = result .. char(unpack(buf, 1, p))
+    end
+    return result
+end
+'''
 
-        def test(i, func, *args):
-            results[i] = func(*args)
+        lua = lupa.LuaRuntime(encoding=None)
+        lua_mandelbrot = lua.eval(code)
 
-        threads = [ threading.Thread(target=test, args=(i, func, 20))
-                    for i, func in enumerate(functions) ]
+        image_size = 128
+        result_bytes = lua_mandelbrot(image_size)
+        self.assertEqual(type(result_bytes), type(''.encode('ASCII')))
+        self.assertEqual(image_size*image_size//8, len(result_bytes))
 
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
-
-        self.assertEqual(1, len(set(results)))
-        self.assertEqual(13529, results[0])
+        # if we have PIL, check that it can read the image
+        ## try:
+        ##     import Image
+        ## except ImportError:
+        ##     pass
+        ## else:
+        ##     image = Image.fromstring('1', (image_size, image_size), result_bytes)
+        ##     image.show()
 
 
 class TestLuaRuntimeEncoding(unittest.TestCase):
@@ -256,6 +276,40 @@ class TestMultipleLuaRuntimes(unittest.TestCase):
         self.assertEqual(2, function2())
         self.assertEqual(3, function3())
 
+
+class TestThreading(unittest.TestCase):
+
+    def _run_threads(self, threads):
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    def test_sequential_threading(self):
+        func_code = '''\
+        function calc(i)
+            if i > 2
+                then return calc(i-1) + calc(i-2) + 1
+                else return 1
+            end
+        end
+        return calc
+        '''
+        lua = lupa.LuaRuntime()
+        functions = [ lua.run(func_code) for _ in range(10) ]
+        results = [None] * len(functions)
+
+        def test(i, func, *args):
+            results[i] = func(*args)
+
+        threads = [ threading.Thread(target=test, args=(i, func, 20))
+                    for i, func in enumerate(functions) ]
+
+        self._run_threads(threads)
+
+        self.assertEqual(1, len(set(results)))
+        self.assertEqual(13529, results[0])
+
     def test_threading(self):
         func_code = '''\
         function calc(i)
@@ -277,10 +331,7 @@ class TestMultipleLuaRuntimes(unittest.TestCase):
         threads = [ threading.Thread(target=test, args=(i, func, 20))
                     for i, func in enumerate(functions) ]
 
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
+        self._run_threads(threads)
 
         self.assertEqual(1, len(set(results)))
         self.assertEqual(13529, results[0])
@@ -309,14 +360,11 @@ class TestMultipleLuaRuntimes(unittest.TestCase):
         threads = [ threading.Thread(target=test, args=(i, luafunc, pycallback, 20))
                     for i, luafunc in enumerate(functions) ]
 
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
+        self._run_threads(threads)
 
         self.assertEqual(1, len(set(results)))
         self.assertEqual(185925, results[0])
-        
+
 
 if __name__ == '__main__':
     import unittest
