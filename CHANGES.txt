@@ -1,7 +1,7 @@
 Lupa change log
 ================
 
-0.7 (2010-07-)
+0.7 (2010-07-18)
 -----------------
 
 * ``LuaRuntime.require()`` and ``LuaRuntime.globals()`` methods
