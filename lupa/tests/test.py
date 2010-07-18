@@ -461,6 +461,74 @@ class TestThreading(unittest.TestCase):
         l.sort()
         self.assertEqual(values, l)
 
+    def test_threading_mandelbrot(self):
+        # copied from Computer Language Benchmarks Game
+        code = '''\
+            function(N, i, total)
+                local char, unpack = string.char, unpack
+                local result = ""
+                local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
+                local start_line, end_line = N/total * (i-1), N/total * i - 1
+                for y=start_line,end_line do
+                    local Ci, b, p = y*M-1, 1, 0
+                    for x=0,N-1 do
+                        local Cr = x*M-1.5
+                        local Zr, Zi, Zrq, Ziq = Cr, Ci, Cr*Cr, Ci*Ci
+                        b = b + b
+                        for i=1,49 do
+                            Zi = Zr*Zi*2 + Ci
+                            Zr = Zrq-Ziq + Cr
+                            Ziq = Zi*Zi
+                            Zrq = Zr*Zr
+                            if Zrq+Ziq > 4.0 then b = b + 1; break; end
+                        end
+                        if b >= 256 then p = p + 1; buf[p] = 511 - b; b = 1; end
+                    end
+                    if b ~= 1 then p = p + 1; buf[p] = (ba-b)*bb; end
+                    result = result .. char(unpack(buf, 1, p))
+                end
+                return result
+            end
+            '''
+
+        empty_bytes_string = ''.encode('ASCII')
+
+        image_size = 128
+        thread_count = 4
+
+        lua_funcs = [ lupa.LuaRuntime(encoding=None).eval(code)
+                      for _ in range(thread_count) ]
+
+        results = [None] * thread_count
+        def mandelbrot(i, lua_func):
+            results[i] = lua_func(image_size, i+1, thread_count)
+
+        threads = [ threading.Thread(target=mandelbrot, args=(i, lua_func))
+                    for i, lua_func in enumerate(lua_funcs) ]
+        self._run_threads(threads)
+
+        result_bytes = empty_bytes_string.join(results)
+
+        self.assertEqual(type(result_bytes), type(empty_bytes_string))
+        self.assertEqual(image_size*image_size//8, len(result_bytes))
+
+        # plausability checks - make sure it's not all white or all black
+        self.assertEqual('\0'.encode('ASCII')*(image_size//8//2),
+                         result_bytes[:image_size//8//2])
+        if IS_PYTHON3:
+            self.assertTrue('\xFF'.encode('ISO-8859-1') in result_bytes)
+        else:
+            self.assertTrue('\xFF' in result_bytes)
+
+        # if we have PIL, check that it can read the image
+        ## try:
+        ##     import Image
+        ## except ImportError:
+        ##     pass
+        ## else:
+        ##     image = Image.fromstring('1', (image_size, image_size), result_bytes)
+        ##     image.show()
+
 
 if __name__ == '__main__':
     import unittest
