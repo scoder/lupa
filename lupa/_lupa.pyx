@@ -338,12 +338,12 @@ cdef class _LuaObject:
     def __getattr__(self, name):
         assert self._runtime is not None
         cdef lua_State* L = self._runtime._state
-        cdef bytes name_utf = ((<unicode>name).encode(self._runtime._source_encoding)
-                               if isinstance(name, unicode) else name)
+        if isinstance(name, unicode):
+            name = (<unicode>name).encode(self._runtime._source_encoding)
         self._runtime.lock()
         try:
             self.push_lua_object()
-            py_to_lua(self._runtime, name_utf, 0)
+            py_to_lua(self._runtime, name, 0)
             lua.lua_gettable(L, -2)
             try:
                 return py_from_lua(self._runtime, -1)
@@ -362,8 +362,8 @@ cdef class _LuaObject:
                 lua.lua_pop(L, -1)
                 raise TypeError("Lua object is not a table")
             try:
-                attr_name = py_to_lua(self._runtime, name, 0)
-                attr_value = py_to_lua(self._runtime, value, 0)
+                py_to_lua(self._runtime, name, 0)
+                py_to_lua(self._runtime, value, 0)
                 lua.lua_settable(L, -3)
             finally:
                 lua.lua_settop(L, 0)
