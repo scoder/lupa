@@ -28,9 +28,9 @@ Examples
       >>> lua_func(py_add1, 2)
       3
 
-The following example calculates a mandelbrot image. It is taken from
-a `benchmark implementation`_ for the `Computer Language Benchmarks
-Game`_.
+The following example calculates a mandelbrot image in parallel
+threads and displays the result in PIL. It is based on a `benchmark
+implementation`_ for the `Computer Language Benchmarks Game`_.
 
 .. _`Computer Language Benchmarks Game`: http://shootout.alioth.debian.org/u64/benchmark.php?test=all&lang=luajit&lang2=python3
 .. _`benchmark implementation`: http://shootout.alioth.debian.org/u64/program.php?test=mandelbrot&lang=luajit&id=1
@@ -38,11 +38,12 @@ Game`_.
 ::
 
         lua_code = '''\
-            function(N)
+            function(N, i, total)
                 local char, unpack = string.char, unpack
                 local result = ""
                 local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
-                for y=0,N-1 do
+                local start_line, end_line = N/total * (i-1), N/total * i - 1
+                for y=start_line,end_line do
                     local Ci, b, p = y*M-1, 1, 0
                     for x=0,N-1 do
                         local Cr = x*M-1.5
@@ -64,16 +65,30 @@ Game`_.
             end
         '''
 
-        from lupa import LuaRuntime
-        lua = lupa.LuaRuntime(encoding=None)
-        lua_mandelbrot = lua.eval(lua_code)
+        image_size = 1280   # == 1280 x 1280
+        thread_count = 8
 
-        image_size = 128
-        result_bytes = lua_mandelbrot(image_size)
+        from lupa import LuaRuntime
+        lua_funcs = [ LuaRuntime(encoding=None).eval(lua_code)
+                      for _ in range(thread_count) ]
+
+        results = [None] * thread_count
+        def mandelbrot(i, lua_func):
+            results[i] = lua_func(image_size, i+1, thread_count)
+
+	import threading
+        threads = [ threading.Thread(target=mandelbrot, args=(i,lua_func))
+                    for i, lua_func in enumerate(lua_funcs) ]
+	for thread in threads:
+            thread.start()
+	for thread in threads:
+            thread.join()
+
+        result_buffer = b''.join(results)
 
 	# use PIL to display the image
 	import Image
-        image = Image.fromstring('1', (image_size, image_size), result_bytes)
+        image = Image.fromstring('1', (image_size, image_size), result_buffer)
         image.show()
 
 
