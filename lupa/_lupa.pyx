@@ -326,9 +326,14 @@ cdef class _LuaIter:
             raise StopIteration
         cdef lua_State* L = self._runtime._state
         self._runtime.lock()
+        if self._obj is None:
+            raise StopIteration
         try:
             # iterable object
             lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._obj._ref)
+            if lua.lua_isnil(L, -1):
+                lua.lua_pop(L, 1)
+                raise LuaError("lost reference")
             if not self._refiter:
                 # initial key
                 lua.lua_pushnil(L)

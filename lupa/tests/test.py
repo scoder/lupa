@@ -415,7 +415,7 @@ class TestThreading(unittest.TestCase):
         self.assertEqual(1, len(set(results)))
         self.assertEqual(185925, results[0])
 
-    def _test_threading_iter(self): # can currently crash => not yet supported
+    def test_threading_iter(self):
         values = range(1,100)
         lua = lupa.LuaRuntime()
         table = lua.eval('{%s}' % ','.join(map(str, values)))
