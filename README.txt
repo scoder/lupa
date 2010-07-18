@@ -28,6 +28,55 @@ Examples
       >>> lua_func(py_add1, 2)
       3
 
+The following example calculates a mandelbrot image. It is taken from
+a `benchmark implementation`_ for the `Computer Language Benchmarks
+Game`_.
+
+.. _`Computer Language Benchmarks Game`: http://shootout.alioth.debian.org/u64/benchmark.php?test=all&lang=luajit&lang2=python3
+.. _`benchmark implementation`: http://shootout.alioth.debian.org/u64/program.php?test=mandelbrot&lang=luajit&id=1
+
+::
+
+        lua_code = '''\
+            function(N)
+                local char, unpack = string.char, unpack
+                local result = ""
+                local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
+                for y=0,N-1 do
+                    local Ci, b, p = y*M-1, 1, 0
+                    for x=0,N-1 do
+                        local Cr = x*M-1.5
+                        local Zr, Zi, Zrq, Ziq = Cr, Ci, Cr*Cr, Ci*Ci
+                        b = b + b
+                        for i=1,49 do
+                            Zi = Zr*Zi*2 + Ci
+                            Zr = Zrq-Ziq + Cr
+                            Ziq = Zi*Zi
+                            Zrq = Zr*Zr
+                            if Zrq+Ziq > 4.0 then b = b + 1; break; end
+                        end
+                        if b >= 256 then p = p + 1; buf[p] = 511 - b; b = 1; end
+                    end
+                    if b ~= 1 then p = p + 1; buf[p] = (ba-b)*bb; end
+                    result = result .. char(unpack(buf, 1, p))
+                end
+                return result
+            end
+        '''
+
+        from lupa import LuaRuntime
+        lua = lupa.LuaRuntime(encoding=None)
+        lua_mandelbrot = lua.eval(lua_code)
+
+        image_size = 128
+        result_bytes = lua_mandelbrot(image_size)
+
+	# use PIL to display the image
+	import Image
+        image = Image.fromstring('1', (image_size, image_size), result_bytes)
+        image.show()
+
+
 
 Advantages over LunaticPython
 ------------------------------
