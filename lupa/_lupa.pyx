@@ -69,12 +69,16 @@ cdef class LuaRuntime:
     """
     cdef lua_State *_state
     cdef pythread.PyThread_type_lock _thread_lock
+    cdef long _lock_owner
+    cdef int _lock_count
     cdef tuple _raised_exception
     cdef bytes _encoding
     cdef bytes _source_encoding
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None):
         self._thread_lock = self._state = NULL
+        self._lock_owner = -1
+        self._lock_count = 0
         cdef lua_State* L = lua.lua_open()
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
@@ -87,12 +91,7 @@ cdef class LuaRuntime:
         self._encoding = None if encoding is None else encoding.encode('ASCII')
         self._source_encoding = self._encoding or b'UTF-8'
 
-        lua.luaopen_base(L)
-        lua.luaopen_table(L)
-        lua.luaopen_io(L)
-        lua.luaopen_string(L)
-        lua.luaopen_debug(L)
-        #lua.luaopen_loadlib(L)
+        lua.luaL_openlibs(L)
         self.init_python_lib()
         lua.lua_settop(L, 0)
 
@@ -105,14 +104,25 @@ cdef class LuaRuntime:
             self._thread_lock = NULL
 
     cdef int lock(self) except -1:
+        cdef long current_thread = pythread.PyThread_get_thread_ident()
+        if self._lock_count and current_thread == self._lock_owner:
+            self._lock_count += 1
+            return 0
         with nogil:
             locked = pythread.PyThread_acquire_lock(self._thread_lock, pythread.WAIT_LOCK)
         if not locked:
             raise LuaError("Failed to acquire thread lock")
+        self._lock_owner = current_thread
+        self._lock_count = 1
         return 0
 
     cdef void unlock(self) nogil:
-        pythread.PyThread_release_lock(self._thread_lock)
+        if self._lock_count == 0:
+            return
+        self._lock_count -= 1
+        if self._lock_count == 0:
+            pythread.PyThread_release_lock(self._thread_lock)
+            self._lock_owner = -1
 
     cdef int reraise_on_exception(self) except -1:
         if self._raised_exception is not None:
@@ -135,6 +145,37 @@ cdef class LuaRuntime:
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, lua_code)
 
+    def require(self, modulename):
+        cdef lua_State *L = self._state
+        if not isinstance(modulename, (bytes, unicode)):
+            raise TypeError("modulename must be a string")
+        self.lock()
+        try:
+            lua.lua_pushlstring(L, 'require', 7)
+            lua.lua_rawget(L, lua.LUA_GLOBALSINDEX)
+            if lua.lua_isnil(L, -1):
+                lua.lua_pop(L, 1)
+                raise LuaError("require is not defined")
+            return call_lua(self, (modulename,))
+        finally:
+            self.unlock()
+
+    def globals(self):
+        cdef lua_State *L = self._state
+        self.lock()
+        try:
+            lua.lua_pushlstring(L, '_G', 2)
+            lua.lua_rawget(L, lua.LUA_GLOBALSINDEX)
+            if lua.lua_isnil(L, -1):
+                lua.lua_pop(L, 1)
+                raise LuaError("globals not defined")
+            try:
+                return py_from_lua(self, -1)
+            finally:
+                lua.lua_settop(L, 0)
+        finally:
+            self.unlock()
+
     cdef int register_py_object(self, bytes cname, bytes pyname, object obj) except -1:
         cdef lua_State *L = self._state
         lua.lua_pushlstring(L, cname, len(cname))
@@ -142,7 +183,7 @@ cdef class LuaRuntime:
             lua.lua_pop(L, 1)
             message = b"failed to convert %s object" % pyname
             lua.luaL_error(L, message)
-            raise LuaError(message.decode('ASCII'))
+            raise LuaError(message.decode('ASCII', 'replace'))
         lua.lua_pushlstring(L, pyname, len(pyname))
         lua.lua_pushvalue(L, -2)
         lua.lua_rawset(L, -5)
@@ -197,40 +238,54 @@ cdef class _LuaObject:
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
 
+    cdef inline int push_lua_object(self) except -1:
+        cdef lua_State* L = self._runtime._state
+        lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
+        if lua.lua_isnil(L, -1):
+            lua.lua_pop(L, 1)
+            raise LuaError("lost reference")
+
     def __call__(self, *args):
         assert self._runtime is not None
         cdef lua_State* L = self._runtime._state
         self._runtime.lock()
         try:
             lua.lua_settop(L, 0)
-            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
+            self.push_lua_object()
             return call_lua(self._runtime, args)
         finally:
             self._runtime.unlock()
 
-    def __iter__(self):
+    def __len__(self):
         assert self._runtime is not None
+        cdef lua_State* L = self._runtime._state
+        self._runtime.lock()
+        try:
+            self.push_lua_object()
+            return lua.luaL_getn(L, -1)
+        finally:
+            lua.lua_settop(L, 0)
+            self._runtime.unlock()
+
+    def __iter__(self):
         return _LuaIter(self, KEYS)
 
     def keys(self):
         """Returns an iterator over the keys of a table (or other
         iterable) that this object represents.  Same as iter(obj).
         """
-        assert self._runtime is not None
         return _LuaIter(self, KEYS)
 
     def values(self):
         """Returns an iterator over the values of a table (or other
         iterable) that this object represents.
         """
-        assert self._runtime is not None
         return _LuaIter(self, VALUES)
 
     def items(self):
         """Returns an iterator over the key-value pairs of a table (or
         other iterable) that this object represents.
         """
-        assert self._runtime is not None
         return _LuaIter(self, ITEMS)
 
     def __str__(self):
@@ -244,7 +299,7 @@ cdef class _LuaObject:
         encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
         self._runtime.lock()
         try:
-            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
+            self.push_lua_object()
             if lua.luaL_callmeta(L, -1, "__tostring"):
                 s = lua.lua_tostring(L, -1)
                 try:
@@ -287,10 +342,7 @@ cdef class _LuaObject:
                                if isinstance(name, unicode) else name)
         self._runtime.lock()
         try:
-            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
-            if lua.lua_isnil(L, -1):
-                lua.lua_pop(L, 1)
-                raise LuaError("lost reference")
+            self.push_lua_object()
             py_to_lua(self._runtime, name_utf, 0)
             lua.lua_gettable(L, -2)
             try:
@@ -300,6 +352,29 @@ cdef class _LuaObject:
         finally:
             self._runtime.unlock()
 
+    def __setattr__(self, name, value):
+        assert self._runtime is not None
+        cdef lua_State* L = self._runtime._state
+        self._runtime.lock()
+        try:
+            self.push_lua_object()
+            if not lua.lua_istable(L, -1):
+                lua.lua_pop(L, -1)
+                raise TypeError("Lua object is not a table")
+            try:
+                attr_name = py_to_lua(self._runtime, name, 0)
+                attr_value = py_to_lua(self._runtime, value, 0)
+                lua.lua_settable(L, -3)
+            finally:
+                lua.lua_settop(L, 0)
+        finally:
+            self._runtime.unlock()
+
+    def __getitem__(self, index_or_name):
+        return self.__getattr__(index_or_name)
+
+    def __setitem__(self, index_or_name, value):
+        self.__setattr__(index_or_name, value)
 
 cdef enum:
     KEYS = 1
@@ -453,7 +528,7 @@ cdef bint py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
         lua.lua_pushnumber(L, <lua.lua_Number><double>o)
         pushed_values_count = 1
     elif isinstance(o, _LuaObject):
-        if (<_LuaObject>o).runtime is not runtime:
+        if (<_LuaObject>o)._runtime is not runtime:
             raise LuaError("cannot mix objects from different Lua runtimes")
         lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, (<_LuaObject>o)._ref)
         pushed_values_count = 1

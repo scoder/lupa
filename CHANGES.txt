@@ -1,6 +1,23 @@
 Lupa change log
 ================
 
+0.7 (2010-07-)
+-----------------
+
+* ``LuaRuntime.require()`` and ``LuaRuntime.globals()`` methods
+
+* renamed ``LuaRuntime.run()`` to ``LuaRuntime.execute()``
+
+* support for ``len()``, ``setattr()`` and subscripting of Lua objects
+
+* provide all built-in Lua libraries in ``LuaRuntime``, including
+  support for library loading
+
+* fixed a thread locking issue
+
+* fix passing Lua objects back into the runtime from Python space
+
+
 0.6 (2010-07-18)
 -----------------
 

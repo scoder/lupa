@@ -123,6 +123,10 @@ class TestLuaRuntime(unittest.TestCase):
         self.assertEqual(2, eval('1+1'))
         self.assertEqual(2, self.lua.eval('python.eval("1+1")'))
 
+    def test_len_table(self):
+        table = self.lua.eval('{1,2,3,4,5}')
+        self.assertEqual(5, len(table))
+
     def test_iter_table(self):
         table = self.lua.eval('{1,2,3,4,5}')
         self.assertEqual([1,2,3,4,5], list(table))
@@ -186,12 +190,63 @@ class TestLuaRuntime(unittest.TestCase):
         stringlib = self.lua.eval('string')
         self.assertEqual('abc', stringlib.lower('ABC'))
 
+    def test_getitem(self):
+        stringlib = self.lua.eval('string')
+        self.assertEqual('abc', stringlib['lower']('ABC'))
+
     def test_getattr_table(self):
         table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
         self.assertEqual(1, table.val)
         self.assertEqual('Pi', table.const.name)
         self.assertEqual('light speed', table.const2.name)
         self.assertEqual(3e8, table.const2.value)
+
+    def test_getitem_table(self):
+        table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
+        self.assertEqual(1, table['val'])
+        self.assertEqual('Pi', table['const']['name'])
+        self.assertEqual('light speed', table['const2']['name'])
+        self.assertEqual(3e8, table['const2']['value'])
+
+    def test_setattr_table(self):
+        table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
+
+        self.assertEqual(1, table.val)
+        table.val = 2
+        self.assertEqual(2, table.val)
+
+        self.assertEqual('Pi', table.const.name)
+        table.const.name = 'POW'
+        self.assertEqual('POW', table.const.name)
+
+        table_const_name = self.lua.eval('function(t) return t.const.name end')
+        self.assertEqual('POW', table_const_name(table))
+
+    def test_setitem_table(self):
+        table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
+
+        self.assertEqual(1, table.val)
+        table['val'] = 2
+        self.assertEqual(2, table.val)
+
+        get_val = self.lua.eval('function(t) return t.val end')
+        self.assertEqual(2, get_val(table))
+
+        self.assertEqual('Pi', table.const.name)
+        table['const']['name'] = 'POW'
+        self.assertEqual('POW', table.const.name)
+
+        get_table_const_name = self.lua.eval('function(t) return t.const.name end')
+        self.assertEqual('POW', get_table_const_name(table))
+
+    def test_globals(self):
+        lua_globals = self.lua.globals()
+        self.assertNotEqual(None, lua_globals.unpack)
+
+    def test_require(self):
+        stringlib = self.lua.require('string')
+        self.assertNotEqual(None, stringlib)
+        self.assertNotEqual(None, stringlib.char)
 
     def test_callable_values(self):
         function = self.lua.eval('function(f) return f() + 5 end')
