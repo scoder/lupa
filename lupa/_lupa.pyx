@@ -1,3 +1,4 @@
+# cython: embedsignature=True
 
 cimport lua
 from lua cimport lua_State
@@ -8,6 +9,9 @@ cimport cpython.bytes
 cimport cpython.tuple
 from cpython.ref cimport PyObject
 from cpython cimport pythread
+
+cdef extern from *:
+    ctypedef char* const_char_ptr "const char*"
 
 cdef object exc_info
 from sys import exc_info
@@ -172,22 +176,22 @@ cdef _LuaObject new_lua_object(LuaRuntime runtime, int n):
 cdef class _LuaObject:
     cdef LuaRuntime _runtime
     cdef int _ref
-    cdef int _refiter
 
     def __init__(self):
         raise TypeError("Type cannot be instantiated manually")
 
     def __cinit__(self):
         self._ref = 0
-        self._refiter = 0
 
     def __dealloc__(self):
         if self._runtime is None:
             return
         cdef lua_State* L = self._runtime._state
-        lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
-        if self._refiter:
-            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
+        self._runtime.lock()
+        try:
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
+        finally:
+            self._runtime.unlock()
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
 
@@ -202,13 +206,25 @@ cdef class _LuaObject:
         finally:
             self._runtime.unlock()
 
+    def __iter__(self):
+        return _LuaIter(self, KEYS)
+
+    def keys(self):
+        return _LuaIter(self, KEYS)
+
+    def values(self):
+        return _LuaIter(self, VALUES)
+
+    def items(self):
+        return _LuaIter(self, ITEMS)
+
     def __str__(self):
         assert self._runtime is not None
         cdef lua_State* L = self._runtime._state
         cdef unicode py_string = None
         cdef bytes py_bytes = None
-        cdef char* s
-        cdef void* ptr
+        cdef const_char_ptr s
+        cdef void* ptr = NULL
         cdef int lua_type
         encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
         self._runtime.lock()
@@ -216,16 +232,17 @@ cdef class _LuaObject:
             lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
             if lua.luaL_callmeta(L, -1, "__tostring"):
                 s = lua.lua_tostring(L, -1)
-                lua.lua_pop(L, 1)
-                if s:
-                    try:
-                        py_string = s.decode(encoding)
-                    except UnicodeDecodeError:
-                        # safe 'decode'
-                        py_string = s.decode('ISO-8859-1')
+                try:
+                    if s:
+                        try:
+                            py_string = s.decode(encoding)
+                        except UnicodeDecodeError:
+                            # safe 'decode'
+                            py_string = s.decode('ISO-8859-1')
+                finally:
+                    lua.lua_pop(L, 1)
             if py_string is None:
                 lua_type = lua.lua_type(L, -1)
-                ptr = NULL
                 if lua_type in (lua.LUA_TTABLE, lua.LUA_TFUNCTION):
                     ptr = <void*>lua.lua_topointer(L, -1)
                 elif lua_type in (lua.LUA_TUSERDATA, lua.LUA_TLIGHTUSERDATA):
@@ -244,6 +261,7 @@ cdef class _LuaObject:
                     # safe 'decode'
                     py_string = py_bytes.decode('ISO-8859-1')
         finally:
+            lua.lua_pop(L, 1)
             self._runtime.unlock()
         return py_string
 
@@ -268,6 +286,80 @@ cdef class _LuaObject:
             self._runtime.unlock()
 
 
+cdef enum:
+    KEYS = 1
+    VALUES = 2
+    ITEMS = 3
+
+cdef class _LuaIter:
+    cdef LuaRuntime _runtime
+    cdef _LuaObject _obj
+    cdef int _refiter
+    cdef char _what
+
+    def __cinit__(self, _LuaObject obj not None, int what):
+        assert obj._runtime is not None
+        self._runtime = obj._runtime
+        # additional INCREF to keep runtime from disappearing in GC runs
+        cpython.ref.Py_INCREF(self._runtime)
+
+        self._obj = obj
+        self._refiter = 0
+        self._what = what
+
+    def __dealloc__(self):
+        cdef lua_State* L = self._runtime._state
+        if self._refiter:
+            self._runtime.lock()
+            try:
+                lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
+            finally:
+                self._runtime.unlock()
+        # undo additional INCREF at instantiation time
+        cpython.ref.Py_DECREF(self._runtime)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._obj is None:
+            raise StopIteration
+        cdef lua_State* L = self._runtime._state
+        self._runtime.lock()
+        try:
+            # iterable object
+            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._obj._ref)
+            if not self._refiter:
+                # initial key
+                lua.lua_pushnil(L)
+            else:
+                # last key
+                lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._refiter)
+            if lua.lua_next(L, -2):
+                try:
+                    if self._what == KEYS:
+                        retval = py_from_lua(self._runtime, -2)
+                    elif self._what == VALUES:
+                        retval = py_from_lua(self._runtime, -1)
+                    else: # ITEMS
+                        retval = (py_from_lua(self._runtime, -2), py_from_lua(self._runtime, -1))
+                finally:
+                    # pop value
+                    lua.lua_pop(L, 1)
+                    # pop and store key
+                    if not self._refiter:
+                        self._refiter = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
+                    else:
+                        lua.lua_rawseti(L, lua.LUA_REGISTRYINDEX, self._refiter)
+                return retval
+            elif self._refiter:
+                lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
+            self._obj = None
+        finally:
+            self._runtime.unlock()
+        raise StopIteration
+
+
 cdef int py_asfunc_call(lua_State *L):
     lua.lua_pushvalue(L, lua.lua_upvalueindex(1))
     lua.lua_insert(L, 1)
@@ -277,7 +369,7 @@ cdef int py_asfunc_call(lua_State *L):
 cdef object py_from_lua(LuaRuntime runtime, int n):
     cdef lua_State *L = runtime._state
     cdef size_t size
-    cdef char* s
+    cdef const_char_ptr s
     cdef lua.lua_Number number
     cdef py_object* py_obj
     cdef int lua_type = lua.lua_type(L, n)
@@ -464,10 +556,10 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
             lua.luaL_argerror(L, 1, "cannot mix objects from different Lua runtimes")
             return 0
         return call_python(runtime, py_obj)
-    except Exception as e:
+    except:
         runtime.store_raised_exception()
         try:
-            message = (u"error during Python call: %r" % e).encode('UTF-8')
+            message = (u"error during Python call: %r" % exc_info()[1]).encode('UTF-8')
             lua.luaL_error(L, message)
         except:
             lua.luaL_error(L, b"error during Python call")
@@ -497,10 +589,10 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
             assert isinstance(s, bytes)
         lua.lua_pushlstring(L, <bytes>s, len(<bytes>s))
         return 1 # returning 1 value
-    except Exception as e:
+    except:
         runtime.store_raised_exception()
         try:
-            message = (u"error during Python str() call: %r" % e).encode('UTF-8')
+            message = (u"error during Python str() call: %r" % exc_info()[1]).encode('UTF-8')
             lua.luaL_error(L, message)
         except:
             lua.luaL_error(L, b"error during Python str() call")

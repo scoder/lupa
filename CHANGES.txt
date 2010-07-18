@@ -1,6 +1,14 @@
 Lupa change log
 ================
 
+0.6 (??)
+-----------------
+
+* iteration support for Lua objects (e.g. tables)
+
+* fix compile warnings
+
+
 0.5 (2010-07-14)
 -----------------
 

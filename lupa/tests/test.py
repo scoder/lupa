@@ -8,6 +8,13 @@ import lupa
 
 IS_PYTHON3 = sys.version_info[0] >= 3
 
+try:
+    _next = next
+except NameError:
+    def _next(o):
+        return o.next()
+
+
 class TestLuaRuntime(unittest.TestCase):
 
     def setUp(self):
@@ -115,6 +122,49 @@ class TestLuaRuntime(unittest.TestCase):
         function = self.lua.eval('function() return python.eval end')
         self.assertEqual(2, eval('1+1'))
         self.assertEqual(2, self.lua.eval('python.eval("1+1")'))
+
+    def test_iter_table(self):
+        table = self.lua.eval('{1,2,3,4,5}')
+        self.assertEqual([1,2,3,4,5], list(table))
+
+    def test_iter_table_repeat(self):
+        table = self.lua.eval('{1,2,3,4,5}')
+        self.assertEqual([1,2,3,4,5], list(table)) # 1
+        self.assertEqual([1,2,3,4,5], list(table)) # 2
+        self.assertEqual([1,2,3,4,5], list(table)) # 3
+
+    def test_iter_multiple_tables(self):
+        count = 10
+        tables = [ iter(self.lua.eval('{%s}' % ','.join(map(str, range(count))))) for _ in range(4) ]
+
+        # round robin
+        l = [ [] for _ in range(count) ]
+        for sublist in l:
+            for table in tables:
+                sublist.append(_next(table))
+
+        self.assertEqual([[i]*len(tables) for i in range(1,count+1)], l)
+
+    def test_iter_table_keys(self):
+        keys = list('abcdefg')
+        table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
+        l = list(table.keys())
+        l.sort()
+        self.assertEqual(keys, l)
+
+    def test_iter_table_values(self):
+        keys = list('abcdefg')
+        table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
+        l = list(table.values())
+        l.sort()
+        self.assertEqual(range(len('abcdefg')), l)
+
+    def test_iter_table_items(self):
+        keys = list('abcdefg')
+        table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
+        l = list(table.items())
+        l.sort()
+        self.assertEqual(zip(keys,range(len('abcdefg'))), l)
 
     def test_string_values(self):
         function = self.lua.eval('function(s) return s .. "abc" end')
@@ -364,6 +414,52 @@ class TestThreading(unittest.TestCase):
 
         self.assertEqual(1, len(set(results)))
         self.assertEqual(185925, results[0])
+
+    def _test_threading_iter(self): # can currently crash => not yet supported
+        values = range(1,100)
+        lua = lupa.LuaRuntime()
+        table = lua.eval('{%s}' % ','.join(map(str, values)))
+        self.assertEqual(values, list(table))
+
+        lua_iter = iter(table)
+
+        state_lock = threading.Lock()
+        running = []
+        iterations_done = {}
+        def sync(i):
+            state_lock.acquire()
+            try:
+                status = iterations_done[i]
+            except KeyError:
+                status = iterations_done[i] = [0, threading.Event()]
+            status[0] += 1
+            state_lock.release()
+            event = status[1]
+            while status[0] < len(running):
+                event.wait(0.1)
+            event.set()
+
+        l = []
+        start_event = threading.Event()
+        def extract(n, append = l.append):
+            running.append(n)
+            if len(running) < len(threads):
+                start_event.wait()
+            else:
+                start_event.set()
+            # all running, let's go
+            for i, item in enumerate(lua_iter):
+                append(item)
+                sync(i)
+            running.remove(n)
+
+        threads = [ threading.Thread(target=extract, args=(i,))
+                    for i in range(6) ]
+        self._run_threads(threads)
+
+        orig = l[:]
+        l.sort()
+        self.assertEqual(values, l)
 
 
 if __name__ == '__main__':
