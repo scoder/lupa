@@ -1,7 +1,7 @@
 Lupa change log
 ================
 
-0.6 (??)
+0.6 (2010-07-18)
 -----------------
 
 * Python oiteration support for Lua objects (e.g. tables)
