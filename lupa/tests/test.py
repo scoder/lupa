@@ -170,6 +170,10 @@ class TestLuaRuntime(unittest.TestCase):
         l.sort()
         self.assertEqual(zip(keys,range(len(keys))), l)
 
+    def test_error_iter_function(self):
+        func = self.lua.eval('function() return 1 end')
+        self.assertRaises(TypeError, list, func)
+
     def test_string_values(self):
         function = self.lua.eval('function(s) return s .. "abc" end')
         self.assertEqual('ABCabc', function('ABC'))

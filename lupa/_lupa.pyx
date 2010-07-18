@@ -426,9 +426,11 @@ cdef class _LuaIter:
                 raise StopIteration
             # iterable object
             lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._obj._ref)
-            if lua.lua_isnil(L, -1):
-                lua.lua_pop(L, 1)
-                raise LuaError("lost reference")
+            if not lua.lua_istable(L, -1):
+                if lua.lua_isnil(L, -1):
+                    lua.lua_pop(L, 1)
+                    raise LuaError("lost reference")
+                raise TypeError("cannot iterate over non-table")
             if not self._refiter:
                 # initial key
                 lua.lua_pushnil(L)
