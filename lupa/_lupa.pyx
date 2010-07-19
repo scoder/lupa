@@ -136,16 +136,22 @@ cdef class LuaRuntime:
         return 0
 
     def eval(self, lua_code):
+        """Evaluate a Lua expression passed in a string.
+        """
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, b'return ' + lua_code)
 
     def execute(self, lua_code):
+        """Execute a Lua program passed in a string.
+        """
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, lua_code)
 
     def require(self, modulename):
+        """Load a Lua library into the runtime.
+        """
         cdef lua_State *L = self._state
         if not isinstance(modulename, (bytes, unicode)):
             raise TypeError("modulename must be a string")
@@ -161,6 +167,9 @@ cdef class LuaRuntime:
             self.unlock()
 
     def globals(self):
+        """Return the globals defined in this Lua runtime as a Lua
+        table.
+        """
         cdef lua_State *L = self._state
         self.lock()
         try:
@@ -686,7 +695,7 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
             return 0
         s = str(<object>py_obj.obj)
         if isinstance(s, unicode):
-            s = (<unicode>s).encode('UTF-8')
+            s = (<unicode>s).encode(runtime._encoding)
         else:
             assert isinstance(s, bytes)
         lua.lua_pushlstring(L, <bytes>s, len(<bytes>s))
