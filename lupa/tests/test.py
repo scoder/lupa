@@ -161,14 +161,14 @@ class TestLuaRuntime(unittest.TestCase):
         table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
         l = list(table.values())
         l.sort()
-        self.assertEqual(range(len('abcdefg')), l)
+        self.assertEqual(list(range(len(keys))), l)
 
     def test_iter_table_items(self):
         keys = list('abcdefg')
         table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
         l = list(table.items())
         l.sort()
-        self.assertEqual(zip(keys,range(len(keys))), l)
+        self.assertEqual(list(zip(keys,range(len(keys)))), l)
 
     def test_error_iter_function(self):
         func = self.lua.eval('function() return 1 end')
@@ -480,7 +480,7 @@ class TestThreading(unittest.TestCase):
         self.assertEqual(185925, results[0])
 
     def test_threading_iter(self):
-        values = range(1,100)
+        values = list(range(1,100))
         lua = lupa.LuaRuntime()
         table = lua.eval('{%s}' % ','.join(map(str, values)))
         self.assertEqual(values, list(table))
