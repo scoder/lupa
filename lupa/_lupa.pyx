@@ -594,14 +594,14 @@ cdef int py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
     elif o is True or o is False:
         lua.lua_pushboolean(L, o is True)
         pushed_values_count = 1
+    elif isinstance(o, (int, long, float)):
+        lua.lua_pushnumber(L, <lua.lua_Number><double>o)
+        pushed_values_count = 1
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
         pushed_values_count = 1
     elif isinstance(o, unicode) and runtime._encoding is not None:
         pushed_values_count = push_encoded_unicode_string(runtime, <unicode>o)
-    elif isinstance(o, (int, float)):
-        lua.lua_pushnumber(L, <lua.lua_Number><double>o)
-        pushed_values_count = 1
     elif isinstance(o, _LuaObject):
         if (<_LuaObject>o)._runtime is not runtime:
             raise LuaError("cannot mix objects from different Lua runtimes")

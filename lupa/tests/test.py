@@ -193,6 +193,18 @@ class TestLuaRuntime(unittest.TestCase):
         function = self.lua.eval('function(i) return i + 5 end')
         self.assertEqual(3+5, function(3))
 
+    def test_long_values(self):
+        try:
+            _long = long
+        except NameError:
+            _long = int
+        function = self.lua.eval('function(i) return i + 5 end')
+        self.assertEqual(3+5, function(_long(3)))
+
+    def test_float_values(self):
+        function = self.lua.eval('function(i) return i + 5 end')
+        self.assertEqual(float(3)+5, function(float(3)))
+
     def test_str_function(self):
         func = self.lua.eval('function() return 1 end')
         self.assertEqual('<Lua function at ', str(func)[:17])
