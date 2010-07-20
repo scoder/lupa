@@ -1,7 +1,7 @@
 Lupa change log
 ================
 
-0.8 (2010-07-??)
+0.8 (2010-07-21)
 -----------------
 
 * support for returning multiple values from Lua evaluation
