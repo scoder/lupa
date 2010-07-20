@@ -8,6 +8,8 @@ Lupa change log
 
 * proper ``repr()`` support for Lua objects
 
+* ``LuaRuntime.table()`` method for creating Lua tables from Python space
+
 
 0.7 (2010-07-18)
 -----------------

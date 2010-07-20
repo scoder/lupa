@@ -126,9 +126,17 @@ class TestLuaRuntime(unittest.TestCase):
         self.assertEqual(2, eval('1+1'))
         self.assertEqual(2, self.lua.eval('python.eval("1+1")'))
 
-    def test_len_table(self):
+    def test_len_table_array(self):
         table = self.lua.eval('{1,2,3,4,5}')
         self.assertEqual(5, len(table))
+
+    def test_len_table_dict(self):
+        table = self.lua.eval('{a=1, b=2, c=3}')
+        self.assertEqual(0, len(table)) # as returned by Lua's "#" operator
+
+    def test_len_table(self):
+        table = self.lua.eval('{1,2,3,4, a=1, b=2, c=3}')
+        self.assertEqual(4, len(table)) # as returned by Lua's "#" operator
 
     def test_iter_table(self):
         table = self.lua.eval('{1,2,3,4,5}')
@@ -193,6 +201,34 @@ class TestLuaRuntime(unittest.TestCase):
         table = self.lua.eval('{}')
         self.assertEqual('<Lua table at ', str(table)[:14])
 
+    def test_create_table_args(self):
+        table = self.lua.table(1,2,3,4,5,6)
+        self.assertEqual(1, table[1])
+        self.assertEqual(3, table[3])
+        self.assertEqual(6, table[6])
+
+        self.assertEqual(6, len(table))
+
+    def test_create_table_kwargs(self):
+        table = self.lua.table(a=1, b=20, c=300)
+        self.assertEqual(  1, table['a'])
+        self.assertEqual( 20, table['b'])
+        self.assertEqual(300, table['c'])
+
+        self.assertEqual(0, len(table))
+
+    def test_create_table_args_kwargs(self):
+        table = self.lua.table(1,2,3,4,5,6, a=100, b=200, c=300)
+        self.assertEqual(1, table[1])
+        self.assertEqual(3, table[3])
+        self.assertEqual(6, table[6])
+
+        self.assertEqual(100, table['a'])
+        self.assertEqual(200, table['b'])
+        self.assertEqual(300, table['c'])
+
+        self.assertEqual(6, len(table))
+
     def test_getattr(self):
         stringlib = self.lua.eval('string')
         self.assertEqual('abc', stringlib.lower('ABC'))
@@ -214,6 +250,20 @@ class TestLuaRuntime(unittest.TestCase):
         self.assertEqual('Pi', table['const']['name'])
         self.assertEqual('light speed', table['const2']['name'])
         self.assertEqual(3e8, table['const2']['value'])
+
+    def test_getitem_array(self):
+        table = self.lua.eval('{1,2,3,4,5,6,7,8,9}')
+        self.assertEqual(1, table[1])
+        self.assertEqual(5, table[5])
+        self.assertEqual(9, len(table))
+
+    def test_setitem_array(self):
+        table = self.lua.eval('{1,2,3,4,5,6,7,8,9}')
+        self.assertEqual(1, table[1])
+        table[1] = 0
+        self.assertEqual(0, table[1])
+        self.assertEqual(2, table[2])
+        self.assertEqual(9, len(table))
 
     def test_setattr_table(self):
         table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')

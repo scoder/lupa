@@ -138,6 +138,7 @@ cdef class LuaRuntime:
     def eval(self, lua_code):
         """Evaluate a Lua expression passed in a string.
         """
+        assert self._state is not NULL
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, b'return ' + lua_code)
@@ -145,6 +146,7 @@ cdef class LuaRuntime:
     def execute(self, lua_code):
         """Execute a Lua program passed in a string.
         """
+        assert self._state is not NULL
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, lua_code)
@@ -152,6 +154,7 @@ cdef class LuaRuntime:
     def require(self, modulename):
         """Load a Lua library into the runtime.
         """
+        assert self._state is not NULL
         cdef lua_State *L = self._state
         if not isinstance(modulename, (bytes, unicode)):
             raise TypeError("modulename must be a string")
@@ -170,6 +173,7 @@ cdef class LuaRuntime:
         """Return the globals defined in this Lua runtime as a Lua
         table.
         """
+        assert self._state is not NULL
         cdef lua_State *L = self._state
         self.lock()
         try:
@@ -183,6 +187,30 @@ cdef class LuaRuntime:
             finally:
                 lua.lua_settop(L, 0)
         finally:
+            self.unlock()
+
+    def table(self, *items, **kwargs):
+        """Creates a new table with the provided items.  Positional
+        arguments are placed in the table in order, keyword arguments
+        are set as key-value pairs.
+        """
+        assert self._state is not NULL
+        cdef lua_State *L = self._state
+        cdef int i
+        self.lock()
+        try:
+            lua.lua_createtable(L, len(items), len(kwargs))
+            # FIXME: how to check for failure?
+            for i, arg in enumerate(items):
+                py_to_lua(self, arg, 1)
+                lua.lua_rawseti(L, -2, i+1)
+            for key, value in kwargs.iteritems():
+                py_to_lua(self, key, 1)
+                py_to_lua(self, value, 1)
+                lua.lua_rawset(L, -3)
+            return py_from_lua(self, -1)
+        finally:
+            lua.lua_settop(L, 0)
             self.unlock()
 
     cdef int register_py_object(self, bytes cname, bytes pyname, object obj) except -1:
@@ -263,7 +291,7 @@ cdef class _LuaObject:
         self._runtime.lock()
         try:
             self.push_lua_object()
-            return lua.luaL_getn(L, -1)
+            return lua.lua_objlen(L, -1)
         finally:
             lua.lua_settop(L, 0)
             self._runtime.unlock()
@@ -411,6 +439,7 @@ cdef class _LuaTable(_LuaObject):
         other iterable) that this object represents.
         """
         return _LuaIter(self, ITEMS)
+        
 
 cdef _LuaTable new_lua_table(LuaRuntime runtime, int n):
     cdef _LuaTable obj = _LuaTable.__new__(_LuaTable)
