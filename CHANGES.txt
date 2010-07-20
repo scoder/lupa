@@ -6,9 +6,10 @@ Lupa change log
 
 * support for returning multiple values from Lua evaluation
 
-* proper ``repr()`` support for Lua objects
+* ``repr()`` support for Lua objects
 
-* ``LuaRuntime.table()`` method for creating Lua tables from Python space
+* ``LuaRuntime.table()`` method for creating Lua tables from Python
+  space
 
 
 0.7 (2010-07-18)
