@@ -297,14 +297,23 @@ cdef class _LuaObject:
         """
         return _LuaIter(self, ITEMS)
 
+    def __repr__(self):
+        assert self._runtime is not None
+        cdef lua_State* L = self._runtime._state
+        encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
+        self._runtime.lock()
+        try:
+            self.push_lua_object()
+            return lua_object_repr(L, encoding)
+        finally:
+            lua.lua_pop(L, 1)
+            self._runtime.unlock()
+
     def __str__(self):
         assert self._runtime is not None
         cdef lua_State* L = self._runtime._state
         cdef unicode py_string = None
-        cdef bytes py_bytes = None
         cdef const_char_ptr s
-        cdef void* ptr = NULL
-        cdef int lua_type
         encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
         self._runtime.lock()
         try:
@@ -321,24 +330,7 @@ cdef class _LuaObject:
                 finally:
                     lua.lua_pop(L, 1)
             if py_string is None:
-                lua_type = lua.lua_type(L, -1)
-                if lua_type in (lua.LUA_TTABLE, lua.LUA_TFUNCTION):
-                    ptr = <void*>lua.lua_topointer(L, -1)
-                elif lua_type in (lua.LUA_TUSERDATA, lua.LUA_TLIGHTUSERDATA):
-                    ptr = <void*>lua.lua_touserdata(L, -1)
-                elif lua_type == lua.LUA_TTHREAD:
-                    ptr = <void*>lua.lua_tothread(L, -1)
-                if ptr is not NULL:
-                    py_bytes = cpython.bytes.PyBytes_FromFormat(
-                        "<Lua %s at %p>", lua.lua_typename(L, lua_type), ptr)
-                else:
-                    py_bytes = cpython.bytes.PyBytes_FromFormat(
-                        "<Lua %s>", lua.lua_typename(L, lua_type))
-                try:
-                    py_string = py_bytes.decode(encoding)
-                except UnicodeDecodeError:
-                    # safe 'decode'
-                    py_string = py_bytes.decode('ISO-8859-1')
+                py_string = lua_object_repr(L, encoding)
         finally:
             lua.lua_pop(L, 1)
             self._runtime.unlock()
@@ -385,6 +377,28 @@ cdef class _LuaObject:
     def __setitem__(self, index_or_name, value):
         self.__setattr__(index_or_name, value)
 
+cdef object lua_object_repr(lua_State* L, encoding):
+    cdef bytes py_bytes
+    lua_type = lua.lua_type(L, -1)
+    if lua_type in (lua.LUA_TTABLE, lua.LUA_TFUNCTION):
+        ptr = <void*>lua.lua_topointer(L, -1)
+    elif lua_type in (lua.LUA_TUSERDATA, lua.LUA_TLIGHTUSERDATA):
+        ptr = <void*>lua.lua_touserdata(L, -1)
+    elif lua_type == lua.LUA_TTHREAD:
+        ptr = <void*>lua.lua_tothread(L, -1)
+    if ptr:
+        py_bytes = cpython.bytes.PyBytes_FromFormat(
+            "<Lua %s at %p>", lua.lua_typename(L, lua_type), ptr)
+    else:
+        py_bytes = cpython.bytes.PyBytes_FromFormat(
+            "<Lua %s>", lua.lua_typename(L, lua_type))
+    try:
+        return py_bytes.decode(encoding)
+    except UnicodeDecodeError:
+        # safe 'decode'
+        return py_bytes.decode('ISO-8859-1')
+
+
 cdef enum:
     KEYS = 1
     VALUES = 2
@@ -421,6 +435,9 @@ cdef class _LuaIter:
                 self._runtime.unlock()
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
+
+    def __repr__(self):
+        return u"LuaIter(%r)" % (self._obj)
 
     def __iter__(self):
         return self
@@ -575,40 +592,34 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code):
     try:
         if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
             raise LuaError("error loading code: %s" % lua.lua_tostring(L, -1))
-        with nogil:
-            result = lua.lua_pcall(L, 0, 1, 0)
-        runtime.reraise_on_exception()
-        if result:
-            raise LuaError("error executing code: %s" % lua.lua_tostring(L, -1))
-        try:
-            return py_from_lua(runtime, -1)
-        finally:
-            lua.lua_settop(L, 0)
+        return execute_lua_call(runtime, 0)
     finally:
         runtime.unlock()
-
 
 cdef call_lua(LuaRuntime runtime, tuple args):
     # does not lock the runtime!
     cdef lua_State *L = runtime._state
-    cdef Py_ssize_t i, nargs
-    cdef int result_status
+    cdef Py_ssize_t i
     # convert arguments
     for i, arg in enumerate(args):
         if not py_to_lua(runtime, arg, 0):
             lua.lua_settop(L, 0)
             raise TypeError("failed to convert argument at index %d" % i)
+    return execute_lua_call(runtime, len(args))
 
+cdef object execute_lua_call(LuaRuntime runtime, Py_ssize_t nargs):
+    cdef lua_State *L = runtime._state
+    cdef Py_ssize_t i
+    cdef int result_status
     # call into Lua
-    nargs = len(args)
     with nogil:
         result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
-    runtime.reraise_on_exception()
-    if result_status:
-        raise LuaError("error: %s" % lua.lua_tostring(L, -1))
-
-    # extract return values
     try:
+        runtime.reraise_on_exception()
+        if result_status:
+            raise LuaError("error: %s" % lua.lua_tostring(L, -1))
+
+        # extract return values
         nargs = lua.lua_gettop(L)
         if nargs == 1:
             return py_from_lua(runtime, 1)

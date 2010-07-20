@@ -27,6 +27,9 @@ class TestLuaRuntime(unittest.TestCase):
     def test_eval(self):
         self.assertEqual(2, self.lua.eval('1+1'))
 
+    def test_eval_multi(self):
+        self.assertEqual((1,2,3), self.lua.eval('1,2,3'))
+
     def test_execute(self):
         self.assertEqual(2, self.lua.execute('return 1+1'))
 
