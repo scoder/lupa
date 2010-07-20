@@ -11,6 +11,8 @@ Lupa change log
 * ``LuaRuntime.table()`` method for creating Lua tables from Python
   space
 
+* encoding fix for ``str(LuaObject)``
+
 
 0.7 (2010-07-18)
 -----------------
