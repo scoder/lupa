@@ -599,7 +599,7 @@ cdef int py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
         pushed_values_count = 1
     elif isinstance(o, unicode) and runtime._encoding is not None:
         pushed_values_count = push_encoded_unicode_string(runtime, <unicode>o)
-    elif isinstance(o, int) or isinstance(o, float):
+    elif isinstance(o, (int, float)):
         lua.lua_pushnumber(L, <lua.lua_Number><double>o)
         pushed_values_count = 1
     elif isinstance(o, _LuaObject):
@@ -608,7 +608,7 @@ cdef int py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
         lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, (<_LuaObject>o)._ref)
         pushed_values_count = 1
     else:
-        as_index =  isinstance(o, dict) or isinstance(o, list) or isinstance(o, tuple)
+        as_index =  isinstance(o, (dict, list, tuple))
         pushed_values_count = py_to_lua_custom(runtime, o, as_index)
         if pushed_values_count and not as_index and hasattr(o, '__call__'):
             lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
@@ -708,7 +708,7 @@ cdef int py_object_gc(lua_State* L):
 
 cdef bint call_python(LuaRuntime runtime, py_object* py_obj) except -1:
     cdef lua_State *L = runtime._state
-    cdef int nargs = lua.lua_gettop(L) - 1
+    cdef int i, nargs = lua.lua_gettop(L) - 1
     cdef bint ret = 0
 
     if not py_obj:
