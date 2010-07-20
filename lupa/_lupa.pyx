@@ -215,14 +215,6 @@ cdef class LuaRuntime:
         return 0 # nothing left to return on the stack
 
 
-cdef _LuaObject new_lua_object(LuaRuntime runtime, int n):
-    cdef _LuaObject obj = _LuaObject.__new__(_LuaObject)
-    # additional INCREF to keep runtime from disappearing in GC runs
-    cpython.ref.Py_INCREF(runtime)
-    obj._runtime = runtime
-    obj._ref = lua.luaL_ref(runtime._state, lua.LUA_REGISTRYINDEX)
-    return obj
-
 cdef class _LuaObject:
     """A wrapper around a Lua object such as a table of function.
     """
@@ -277,25 +269,7 @@ cdef class _LuaObject:
             self._runtime.unlock()
 
     def __iter__(self):
-        return _LuaIter(self, KEYS)
-
-    def keys(self):
-        """Returns an iterator over the keys of a table (or other
-        iterable) that this object represents.  Same as iter(obj).
-        """
-        return _LuaIter(self, KEYS)
-
-    def values(self):
-        """Returns an iterator over the values of a table (or other
-        iterable) that this object represents.
-        """
-        return _LuaIter(self, VALUES)
-
-    def items(self):
-        """Returns an iterator over the key-value pairs of a table (or
-        other iterable) that this object represents.
-        """
-        return _LuaIter(self, ITEMS)
+        raise TypeError("iteration is only supported for tables")
 
     def __repr__(self):
         assert self._runtime is not None
@@ -344,18 +318,21 @@ cdef class _LuaObject:
         self._runtime.lock()
         try:
             self.push_lua_object()
+            if lua.lua_isfunction(L, -1):
+                lua.lua_pop(L, 1)
+                raise TypeError("item/attribute access not supported on functions")
             py_to_lua(self._runtime, name, 0)
             lua.lua_gettable(L, -2)
-            try:
-                return py_from_lua(self._runtime, -1)
-            finally:
-                lua.lua_settop(L, 0)
+            return py_from_lua(self._runtime, -1)
         finally:
+            lua.lua_settop(L, 0)
             self._runtime.unlock()
 
     def __setattr__(self, name, value):
         assert self._runtime is not None
         cdef lua_State* L = self._runtime._state
+        if isinstance(name, unicode):
+            name = (<unicode>name).encode(self._runtime._source_encoding)
         self._runtime.lock()
         try:
             self.push_lua_object()
@@ -377,6 +354,20 @@ cdef class _LuaObject:
     def __setitem__(self, index_or_name, value):
         self.__setattr__(index_or_name, value)
 
+
+cdef _LuaObject new_lua_object(LuaRuntime runtime, int n):
+    cdef _LuaObject obj = _LuaObject.__new__(_LuaObject)
+    init_lua_object(obj, runtime, n)
+    return obj
+
+cdef void init_lua_object(_LuaObject obj, LuaRuntime runtime, int n):
+    cdef lua_State* L = runtime._state
+    # additional INCREF to keep runtime from disappearing in GC runs
+    cpython.ref.Py_INCREF(runtime)
+    obj._runtime = runtime
+    lua.lua_pushvalue(L, n)
+    obj._ref = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
+
 cdef object lua_object_repr(lua_State* L, encoding):
     cdef bytes py_bytes
     lua_type = lua.lua_type(L, -1)
@@ -397,6 +388,34 @@ cdef object lua_object_repr(lua_State* L, encoding):
     except UnicodeDecodeError:
         # safe 'decode'
         return py_bytes.decode('ISO-8859-1')
+
+
+cdef class _LuaTable(_LuaObject):
+    def __iter__(self):
+        return _LuaIter(self, KEYS)
+
+    def keys(self):
+        """Returns an iterator over the keys of a table (or other
+        iterable) that this object represents.  Same as iter(obj).
+        """
+        return _LuaIter(self, KEYS)
+
+    def values(self):
+        """Returns an iterator over the values of a table (or other
+        iterable) that this object represents.
+        """
+        return _LuaIter(self, VALUES)
+
+    def items(self):
+        """Returns an iterator over the key-value pairs of a table (or
+        other iterable) that this object represents.
+        """
+        return _LuaIter(self, ITEMS)
+
+cdef _LuaTable new_lua_table(LuaRuntime runtime, int n):
+    cdef _LuaTable obj = _LuaTable.__new__(_LuaTable)
+    init_lua_object(obj, runtime, n)
+    return obj
 
 
 cdef enum:
@@ -522,13 +541,14 @@ cdef object py_from_lua(LuaRuntime runtime, int n):
         py_obj = <py_object*>lua.luaL_checkudata(L, n, POBJECT)
         if py_obj:
             return <object>py_obj.obj
+    elif lua_type == lua.LUA_TTABLE:
+        return new_lua_table(runtime, n)
     return new_lua_object(runtime, n)
 
-cdef bint py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
+cdef int py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
     cdef lua_State *L = runtime._state
-    cdef bint pushed_values_count = 0
+    cdef int pushed_values_count = 0
     cdef bint as_index = 0
-    cdef bytes bytes_string
 
     if o is None:
         if withnone:
@@ -549,9 +569,7 @@ cdef bint py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
         pushed_values_count = 1
     elif isinstance(o, unicode) and runtime._encoding is not None:
-        bytes_string = (<unicode>o).encode(runtime._encoding)
-        lua.lua_pushlstring(L, <char*>bytes_string, len(bytes_string))
-        pushed_values_count = 1
+        pushed_values_count = push_encoded_unicode_string(runtime, <unicode>o)
     elif isinstance(o, int) or isinstance(o, float):
         lua.lua_pushnumber(L, <lua.lua_Number><double>o)
         pushed_values_count = 1
@@ -566,6 +584,12 @@ cdef bint py_to_lua(LuaRuntime runtime, object o, bint withnone) except -1:
         if pushed_values_count and not as_index and hasattr(o, '__call__'):
             lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
     return pushed_values_count
+
+cdef int push_encoded_unicode_string(LuaRuntime runtime, unicode ustring) except -1:
+    cdef lua_State *L = runtime._state
+    cdef bytes bytes_string = ustring.encode(runtime._encoding)
+    lua.lua_pushlstring(L, <char*>bytes_string, len(bytes_string))
+    return 1
 
 cdef bint py_to_lua_custom(LuaRuntime runtime, object o, int as_index):
     cdef lua_State *L = runtime._state
