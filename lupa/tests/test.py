@@ -247,6 +247,11 @@ class TestLuaRuntime(unittest.TestCase):
         lua_globals = self.lua.globals()
         self.assertNotEqual(None, lua_globals.unpack)
 
+    def test_globals_attrs_call(self):
+        lua_globals = self.lua.globals()
+        self.assertNotEqual(None, lua_globals.string)
+        self.assertEqual('test', lua_globals.string.lower("TEST"))
+
     def test_require(self):
         stringlib = self.lua.require('string')
         self.assertNotEqual(None, stringlib)
