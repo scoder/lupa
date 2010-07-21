@@ -342,7 +342,11 @@ cdef class _LuaObject:
         assert self._runtime is not None
         cdef lua_State* L = self._runtime._state
         if isinstance(name, unicode):
+            if (<unicode>name).startswith(u'__') and (<unicode>name).endswith(u'__'):
+                return object.__getattr__(self, name)
             name = (<unicode>name).encode(self._runtime._source_encoding)
+        elif isinstance(name, bytes) and (<bytes>name).startswith(b'__') and (<bytes>name).endswith(b'__'):
+            return object.__getattr__(self, name)
         self._runtime.lock()
         try:
             self.push_lua_object()
@@ -360,7 +364,11 @@ cdef class _LuaObject:
         assert self._runtime is not None
         cdef lua_State* L = self._runtime._state
         if isinstance(name, unicode):
+            if (<unicode>name).startswith(u'__') and (<unicode>name).endswith(u'__'):
+                object.__setattr__(self, name, value)
             name = (<unicode>name).encode(self._runtime._source_encoding)
+        elif isinstance(name, bytes) and (<bytes>name).startswith(b'__') and (<bytes>name).endswith(b'__'):
+            object.__setattr__(self, name, value)
         self._runtime.lock()
         try:
             self.push_lua_object()

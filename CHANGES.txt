@@ -1,6 +1,13 @@
 Lupa change log
 ================
 
+0.9 (2010-07-??)
+-----------------
+
+* fixed Python special double-underscore method access on LuaObject
+  instances
+
+
 0.8 (2010-07-21)
 -----------------
 
