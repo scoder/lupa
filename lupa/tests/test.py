@@ -14,8 +14,7 @@ except NameError:
     def _next(o):
         return o.next()
 
-
-class TestLuaRuntime(unittest.TestCase):
+class SetupLuaRuntimeMixin(object):
 
     def setUp(self):
         self.lua = lupa.LuaRuntime()
@@ -24,6 +23,7 @@ class TestLuaRuntime(unittest.TestCase):
         self.lua = None
 
 
+class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_eval(self):
         self.assertEqual(2, self.lua.eval('1+1'))
 
@@ -346,6 +346,207 @@ class TestLuaRuntime(unittest.TestCase):
         self.assertRaises(ValueError, function, test)
 
 
+class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_coroutine_iter(self):
+        lua_code = '''\
+            function(N)
+                for i=0,N do
+                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                end
+            end
+        '''
+        f = self.lua.eval(lua_code)
+        gen = f.coroutine(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+    def test_coroutine_iter_repeat(self):
+        lua_code = '''\
+            function(N)
+                for i=0,N do
+                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                end
+            end
+        '''
+        f = self.lua.eval(lua_code)
+        gen = f.coroutine(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+        gen = f.coroutine(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+        gen = f.coroutine(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+    def test_coroutine_create_iter(self):
+        lua_code = '''\
+        coroutine.create(
+            function(N)
+                for i=0,N do
+                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                end
+            end
+            )
+        '''
+        co = self.lua.eval(lua_code)
+        gen = co(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+    def test_coroutine_create_iter_repeat(self):
+        lua_code = '''\
+        coroutine.create(
+            function(N)
+                for i=0,N do
+                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                end
+            end
+            )
+        '''
+        co = self.lua.eval(lua_code)
+
+        gen = co(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+        gen = co(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+        gen = co(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+    def test_coroutine_lua_iter(self):
+        lua_code = '''\
+        co = coroutine.create(
+            function(N)
+                for i=0,N do
+                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                end
+            end
+            )
+        status, first_value = coroutine.resume(co, 5)
+        return co, status, first_value
+        '''
+        gen, status, first_value = self.lua.execute(lua_code)
+        self.assertTrue(status)
+        self.assertEqual([0,1,0,1,0,1], [first_value] + list(gen))
+
+    def test_coroutine_lua_iter_independent(self):
+        lua_code = '''\
+            function f(N)
+              for i=0,N do
+                  coroutine.yield( i%2 )
+              end
+            end ;
+            co1 = coroutine.create(f) ;
+            co2 = coroutine.create(f) ;
+
+            status, first_value = coroutine.resume(co2, 5) ;   -- starting!
+
+            return f, co1, co2, status, first_value
+        '''
+        f, co, lua_gen, status, first_value = self.lua.execute(lua_code)
+
+        # f
+        gen = f.coroutine(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+        # co
+        gen = co(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+        gen = co(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+        # lua_gen
+        self.assertTrue(status)
+        self.assertEqual([0,1,0,1,0,1], [first_value] + list(lua_gen))
+        self.assertEqual([], list(lua_gen))
+
+    def test_coroutine_iter_pycall(self):
+        lua_code = '''\
+        coroutine.create(
+            function(pyfunc, N)
+                for i=0,N do
+                    if pyfunc(i) then coroutine.yield(0) else coroutine.yield(1) end
+                end
+            end
+            )
+        '''
+        co = self.lua.eval(lua_code)
+
+        def pyfunc(i):
+            return i%2 == 0
+        gen = co(pyfunc, 5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+    def test_coroutine_status(self):
+        lua_code = '''\
+        coroutine.create(
+            function(N)
+                for i=0,N do
+                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                end
+            end
+            )
+        '''
+        co = self.lua.eval(lua_code)
+        self.assertTrue(bool(co)) # 1
+        gen = co(1)
+        self.assertTrue(bool(gen)) # 2
+        self.assertEqual(0, _next(gen))
+        self.assertTrue(bool(gen)) # 3
+        self.assertEqual(1, _next(gen))
+        self.assertTrue(bool(gen)) # 4
+        self.assertRaises(StopIteration, _next, gen)
+        self.assertFalse(bool(gen)) # 5
+        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, _next, gen)
+
+    def test_coroutine_terminate_return(self):
+        lua_code = '''\
+        coroutine.create(
+            function(N)
+                for i=0,N do
+                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                end
+                return 99
+            end
+            )
+        '''
+        co = self.lua.eval(lua_code)
+
+        self.assertTrue(bool(co)) # 1
+        gen = co(1)
+        self.assertTrue(bool(gen)) # 2
+        self.assertEqual(0, _next(gen))
+        self.assertTrue(bool(gen)) # 3
+        self.assertEqual(1, _next(gen))
+        self.assertTrue(bool(gen)) # 4
+        self.assertEqual(99, _next(gen))
+        self.assertFalse(bool(gen)) # 5
+        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, _next, gen)
+
+    def test_coroutine_while_status(self):
+        lua_code = '''\
+            function(N)
+                for i=0,N-1 do
+                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                end
+                if N < 0 then return nil end
+                if N%2 == 0 then return 0 else return 1 end
+            end
+        '''
+        f = self.lua.eval(lua_code)
+        gen = f.coroutine(5)
+        result = []
+        # note: this only works because the generator returns a result
+        # after the last yield - otherwise, it would throw
+        # StopIteration in the last call
+        while gen:
+            result.append(_next(gen))
+        self.assertEqual([0,1,0,1,0,1], result)
+
+
 class TestLuaApplications(unittest.TestCase):
     def test_mandelbrot(self):
         # copied from Computer Language Benchmarks Game
@@ -663,7 +864,13 @@ class TestThreading(unittest.TestCase):
         ##     image = Image.fromstring('1', (image_size, image_size), result_bytes)
         ##     image.show()
 
-
 if __name__ == '__main__':
+    import os
     import unittest
-    unittest.main()
+    import doctest
+    suite = unittest.TestSuite()
+    suite.addTest(doctest.DocTestSuite(lupa._lupa))
+    suite.addTest(unittest.defaultTestLoader.loadTestsFromName('__main__'))
+    suite.addTest(doctest.DocFileSuite('../../README.txt'))
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

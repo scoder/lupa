@@ -2,9 +2,8 @@ Lupa
 =====
 
 Lupa integrates the LuaJIT2_ runtime into CPython.  It is a partial
-rewrite of LunaticPython_ in Cython_.  Note that it is currently
-lacking some features and a lot of testing compared to LunaticPython,
-so it does not yet make for a production-ready Lua integration.
+rewrite of LunaticPython_ in Cython_ with some additional features
+such as proper coroutine support.
 
 .. _LuaJIT2: http://luajit.org/
 .. _LunaticPython: http://labix.org/lunatic-python
@@ -51,6 +50,75 @@ Examples
       >>> def py_add1(n): return n+1
       >>> lua_func(py_add1, 2)
       3
+
+The next is an example of Lua coroutines.  A wrapped Lua coroutine
+behaves exactly like a Python coroutine.  It needs to get created at
+the beginning, either by using the ``.coroutine()`` method of a
+function or by creating it in Lua code.  Then, values can be sent into
+it using the ``.send()`` method or it can be iterated over.
+
+::
+
+      >>> lua_code = '''\
+      ...     function(N)
+      ...         for i=0,N do
+      ...             coroutine.yield( i%2 )
+      ...         end
+      ...     end
+      ... '''
+      >>> lua = LuaRuntime()
+      >>> f = lua.eval(lua_code)
+
+      >>> gen = f.coroutine(4)
+      >>> list(enumerate(gen))
+      [(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]
+
+It also works to create coroutines in Lua and to pass them back into
+Python space::
+
+      >>> lua_code = '''\
+      ...   function f(N)
+      ...         for i=0,N do
+      ...             coroutine.yield( i%2 )
+      ...         end
+      ...   end ;
+      ...   co1 = coroutine.create(f) ;
+      ...   co2 = coroutine.create(f) ;
+      ...
+      ...   status, first_result = coroutine.resume(co2, 2) ;   -- starting!
+      ...
+      ...   return f, co1, co2, status, first_result
+      ... '''
+
+      >>> lua = LuaRuntime()
+      >>> f, co, lua_gen, status, first_result = lua.execute(lua_code)
+
+      >>> # a running coroutine:
+
+      >>> status
+      True
+      >>> first_result
+      0
+      >>> list(lua_gen)
+      [1, 0]
+      >>> list(lua_gen)
+      []
+
+      >>> # an uninitialised coroutine:
+
+      >>> gen = co(4)
+      >>> list(enumerate(gen))
+      [(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]
+
+      >>> gen = co(2)
+      >>> list(enumerate(gen))
+      [(0, 0), (1, 1), (2, 0)]
+
+      >>> # a plain function:
+
+      >>> gen = f.coroutine(4)
+      >>> list(enumerate(gen))
+      [(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]
 
 The following example calculates a mandelbrot image in parallel
 threads and displays the result in PIL. It is based on a `benchmark
@@ -114,7 +182,6 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
 	import Image
         image = Image.fromstring('1', (image_size, image_size), result_buffer)
         image.show()
-
 
 
 Advantages over LunaticPython

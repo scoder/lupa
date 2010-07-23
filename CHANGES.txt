@@ -7,6 +7,10 @@ Lupa change log
 * fixed Python special double-underscore method access on LuaObject
   instances
 
+* Lua coroutine support through dedicated wrapper classes, including
+  Python iteration support.  In Python space, Lua coroutines behave
+  exactly like Python generators.
+
 
 0.8 (2010-07-21)
 -----------------
