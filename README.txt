@@ -26,7 +26,8 @@ is only some 400KB on a 64 bit machine.
 However, Lua code is harder to write than Python code as the language
 lacks most of the batteries that Python includes.  Writing large
 programs in Lua is rather futile, but it provides a perfect backup
-language when raw speed is more important than simplicity.
+language when raw speed is more important than simplicity, and
+edit-compile-run cycles are too heavy for agile development.
 
 Lupa is a very fast and thin wrapper around LuaJIT.  It makes it easy
 to write dynamic Lua code that accompanies dynamic Python code by
