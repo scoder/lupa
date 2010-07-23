@@ -3,7 +3,7 @@ import sys
 import os
 from distutils.core import setup, Extension
 
-VERSION = '0.8'
+VERSION = '0.9'
 
 extra_setup_args = {}
 
@@ -66,11 +66,11 @@ setup(
     url = "http://pypi.python.org/pypi/lupa",
     download_url = "http://pypi.python.org/packages/source/l/lupa/lupa-%s.tar.gz" % VERSION,
 
-    description="Simple wrapper around LuaJIT",
+    description="Python wrapper around LuaJIT",
 
     long_description = long_description,
     classifiers = [
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Intended Audience :: Information Technology',
         'License :: OSI Approved :: BSD License',
