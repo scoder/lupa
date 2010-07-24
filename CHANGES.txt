@@ -1,6 +1,13 @@
 Lupa change log
 ================
 
+0.10 (2010-07-??)
+------------------
+
+* much faster locking of the LuaRuntime, especially in the single
+  threaded case
+
+
 0.9 (2010-07-23)
 -----------------
 

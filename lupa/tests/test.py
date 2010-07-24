@@ -2,6 +2,7 @@
 
 import threading
 import unittest
+import time
 import sys
 
 import lupa
@@ -664,9 +665,12 @@ class TestMultipleLuaRuntimes(unittest.TestCase):
 
 class TestThreading(unittest.TestCase):
 
-    def _run_threads(self, threads):
+    def _run_threads(self, threads, starter=None):
         for thread in threads:
             thread.start()
+        if starter is not None:
+            time.sleep(0.1) # give some time to start up
+            starter.set()
         for thread in threads:
             thread.join()
 
@@ -684,16 +688,18 @@ class TestThreading(unittest.TestCase):
         functions = [ lua.execute(func_code) for _ in range(10) ]
         results = [None] * len(functions)
 
+        starter = threading.Event()
         def test(i, func, *args):
+            starter.wait()
             results[i] = func(*args)
 
-        threads = [ threading.Thread(target=test, args=(i, func, 20))
+        threads = [ threading.Thread(target=test, args=(i, func, 25))
                     for i, func in enumerate(functions) ]
 
-        self._run_threads(threads)
+        self._run_threads(threads, starter)
 
         self.assertEqual(1, len(set(results)))
-        self.assertEqual(13529, results[0])
+        self.assertEqual(150049, results[0])
 
     def test_threading(self):
         func_code = '''\

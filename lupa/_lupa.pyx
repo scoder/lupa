@@ -21,6 +21,7 @@ __all__ = ['LuaRuntime', 'LuaError']
 DEF POBJECT = "POBJECT" # as used by LunaticPython
 
 cdef class _LuaObject
+cdef class _Lock
 
 cdef struct py_object:
     PyObject* obj
@@ -64,26 +65,18 @@ cdef class LuaRuntime:
       3
     """
     cdef lua_State *_state
-    cdef pythread.PyThread_type_lock _thread_lock
-    cdef long _lock_owner
-    cdef int _lock_count
+    cdef _Lock _lock
     cdef tuple _raised_exception
     cdef bytes _encoding
     cdef bytes _source_encoding
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None):
-        self._thread_lock = self._state = NULL
-        self._lock_owner = -1
-        self._lock_count = 0
+        self._state = NULL
         cdef lua_State* L = lua.lua_open()
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L
-
-        self._thread_lock = pythread.PyThread_allocate_lock()
-        if self._thread_lock is NULL:
-            raise LuaError("Failed to initialise thread lock")
-
+        self._lock = _Lock()
         self._encoding = None if encoding is None else encoding.encode('ASCII')
         self._source_encoding = self._encoding or b'UTF-8'
 
@@ -95,30 +88,6 @@ cdef class LuaRuntime:
         if self._state is not NULL:
             lua.lua_close(self._state)
             self._state = NULL
-        if self._thread_lock is not NULL:
-            pythread.PyThread_free_lock(self._thread_lock)
-            self._thread_lock = NULL
-
-    cdef int lock(self) except -1:
-        cdef long current_thread = pythread.PyThread_get_thread_ident()
-        if self._lock_count and current_thread == self._lock_owner:
-            self._lock_count += 1
-            return 0
-        with nogil:
-            locked = pythread.PyThread_acquire_lock(self._thread_lock, pythread.WAIT_LOCK)
-        if not locked:
-            raise LuaError("Failed to acquire thread lock")
-        self._lock_owner = current_thread
-        self._lock_count = 1
-        return 0
-
-    cdef void unlock(self) nogil:
-        if self._lock_count == 0:
-            return
-        self._lock_count -= 1
-        if self._lock_count == 0:
-            pythread.PyThread_release_lock(self._thread_lock)
-            self._lock_owner = -1
 
     cdef int reraise_on_exception(self) except -1:
         if self._raised_exception is not None:
@@ -154,7 +123,7 @@ cdef class LuaRuntime:
         cdef lua_State *L = self._state
         if not isinstance(modulename, (bytes, unicode)):
             raise TypeError("modulename must be a string")
-        self.lock()
+        lock_runtime(self)
         try:
             lua.lua_pushlstring(L, 'require', 7)
             lua.lua_rawget(L, lua.LUA_GLOBALSINDEX)
@@ -163,7 +132,7 @@ cdef class LuaRuntime:
                 raise LuaError("require is not defined")
             return call_lua(self, L, (modulename,))
         finally:
-            self.unlock()
+            unlock_runtime(self)
 
     def globals(self):
         """Return the globals defined in this Lua runtime as a Lua
@@ -171,7 +140,7 @@ cdef class LuaRuntime:
         """
         assert self._state is not NULL
         cdef lua_State *L = self._state
-        self.lock()
+        lock_runtime(self)
         try:
             lua.lua_pushlstring(L, '_G', 2)
             lua.lua_rawget(L, lua.LUA_GLOBALSINDEX)
@@ -183,7 +152,7 @@ cdef class LuaRuntime:
             finally:
                 lua.lua_settop(L, 0)
         finally:
-            self.unlock()
+            unlock_runtime(self)
 
     def table(self, *items, **kwargs):
         """Creates a new table with the provided items.  Positional
@@ -193,7 +162,7 @@ cdef class LuaRuntime:
         assert self._state is not NULL
         cdef lua_State *L = self._state
         cdef int i
-        self.lock()
+        lock_runtime(self)
         try:
             lua.lua_createtable(L, len(items), len(kwargs))
             # FIXME: how to check for failure?
@@ -207,7 +176,7 @@ cdef class LuaRuntime:
             return py_from_lua(self, L, -1)
         finally:
             lua.lua_settop(L, 0)
-            self.unlock()
+            unlock_runtime(self)
 
     cdef int register_py_object(self, bytes cname, bytes pyname, object obj) except -1:
         cdef lua_State *L = self._state
@@ -239,6 +208,103 @@ cdef class LuaRuntime:
         return 0 # nothing left to return on the stack
 
 
+################################################################################
+# fast, re-entrant runtime locking
+
+cdef class _Lock:
+    """Fast, re-entrant locking for the LuaRuntime.
+
+    Under uncongested conditions, the lock is never acquired but only
+    counted.  Only when a second thread comes in and notices that the
+    lock is needed, it acquires the lock and notifies the first thread
+    to release it when it's done.  This is all made possible by the
+    wonderful GIL.
+    """
+    cdef pythread.PyThread_type_lock _thread_lock
+    cdef long _owner
+    cdef int _count
+    cdef int _pending_requests
+    cdef bint _is_locked
+
+    def __cinit__(self):
+        self._owner = -1
+        self._count = 0
+        self._is_locked = False
+        self._pending_requests = 0
+        self._thread_lock = pythread.PyThread_allocate_lock()
+        if self._thread_lock is NULL:
+            raise LuaError("Failed to initialise thread lock")
+
+    def __dealloc__(self):
+        if self._thread_lock is not NULL:
+            pythread.PyThread_free_lock(self._thread_lock)
+            self._thread_lock = NULL
+
+cdef inline int lock_runtime(LuaRuntime runtime) except -1:
+    if not _lock_lock(runtime._lock, pythread.PyThread_get_thread_ident()):
+        raise LuaError("Failed to acquire thread lock")
+    return 0
+
+cdef inline int _lock_lock(_Lock lock, long current_thread) nogil:
+    # Note that this function *must* hold the GIL when being called.
+    # We just use 'nogil' in the signature to make sure that no Python
+    # code slips in that might free the GIL
+    if lock._count:
+        # locked! - by myself?
+        if current_thread == lock._owner:
+            lock._count += 1
+            return 1
+    elif not lock._pending_requests:
+        # not locked, not requested - go!
+        lock._owner = current_thread
+        lock._count = 1
+        return 1
+    # need to get the real lock
+    return acquire_runtime_lock(lock, current_thread)
+
+cdef int acquire_runtime_lock(_Lock lock, long current_thread) nogil:
+    # Note that this function *must* hold the GIL when being called.
+    # We just use 'nogil' in the signature to make sure that no Python
+    # code slips in that might free the GIL.
+    if not lock._is_locked and not lock._pending_requests:
+        if not pythread.PyThread_acquire_lock(lock._thread_lock, pythread.WAIT_LOCK):
+            return 0
+        #assert not runtime._is_locked
+        lock._is_locked = True
+    lock._pending_requests += 1
+    with nogil:
+        # wait for lock holding thread to release it
+        locked = pythread.PyThread_acquire_lock(lock._thread_lock, pythread.WAIT_LOCK)
+    lock._pending_requests -= 1
+    #assert not lock._is_locked
+    #assert lock._lock_count == 0, 'CURRENT: %x, LOCKER: %x, COUNT: %d, LOCKED: %d' % (
+    #    current_thread, lock._owner, lock._count, lock._is_locked)
+    if not locked:
+        return 0
+    lock._is_locked = True
+    lock._owner = current_thread
+    lock._count = 1
+    return 1
+
+cdef inline void unlock_runtime(LuaRuntime runtime) nogil:
+    # Note that this function *must* hold the GIL when being called.
+    # We just use 'nogil' in the signature to make sure that no Python
+    # code slips in that might free the GIL
+
+    #assert runtime._lock_owner == pythread.PyThread_get_thread_ident(), 'UNLOCK:   CURRENT: %x, LOCKER: %x, COUNT: %d, LOCKED: %d' % (
+    #    pythread.PyThread_get_thread_ident(), runtime._lock_owner, runtime._lock_count, runtime._is_locked)
+    #assert runtime._lock_count > 0
+    runtime._lock._count -= 1
+    if runtime._lock._count == 0:
+        runtime._lock._owner = -1
+        if runtime._lock._is_locked:
+            pythread.PyThread_release_lock(runtime._lock._thread_lock)
+            runtime._lock._is_locked = False
+
+
+################################################################################
+# Lua object wrappers
+
 cdef class _LuaObject:
     """A wrapper around a Lua object such as a table of function.
     """
@@ -254,13 +320,14 @@ cdef class _LuaObject:
             return
         cdef lua_State* L = self._state
         try:
-            self._runtime.lock()
+            lock_runtime(self._runtime)
             locked = True
         except:
+            print("FAILED TO GET LOCK IN THREAD %d" % pythread.PyThread_get_thread_ident())
             locked = False
         lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
         if locked:
-            self._runtime.unlock()
+            unlock_runtime(self._runtime)
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
 
@@ -274,24 +341,24 @@ cdef class _LuaObject:
     def __call__(self, *args):
         assert self._runtime is not None
         cdef lua_State* L = self._state
-        self._runtime.lock()
+        lock_runtime(self._runtime)
         try:
             lua.lua_settop(L, 0)
             self.push_lua_object()
             return call_lua(self._runtime, L, args)
         finally:
-            self._runtime.unlock()
+            unlock_runtime(self._runtime)
 
     def __len__(self):
         assert self._runtime is not None
         cdef lua_State* L = self._state
-        self._runtime.lock()
+        lock_runtime(self._runtime)
         try:
             self.push_lua_object()
             return lua.lua_objlen(L, -1)
         finally:
             lua.lua_settop(L, 0)
-            self._runtime.unlock()
+            unlock_runtime(self._runtime)
 
     def __nonzero__(self):
         return True
@@ -303,13 +370,13 @@ cdef class _LuaObject:
         assert self._runtime is not None
         cdef lua_State* L = self._state
         encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
-        self._runtime.lock()
+        lock_runtime(self._runtime)
         try:
             self.push_lua_object()
             return lua_object_repr(L, encoding)
         finally:
             lua.lua_pop(L, 1)
-            self._runtime.unlock()
+            unlock_runtime(self._runtime)
 
     def __str__(self):
         assert self._runtime is not None
@@ -317,7 +384,7 @@ cdef class _LuaObject:
         cdef unicode py_string = None
         cdef const_char_ptr s
         encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
-        self._runtime.lock()
+        lock_runtime(self._runtime)
         try:
             self.push_lua_object()
             if lua.luaL_callmeta(L, -1, "__tostring"):
@@ -335,7 +402,7 @@ cdef class _LuaObject:
                 py_string = lua_object_repr(L, encoding)
         finally:
             lua.lua_pop(L, 1)
-            self._runtime.unlock()
+            unlock_runtime(self._runtime)
         return py_string
 
     def __getattr__(self, name):
@@ -347,7 +414,7 @@ cdef class _LuaObject:
             name = (<unicode>name).encode(self._runtime._source_encoding)
         elif isinstance(name, bytes) and (<bytes>name).startswith(b'__') and (<bytes>name).endswith(b'__'):
             return object.__getattr__(self, name)
-        self._runtime.lock()
+        lock_runtime(self._runtime)
         try:
             self.push_lua_object()
             if lua.lua_isfunction(L, -1):
@@ -358,7 +425,7 @@ cdef class _LuaObject:
             return py_from_lua(self._runtime, L, -1)
         finally:
             lua.lua_settop(L, 0)
-            self._runtime.unlock()
+            unlock_runtime(self._runtime)
 
     def __setattr__(self, name, value):
         assert self._runtime is not None
@@ -369,7 +436,7 @@ cdef class _LuaObject:
             name = (<unicode>name).encode(self._runtime._source_encoding)
         elif isinstance(name, bytes) and (<bytes>name).startswith(b'__') and (<bytes>name).endswith(b'__'):
             object.__setattr__(self, name, value)
-        self._runtime.lock()
+        lock_runtime(self._runtime)
         try:
             self.push_lua_object()
             if not lua.lua_istable(L, -1):
@@ -382,7 +449,7 @@ cdef class _LuaObject:
             finally:
                 lua.lua_settop(L, 0)
         finally:
-            self._runtime.unlock()
+            unlock_runtime(self._runtime)
 
     def __getitem__(self, index_or_name):
         return self.__getattr__(index_or_name)
@@ -465,7 +532,7 @@ cdef class _LuaFunction(_LuaObject):
         cdef lua_State* L = self._state
         cdef lua_State* co
         cdef _LuaThread thread
-        self._runtime.lock()
+        lock_runtime(self._runtime)
         try:
             self.push_lua_object()
             if not lua.lua_isfunction(L, -1) or lua.lua_iscfunction(L, -1):
@@ -481,7 +548,7 @@ cdef class _LuaFunction(_LuaObject):
             return thread
         finally:
             lua.lua_settop(L, 0)
-            self._runtime.unlock()
+            unlock_runtime(self._runtime)
 
 cdef _LuaFunction new_lua_function(LuaRuntime runtime, lua_State* L, int n):
     cdef _LuaFunction obj = _LuaFunction.__new__(_LuaFunction)
@@ -573,7 +640,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
     if lua.lua_status(co) == 0 and lua.lua_gettop(co) == 0:
         # already terminated
         raise StopIteration
-    thread._runtime.lock()
+    lock_runtime(thread._runtime)
     try:
         if args:
             nargs = len(args)
@@ -591,7 +658,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
         return unpack_lua_results(thread._runtime, co)
     finally:
         lua.lua_settop(co, 0)
-        thread._runtime.unlock()
+        unlock_runtime(thread._runtime)
 
 
 cdef enum:
@@ -623,13 +690,13 @@ cdef class _LuaIter:
         cdef lua_State* L = self._state
         if self._refiter:
             try:
-                self._runtime.lock()
+                lock_runtime(self._runtime)
                 locked = True
             except:
                 locked = False
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
             if locked:
-                self._runtime.unlock()
+                unlock_runtime(self._runtime)
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._obj)
 
@@ -643,7 +710,7 @@ cdef class _LuaIter:
         if self._obj is None:
             raise StopIteration
         cdef lua_State* L = self._obj._state
-        self._runtime.lock()
+        lock_runtime(self._runtime)
         try:
             if self._obj is None:
                 raise StopIteration
@@ -681,7 +748,7 @@ cdef class _LuaIter:
                 lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
             self._obj = None
         finally:
-            self._runtime.unlock()
+            unlock_runtime(self._runtime)
         raise StopIteration
 
 
@@ -798,13 +865,13 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code):
     # locks the runtime
     cdef lua_State* L = runtime._state
     cdef bint result
-    runtime.lock()
+    lock_runtime(runtime)
     try:
         if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
             raise LuaError("error loading code: %s" % lua.lua_tostring(L, -1))
         return execute_lua_call(runtime, L, 0)
     finally:
-        runtime.unlock()
+        unlock_runtime(runtime)
 
 cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
     # does not lock the runtime!
