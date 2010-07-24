@@ -45,11 +45,21 @@ def find_luajit_build():
                     print("building statically")
     return dict(extra_objects=static_libs, include_dirs=include_dirs)
 
+def has_option(name):
+    if name in sys.argv[1:]:
+        sys.argv.remove(name)
+        return True
+    return False
+
+ext_args = find_luajit_build()
+if has_option('--without-assert'):
+    ext_args['define_macros'] = [('PYREX_WITHOUT_ASSERTIONS', None)]
+
 ext_modules = [
     Extension(
         'lupa._lupa',
         sources = ['lupa/_lupa'+source_extension],
-        **find_luajit_build()
+        **ext_args
         )
     ]
 
