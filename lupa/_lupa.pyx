@@ -591,6 +591,9 @@ cdef class _LuaThread(_LuaObject):
                 raise TypeError("can't send non-None value to a just-started generator")
             if not isinstance(value, tuple):
                 value = (value,)
+        elif self._arguments is not None:
+            value = self._arguments
+            self._arguments = None
         return resume_lua_thread(self, <tuple>value)
 
     def __bool__(self):

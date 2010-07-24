@@ -477,6 +477,39 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         gen = co(pyfunc, 5)
         self.assertEqual([0,1,0,1,0,1], list(gen))
 
+    def test_coroutine_send(self):
+        lua_code = '''\
+            function()
+                local i = 0
+                while coroutine.yield(i) do i = i+1 end
+                return i   -- not i+1 !
+            end
+        '''
+        count = self.lua.eval(lua_code).coroutine()
+        result = [ count.send(value) for value in ([None]+[True]*9+[False]) ]
+        self.assertEqual(list(range(10)) + [9], result)
+        self.assertRaises(StopIteration, count.send, True)
+
+    def test_coroutine_send_with_arguments(self):
+        lua_code = '''\
+            function(N)
+                local i = 0
+                while coroutine.yield(i) < N do i = i+1 end
+                return i   -- not i+1 !
+            end
+        '''
+        count = self.lua.eval(lua_code).coroutine(5)
+        result = []
+        try:
+            for value in ([None]+list(range(10))):
+                result.append( count.send(value) )
+        except StopIteration:
+            pass
+        else:
+            self.assertTrue(False)
+        self.assertEqual(list(range(6)) + [5], result)
+        self.assertRaises(StopIteration, count.send, True)
+
     def test_coroutine_status(self):
         lua_code = '''\
         coroutine.create(
