@@ -592,7 +592,7 @@ cdef class _LuaThread(_LuaObject):
                 raise TypeError("can't send non-None value to a just-started generator")
             if not isinstance(value, tuple):
                 value = (value,)
-        return resume_lua_thread(self, value)
+        return resume_lua_thread(self, <tuple>value)
 
     def __bool__(self):
         cdef lua.lua_Debug dummy
@@ -767,18 +767,18 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
 
     if lua_type == lua.LUA_TNIL:
         return None
-    elif lua_type == lua.LUA_TSTRING:
-        s = lua.lua_tolstring(L, n, &size)
-        if runtime._encoding is not None:
-            return s[:size].decode(runtime._encoding)
-        else:
-            return s[:size]
     elif lua_type == lua.LUA_TNUMBER:
         number = lua.lua_tonumber(L, n)
         if number != <long>number:
             return <double>number
         else:
             return <long>number
+    elif lua_type == lua.LUA_TSTRING:
+        s = lua.lua_tolstring(L, n, &size)
+        if runtime._encoding is not None:
+            return s[:size].decode(runtime._encoding)
+        else:
+            return s[:size]
     elif lua_type == lua.LUA_TBOOLEAN:
         return lua.lua_toboolean(L, n)
     elif lua_type == lua.LUA_TUSERDATA:
@@ -809,8 +809,8 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) ex
             # with pushed_values_count == 0.
             lua.lua_pushnil(L)
             pushed_values_count = 1
-    elif o is True or o is False:
-        lua.lua_pushboolean(L, o is True)
+    elif isinstance(o, bool):
+        lua.lua_pushboolean(L, <bint>o)
         pushed_values_count = 1
     elif isinstance(o, (int, long, float)):
         lua.lua_pushnumber(L, <lua.lua_Number><double>o)
@@ -900,14 +900,17 @@ cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L, tuple args) except
                 raise TypeError("failed to convert argument at index %d" % i)
     return 0
 
-cdef object unpack_lua_results(LuaRuntime runtime, lua_State *L):
+cdef inline object unpack_lua_results(LuaRuntime runtime, lua_State *L):
     cdef int nargs = lua.lua_gettop(L)
     if nargs == 1:
         return py_from_lua(runtime, L, 1)
-    elif nargs == 0:
+    if nargs == 0:
         return None
+    return unpack_multiple_lua_results(runtime, L, nargs)
 
-    args = cpython.tuple.PyTuple_New(nargs)
+cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nargs):
+    cdef tuple args = cpython.tuple.PyTuple_New(nargs)
+    cdef int i
     for i in range(nargs):
         arg = py_from_lua(runtime, L, i+1)
         cpython.ref.Py_INCREF(arg)
@@ -940,7 +943,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
         lua.luaL_argerror(L, 1, "not a python object")
         return 0
 
-    args = cpython.tuple.PyTuple_New(nargs)
+    cdef tuple args = cpython.tuple.PyTuple_New(nargs)
     for i in range(nargs):
         arg = py_from_lua(runtime, L, i+2)
         cpython.ref.Py_INCREF(arg)
