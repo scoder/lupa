@@ -323,7 +323,6 @@ cdef class _LuaObject:
             lock_runtime(self._runtime)
             locked = True
         except:
-            print("FAILED TO GET LOCK IN THREAD %d" % pythread.PyThread_get_thread_ident())
             locked = False
         lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
         if locked:
