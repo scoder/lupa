@@ -189,7 +189,7 @@ Advantages over LunaticPython
 
 * separate Lua runtime states through a ``LuaRuntime`` class
 
-* Python compatible wrapper for Lua coroutines
+* Python coroutine wrapper for Lua coroutines
 
 * proper encoding and decoding of strings (configurable per runtime,
   UTF-8 by default)
