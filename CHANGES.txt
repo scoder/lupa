@@ -1,11 +1,15 @@
 Lupa change log
 ================
 
-0.10 (2010-07-??)
+0.10 (2010-07-27)
 ------------------
 
 * much faster locking of the LuaRuntime, especially in the single
-  threaded case
+  threaded case (see
+  http://code.activestate.com/recipes/577336-fast-re-entrant-optimistic-lock-implemented-in-cyt/)
+
+* fixed several error handling problems when executing Python code
+  inside of Lua
 
 
 0.9 (2010-07-23)

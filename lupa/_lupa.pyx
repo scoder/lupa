@@ -8,7 +8,6 @@ cimport cpython.ref
 cimport cpython.bytes
 cimport cpython.tuple
 from cpython.ref cimport PyObject
-from cpython cimport pythread
 
 cdef extern from *:
     ctypedef char* const_char_ptr "const char*"
@@ -21,7 +20,6 @@ __all__ = ['LuaRuntime', 'LuaError']
 DEF POBJECT = "POBJECT" # as used by LunaticPython
 
 cdef class _LuaObject
-cdef class _Lock
 
 cdef struct py_object:
     PyObject* obj
@@ -31,6 +29,7 @@ cdef struct py_object:
 cdef lua.luaL_Reg py_object_lib[6]
 cdef lua.luaL_Reg py_lib[6]
 
+include "lock.pxi"
 
 class LuaError(Exception):
     pass
@@ -65,7 +64,7 @@ cdef class LuaRuntime:
       3
     """
     cdef lua_State *_state
-    cdef _Lock _lock
+    cdef FastRLock _lock
     cdef tuple _raised_exception
     cdef bytes _encoding
     cdef bytes _source_encoding
@@ -76,7 +75,7 @@ cdef class LuaRuntime:
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L
-        self._lock = _Lock()
+        self._lock = FastRLock()
         self._encoding = None if encoding is None else encoding.encode('ASCII')
         self._source_encoding = self._encoding or b'UTF-8'
 
@@ -183,9 +182,7 @@ cdef class LuaRuntime:
         lua.lua_pushlstring(L, cname, len(cname))
         if not py_to_lua_custom(self, L, obj, 0):
             lua.lua_pop(L, 1)
-            message = b"failed to convert %s object" % pyname
-            lua.luaL_error(L, message)
-            raise LuaError(message.decode('ASCII', 'replace'))
+            raise LuaError("failed to convert %s object" % pyname)
         lua.lua_pushlstring(L, pyname, len(pyname))
         lua.lua_pushvalue(L, -2)
         lua.lua_rawset(L, -5)
@@ -211,95 +208,13 @@ cdef class LuaRuntime:
 ################################################################################
 # fast, re-entrant runtime locking
 
-cdef class _Lock:
-    """Fast, re-entrant locking for the LuaRuntime.
-
-    Under uncongested conditions, the lock is never acquired but only
-    counted.  Only when a second thread comes in and notices that the
-    lock is needed, it acquires the lock and notifies the first thread
-    to release it when it's done.  This is all made possible by the
-    wonderful GIL.
-    """
-    cdef pythread.PyThread_type_lock _thread_lock
-    cdef long _owner
-    cdef int _count
-    cdef int _pending_requests
-    cdef bint _is_locked
-
-    def __cinit__(self):
-        self._owner = -1
-        self._count = 0
-        self._is_locked = False
-        self._pending_requests = 0
-        self._thread_lock = pythread.PyThread_allocate_lock()
-        if self._thread_lock is NULL:
-            raise LuaError("Failed to initialise thread lock")
-
-    def __dealloc__(self):
-        if self._thread_lock is not NULL:
-            pythread.PyThread_free_lock(self._thread_lock)
-            self._thread_lock = NULL
-
 cdef inline int lock_runtime(LuaRuntime runtime) except -1:
-    if not _lock_lock(runtime._lock, pythread.PyThread_get_thread_ident()):
+    if not lock_lock(runtime._lock, pythread.PyThread_get_thread_ident(), True):
         raise LuaError("Failed to acquire thread lock")
     return 0
 
-cdef inline int _lock_lock(_Lock lock, long current_thread) nogil:
-    # Note that this function *must* hold the GIL when being called.
-    # We just use 'nogil' in the signature to make sure that no Python
-    # code slips in that might free the GIL
-    if lock._count:
-        # locked! - by myself?
-        if current_thread == lock._owner:
-            lock._count += 1
-            return 1
-    elif not lock._pending_requests:
-        # not locked, not requested - go!
-        lock._owner = current_thread
-        lock._count = 1
-        return 1
-    # need to get the real lock
-    return acquire_runtime_lock(lock, current_thread)
-
-cdef int acquire_runtime_lock(_Lock lock, long current_thread) nogil:
-    # Note that this function *must* hold the GIL when being called.
-    # We just use 'nogil' in the signature to make sure that no Python
-    # code slips in that might free the GIL.
-    if not lock._is_locked and not lock._pending_requests:
-        if not pythread.PyThread_acquire_lock(lock._thread_lock, pythread.WAIT_LOCK):
-            return 0
-        #assert not runtime._is_locked
-        lock._is_locked = True
-    lock._pending_requests += 1
-    with nogil:
-        # wait for lock holding thread to release it
-        locked = pythread.PyThread_acquire_lock(lock._thread_lock, pythread.WAIT_LOCK)
-    lock._pending_requests -= 1
-    #assert not lock._is_locked
-    #assert lock._lock_count == 0, 'CURRENT: %x, LOCKER: %x, COUNT: %d, LOCKED: %d' % (
-    #    current_thread, lock._owner, lock._count, lock._is_locked)
-    if not locked:
-        return 0
-    lock._is_locked = True
-    lock._owner = current_thread
-    lock._count = 1
-    return 1
-
 cdef inline void unlock_runtime(LuaRuntime runtime) nogil:
-    # Note that this function *must* hold the GIL when being called.
-    # We just use 'nogil' in the signature to make sure that no Python
-    # code slips in that might free the GIL
-
-    #assert runtime._lock_owner == pythread.PyThread_get_thread_ident(), 'UNLOCK:   CURRENT: %x, LOCKER: %x, COUNT: %d, LOCKED: %d' % (
-    #    pythread.PyThread_get_thread_ident(), runtime._lock_owner, runtime._lock_count, runtime._is_locked)
-    #assert runtime._lock_count > 0
-    runtime._lock._count -= 1
-    if runtime._lock._count == 0:
-        runtime._lock._owner = -1
-        if runtime._lock._is_locked:
-            pythread.PyThread_release_lock(runtime._lock._thread_lock)
-            runtime._lock._is_locked = False
+    unlock_lock(runtime._lock)
 
 
 ################################################################################
@@ -805,7 +720,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) ex
             lua.lua_rawget(L, lua.LUA_REGISTRYINDEX)
             if lua.lua_isnil(L, -1):
                 lua.lua_pop(L, 1)
-                lua.luaL_error(L, "lost none from registry")
+                return 0
         else:
             # Not really needed, but this way we may check for errors
             # with pushed_values_count == 0.
@@ -841,18 +756,16 @@ cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode u
 
 cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int as_index):
     cdef py_object *py_obj = <py_object*> lua.lua_newuserdata(L, sizeof(py_object))
-    if py_obj:
-        cpython.ref.Py_INCREF(o)
-        cpython.ref.Py_INCREF(runtime)
-        py_obj.obj = <PyObject*>o
-        py_obj.runtime = <PyObject*>runtime
-        py_obj.as_index = as_index
-        lua.luaL_getmetatable(L, POBJECT)
-        lua.lua_setmetatable(L, -2)
-        return 1 # values pushed
-    else:
-        lua.luaL_error(L, "failed to allocate userdata object")
+    if not py_obj:
         return 0 # values pushed
+    cpython.ref.Py_INCREF(o)
+    cpython.ref.Py_INCREF(runtime)
+    py_obj.obj = <PyObject*>o
+    py_obj.runtime = <PyObject*>runtime
+    py_obj.as_index = as_index
+    lua.luaL_getmetatable(L, POBJECT)
+    lua.lua_setmetatable(L, -2)
+    return 1 # values pushed
 
 cdef int raise_lua_error(lua_State* L, int result) except -1:
     if result == 0:
@@ -882,10 +795,10 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
 
 cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
     cdef int result_status
-    # call into Lua
-    with nogil:
-        result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
     try:
+        # call into Lua
+        with nogil:
+            result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
         runtime.reraise_on_exception()
         if result_status:
             raise_lua_error(L, result_status)
@@ -929,7 +842,7 @@ cdef void decref_with_gil(py_object *py_obj) with gil:
     cpython.ref.Py_XDECREF(py_obj.obj)
     cpython.ref.Py_XDECREF(py_obj.runtime)
 
-cdef int py_object_gc(lua_State* L):
+cdef int py_object_gc(lua_State* L) nogil:
     cdef py_object *py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT)
     if py_obj is not NULL and py_obj.obj is not NULL:
         decref_with_gil(py_obj)
@@ -942,8 +855,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
     cdef bint ret = 0
 
     if not py_obj:
-        lua.luaL_argerror(L, 1, "not a python object")
-        return 0
+        raise TypeError("not a python object")
 
     cdef tuple args = cpython.tuple.PyTuple_New(nargs)
     for i in range(nargs):
@@ -959,21 +871,19 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
         runtime = <LuaRuntime?>py_obj.runtime
         return call_python(runtime, L, py_obj)
     except:
-        runtime.store_raised_exception()
-        try:
-            message = (u"error during Python call: %r" % exc_info()[1]).encode('UTF-8')
-            lua.luaL_error(L, message)
-        except:
-            lua.luaL_error(L, b"error during Python call")
-        return 0
+        try: runtime.store_raised_exception()
+        except: pass
+        return -1
 
-cdef int py_object_call(lua_State* L):
+cdef int py_object_call(lua_State* L) nogil:
     cdef py_object *py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT)
     if not py_obj:
-        lua.luaL_argerror(L, 1, "not a python object")
-        return 0
+        return lua.luaL_argerror(L, 1, "not a python object")  # never returns!
 
-    return py_call_with_gil(L, py_obj)
+    result = py_call_with_gil(L, py_obj)
+    if result < 0:
+        return lua.luaL_error(L, 'error during Python call')  # never returns!
+    return result
 
 # str() support for Python objects
 
@@ -989,20 +899,18 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
         lua.lua_pushlstring(L, <bytes>s, len(<bytes>s))
         return 1 # returning 1 value
     except:
-        runtime.store_raised_exception()
-        try:
-            message = (u"error during Python str() call: %r" % exc_info()[1]).encode('UTF-8')
-            lua.luaL_error(L, message)
-        except:
-            lua.luaL_error(L, b"error during Python str() call")
-        return 0
+        try: runtime.store_raised_exception()
+        except: pass
+        return -1
 
-cdef int py_object_str(lua_State* L):
+cdef int py_object_str(lua_State* L) nogil:
     cdef py_object *py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT)
     if not py_obj:
-        lua.luaL_argerror(L, 1, "not a python object")
-        return 0
-    return py_str_with_gil(L, py_obj)
+        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    result = py_str_with_gil(L, py_obj)
+    if result < 0:
+        return lua.luaL_error(L, 'error during Python str() call')  # never returns!
+    return result
 
 # special methods for Lua
 
