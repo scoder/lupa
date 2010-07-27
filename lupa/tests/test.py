@@ -4,6 +4,7 @@ import threading
 import unittest
 import time
 import sys
+import gc
 
 import lupa
 
@@ -22,7 +23,7 @@ class SetupLuaRuntimeMixin(object):
 
     def tearDown(self):
         self.lua = None
-
+        gc.collect()
 
 class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_eval(self):
@@ -582,6 +583,9 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
 
 
 class TestLuaApplications(unittest.TestCase):
+    def tearDown(self):
+        gc.collect()
+
     def test_mandelbrot(self):
         # copied from Computer Language Benchmarks Game
         code = '''\
@@ -630,6 +634,9 @@ end
 
 
 class TestLuaRuntimeEncoding(unittest.TestCase):
+    def tearDown(self):
+        gc.collect()
+
     unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
 
     test_string = '"abcüöä"'
@@ -666,6 +673,8 @@ class TestLuaRuntimeEncoding(unittest.TestCase):
 
 
 class TestMultipleLuaRuntimes(unittest.TestCase):
+    def tearDown(self):
+        gc.collect()
 
     def test_multiple_runtimes(self):
         lua1 = lupa.LuaRuntime()
@@ -697,6 +706,8 @@ class TestMultipleLuaRuntimes(unittest.TestCase):
 
 
 class TestThreading(unittest.TestCase):
+    def tearDown(self):
+        gc.collect()
 
     def _run_threads(self, threads, starter=None):
         for thread in threads:
