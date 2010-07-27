@@ -18,7 +18,7 @@ Python, but LuaJIT compiles it to very fast machine code, sometimes
 `faster than many other compiled languages`_.  The language runtime is
 extremely small and carefully designed for embedding.  The complete
 binary module of Lupa, including a statically linked LuaJIT2 runtime,
-is only some 400KB on a 64 bit machine.
+is only some 500KB on a 64 bit machine.
 
 .. _`faster than many other compiled languages`: http://shootout.alioth.debian.org/u64/performance.php?test=mandelbrot
 

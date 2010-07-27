@@ -3,7 +3,7 @@ import sys
 import os
 from distutils.core import setup, Extension
 
-VERSION = '0.9'
+VERSION = '0.10'
 
 extra_setup_args = {}
 
@@ -58,7 +58,8 @@ if has_option('--without-assert'):
 ext_modules = [
     Extension(
         'lupa._lupa',
-        sources = ['lupa/_lupa'+source_extension],
+        sources = ['lupa/_lupa'+source_extension] + (
+            source_extension == '.pyx' and ['lupa/lock.pxi'] or []),
         **ext_args
         )
     ]
