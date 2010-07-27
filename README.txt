@@ -191,8 +191,8 @@ Advantages over LunaticPython
 
 * Python compatible wrapper for Lua coroutines
 
-* proper encoding and decoding of strings (configurable, UTF-8 by
-  default)
+* proper encoding and decoding of strings (configurable per runtime,
+  UTF-8 by default)
 
 * frees the GIL and supports threading in separate runtimes when
   calling into Lua
