@@ -10,6 +10,28 @@ such as proper coroutine support.
 .. _Cython: http://cython.org
 
 
+Major features
+---------------
+
+* separate Lua runtime states through a ``LuaRuntime`` class
+
+* Python coroutine wrapper for Lua coroutines
+
+* proper encoding and decoding of strings (configurable per runtime,
+  UTF-8 by default)
+
+* frees the GIL and supports threading in separate runtimes when
+  calling into Lua
+
+* supports Python 2.x and 3.x, potentially starting with Python 2.3
+  (currently untested)
+
+* written for LuaJIT2, as opposed to the Lua interpreter (tested with
+  LuaJIT 2.0.0-beta4)
+
+* easy to hack on and extend as it is written in Cython, not C
+
+
 Why use it?
 ------------
 
@@ -182,25 +204,3 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
 	import Image
         image = Image.fromstring('1', (image_size, image_size), result_buffer)
         image.show()
-
-
-Advantages over LunaticPython
-------------------------------
-
-* separate Lua runtime states through a ``LuaRuntime`` class
-
-* Python coroutine wrapper for Lua coroutines
-
-* proper encoding and decoding of strings (configurable per runtime,
-  UTF-8 by default)
-
-* frees the GIL and supports threading in separate runtimes when
-  calling into Lua
-
-* supports Python 2.x and 3.x, potentially starting with Python 2.3
-  (currently untested)
-
-* written for LuaJIT2, as opposed to the Lua interpreter (tested with
-  LuaJIT 2.0.0-beta4)
-
-* much easier to hack on and extend as it is written in Cython, not C
