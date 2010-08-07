@@ -34,6 +34,9 @@ include "lock.pxi"
 class LuaError(Exception):
     pass
 
+class LuaSyntaxError(LuaError):
+    pass
+
 cdef class LuaRuntime:
     """The main entry point to the Lua runtime.
 
@@ -571,7 +574,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
                     # no values left to return
                     raise StopIteration
             else:
-                raise_lua_error(co, result)
+                raise_lua_error(thread._runtime, co, result)
         return unpack_lua_results(thread._runtime, co)
     finally:
         lua.lua_settop(co, 0)
@@ -767,14 +770,26 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int as_in
     lua.lua_setmetatable(L, -2)
     return 1 # values pushed
 
-cdef int raise_lua_error(lua_State* L, int result) except -1:
+cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1:
     if result == 0:
         return 0
     elif result == lua.LUA_ERRMEM:
         cpython.exc.PyErr_NoMemory()
     else:
-        raise LuaError("error: %s" % lua.lua_tostring(L, -1))
+        raise LuaError(build_lua_error_message(
+            runtime, L, u"error: %s", -1))
 
+cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message, int n):
+    cdef size_t size
+    cdef const_char_ptr s = lua.lua_tolstring(L, n, &size)
+    if runtime._encoding is not None:
+        try:
+            py_ustring = s[:size].decode(runtime._encoding)
+        except UnicodeDecodeError:
+            py_ustring = s[:size].decode('ISO-8859-1') # safe 'fake' decoding
+    else:
+        py_ustring = s[:size].decode('ISO-8859-1')
+    return err_message % py_ustring
 
 cdef run_lua(LuaRuntime runtime, bytes lua_code):
     # locks the runtime
@@ -783,9 +798,14 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code):
     lock_runtime(runtime)
     try:
         if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
-            raise LuaError("error loading code: %s" % lua.lua_tostring(L, -1))
+            raise LuaSyntaxError(build_lua_error_message(
+                runtime, L, u"error loading code: %s", -1))
         return execute_lua_call(runtime, L, 0)
     finally:
+        # resetting the stack is required in case of a syntax error
+        # above, so we repeat it here even if execute_lua_call() also
+        # does it
+        lua.lua_settop(L, 0)
         unlock_runtime(runtime)
 
 cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
@@ -801,7 +821,7 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
             result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
         runtime.reraise_on_exception()
         if result_status:
-            raise_lua_error(L, result_status)
+            raise_lua_error(runtime, L, result_status)
         return unpack_lua_results(runtime, L)
     finally:
         lua.lua_settop(L, 0)

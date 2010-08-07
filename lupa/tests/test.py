@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 
-from thread import start_new_thread, get_ident
+try:
+    from thread import start_new_thread, get_ident
+except ImportError:
+    # Python 3?
+    from _thread import start_new_thread, get_ident
 import threading
 import unittest
 import time
@@ -36,6 +40,30 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_eval_multi(self):
         self.assertEqual((1,2,3), self.lua.eval('1,2,3'))
+
+    def test_eval_error(self):
+        self.assertRaises(lupa.LuaError, self.lua.eval, '<INVALIDCODE>')
+
+    def test_eval_error_cleanup(self):
+        self.assertEqual(2, self.lua.eval('1+1'))
+        self.assertRaises(lupa.LuaError, self.lua.eval, '<INVALIDCODE>')
+        self.assertEqual(2, self.lua.eval('1+1'))
+        self.assertRaises(lupa.LuaError, self.lua.eval, '<INVALIDCODE>')
+        self.assertEqual(2, self.lua.eval('1+1'))
+        self.assertEqual(2, self.lua.eval('1+1'))
+
+    def test_eval_error_message_decoding(self):
+        error = None
+        try:
+            self.lua.eval('-üUNKNOWNöVALUEä')
+        except lupa.LuaError:
+            error = (IS_PYTHON3 and '%s' or '%s'.decode('ASCII')) % sys.exc_info()[1]
+        else:
+            self.fail('expected error not raised')
+        expected_message = 'error: [string "<python>"]:1: attempt to perform arithmetic on global \'üUNKNOWNöVALUEä\' (a nil value)'
+        if not IS_PYTHON3:
+            expected_message = expected_message.decode('UTF-8')
+        self.assertEqual(expected_message, error)
 
     def test_execute(self):
         self.assertEqual(2, self.lua.execute('return 1+1'))

@@ -1,6 +1,15 @@
 Lupa change log
 ================
 
+0.11 (2010-08-07)
+------------------
+
+* error reporting on Lua syntax errors failed to clean up the stack so
+  that errors could leak into the next Lua run
+
+* Lua error messages were not properly decoded
+
+
 0.10 (2010-07-27)
 ------------------
 
