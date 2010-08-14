@@ -195,12 +195,31 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
         self.assertEqual([[i]*len(tables) for i in range(1,count+1)], l)
 
+    def test_iter_table_mapping(self):
+        keys = list('abcdefg')
+        table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
+        l = list(table)
+        l.sort()
+        self.assertEqual(keys, l)
+
+    def test_iter_table_mapping_int_keys(self):
+        table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
+        l = list(table)
+        l.sort()
+        self.assertEqual(range(10), l)
+
     def test_iter_table_keys(self):
         keys = list('abcdefg')
         table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
         l = list(table.keys())
         l.sort()
         self.assertEqual(keys, l)
+
+    def test_iter_table_keys_int_keys(self):
+        table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
+        l = list(table.keys())
+        l.sort()
+        self.assertEqual(range(10), l)
 
     def test_iter_table_values(self):
         keys = list('abcdefg')
@@ -209,12 +228,28 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         l.sort()
         self.assertEqual(list(range(len(keys))), l)
 
+    def test_iter_table_values_int_keys(self):
+        table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
+        l = list(table.values())
+        l.sort()
+        self.assertEqual(range(-9,1), l)
+
     def test_iter_table_items(self):
         keys = list('abcdefg')
         table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
         l = list(table.items())
         l.sort()
         self.assertEqual(list(zip(keys,range(len(keys)))), l)
+
+    def test_iter_table_items_int_keys(self):
+        table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
+        l = list(table.items())
+        l.sort()
+        self.assertEqual(list(zip(range(10), range(0,-10,-1))), l)
+
+    def test_error_iter_number(self):
+        func = self.lua.eval('1')
+        self.assertRaises(TypeError, list, func)
 
     def test_error_iter_function(self):
         func = self.lua.eval('function() return 1 end')

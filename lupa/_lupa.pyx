@@ -415,20 +415,20 @@ cdef class _LuaTable(_LuaObject):
         return _LuaIter(self, KEYS)
 
     def keys(self):
-        """Returns an iterator over the keys of a table (or other
-        iterable) that this object represents.  Same as iter(obj).
+        """Returns an iterator over the keys of a table that this
+        object represents.  Same as iter(obj).
         """
         return _LuaIter(self, KEYS)
 
     def values(self):
-        """Returns an iterator over the values of a table (or other
-        iterable) that this object represents.
+        """Returns an iterator over the values of a table that this
+        object represents.
         """
         return _LuaIter(self, VALUES)
 
     def items(self):
-        """Returns an iterator over the key-value pairs of a table (or
-        other iterable) that this object represents.
+        """Returns an iterator over the key-value pairs of a table
+        that this object represents.
         """
         return _LuaIter(self, ITEMS)
 
@@ -640,7 +640,9 @@ cdef class _LuaIter:
                 if lua.lua_isnil(L, -1):
                     lua.lua_pop(L, 1)
                     raise LuaError("lost reference")
-                raise TypeError("cannot iterate over non-table")
+                raise TypeError(cpython.bytes.PyBytes_FromFormat(
+                    "cannot iterate over non-table (found Lua %s)",
+                    lua.lua_typename(L, lua.lua_type(L, -1))))
             if not self._refiter:
                 # initial key
                 lua.lua_pushnil(L)
@@ -668,6 +670,7 @@ cdef class _LuaIter:
                 lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
             self._obj = None
         finally:
+            lua.lua_pop(L, 1)
             unlock_runtime(self._runtime)
         raise StopIteration
 
