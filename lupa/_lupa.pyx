@@ -557,11 +557,11 @@ cdef _LuaObject new_lua_thread_or_function(LuaRuntime runtime, lua_State* L, int
 cdef object resume_lua_thread(_LuaThread thread, tuple args):
     cdef lua_State* co = thread._co_state
     cdef int result, i, nargs = 0
-    if lua.lua_status(co) == 0 and lua.lua_gettop(co) == 0:
-        # already terminated
-        raise StopIteration
     lock_runtime(thread._runtime)
     try:
+        if lua.lua_status(co) == 0 and lua.lua_gettop(co) == 0:
+            # already terminated
+            raise StopIteration
         if args:
             nargs = len(args)
             push_lua_arguments(thread._runtime, co, args)
