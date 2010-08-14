@@ -59,6 +59,15 @@ between simplicity and speed.
 Examples
 ---------
 
+..
+      ## doctest helpers:
+      >>> try: _ = sorted
+      ... except NameError:
+      ...     def sorted(seq):
+      ...         l = list(seq)
+      ...         l.sort()
+      ...         return l
+
 ::
 
       >>> from lupa import LuaRuntime
@@ -72,6 +81,87 @@ Examples
       >>> def py_add1(n): return n+1
       >>> lua_func(py_add1, 2)
       3
+
+
+Lua Tables
+-----------
+
+Lua tables support Python's sequence protocol as well as the mapping
+protocol.  Note that indexing starts from 1 as in Lua instead of 0 as
+in Python, as Lua tables are a mix between arrays and mappings, and it
+is thus impossible to distinguish a mapping lookup with an integer key
+from index access with an integer offset.  For the same reason,
+negative indexing does not work.  In general, it works better to think
+of them as mappings than as arrays.
+
+::
+
+      >>> table = lua.eval('{1,2,3,4}')
+      >>> table[1]
+      1
+      >>> table[4]
+      4
+      >>> list(table)
+      [1, 2, 3, 4]
+      >>> len(table)
+      4
+
+      >>> mapping = lua.eval('{ [1] = -1 }')
+      >>> list(mapping)
+      [1]
+
+      >>> mapping = lua.eval('{ [20] = -20; [3] = -3 }')
+      >>> mapping[20]
+      -20
+      >>> mapping[3]
+      -3
+      >>> sorted(mapping.values())
+      [-20, -3]
+      >>> sorted(mapping.items())
+      [(3, -3), (20, -20)]
+
+      >>> mapping[-3] = 3     # -3 used as key, not index!
+      >>> mapping[-3]
+      3
+      >>> sorted(mapping)
+      [-3, 3, 20]
+      >>> sorted(mapping.items())
+      [(-3, 3), (3, -3), (20, -20)]
+
+A lookup of nonexisting keys or indices returns None (actually ``nil``
+inside of Lua).  A lookup is therefore more similar to the ``.get()``
+method of Python dicts than to Python's indexing.
+
+::
+
+      >>> table[1000000] is None
+      True
+      >>> table['no such key'] is None
+      True
+      >>> mapping['no such key'] is None
+      True
+
+Note that ``len()`` does the right thing for array tables but does not
+work on mappings::
+
+      >>> len(table)
+      4
+      >>> len(mapping)
+      0
+
+This is because ``len()`` is based on the ``#`` (length) operator in
+Lua and because of the way Lua defines the length of a table.
+Remember that unset table indices always return ``nil``, including
+indices outside of the table size.  Thus, Lua basically looks for an
+index that returns ``nil`` and returns the index before that.  This
+works well for array tables that do not contain ``nil`` values, gives
+barely predictable results for tables with 'holes' and does not work
+at all for mapping tables.  For tables with both sequential and
+mapping content, this ignores the mapping part completely.
+
+
+Lua Coroutines
+---------------
 
 The next is an example of Lua coroutines.  A wrapped Lua coroutine
 behaves exactly like a Python coroutine.  It needs to get created at
@@ -141,6 +231,10 @@ Python space::
       >>> gen = f.coroutine(4)
       >>> list(enumerate(gen))
       [(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]
+
+
+Threading
+----------
 
 The following example calculates a mandelbrot image in parallel
 threads and displays the result in PIL. It is based on a `benchmark
