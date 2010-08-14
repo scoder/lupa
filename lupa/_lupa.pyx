@@ -666,11 +666,13 @@ cdef class _LuaIter:
                     else:
                         lua.lua_rawseti(L, lua.LUA_REGISTRYINDEX, self._refiter)
                 return retval
-            elif self._refiter:
+            # iteration done, clean up
+            if self._refiter:
                 lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
+                self._refiter = 0
             self._obj = None
         finally:
-            lua.lua_pop(L, 1)
+            lua.lua_settop(L, 0)
             unlock_runtime(self._runtime)
         raise StopIteration
 
