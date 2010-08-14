@@ -6,6 +6,9 @@ Lupa change log
 
 * fix Lua stack leak during table iteration
 
+* fix lost Lua object reference after iteration
+
+
 0.11 (2010-08-07)
 ------------------
 
