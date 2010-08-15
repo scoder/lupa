@@ -86,13 +86,12 @@ Examples
 Lua Tables
 -----------
 
-Lua tables support Python's sequence protocol as well as the mapping
-protocol.  Note that indexing starts from 1 as in Lua instead of 0 as
-in Python, as Lua tables are a mix between arrays and mappings, and it
-is thus impossible to distinguish a mapping lookup with an integer key
-from index access with an integer offset.  For the same reason,
-negative indexing does not work.  In general, it works better to think
-of them as mappings than as arrays.
+Lua tables mimic Python's mapping protocol.  For the special case of
+array tables, Lua automatically inserts integer indices as keys into
+the table.  Therefore, indexing starts from 1 as in Lua instead of 0
+as in Python.  For the same reason, negative indexing does not work.
+It is best to think of Lua tables as mappings rather than arrays, even
+for plain array tables.
 
 ::
 
@@ -132,7 +131,7 @@ of them as mappings than as arrays.
 
 A lookup of nonexisting keys or indices returns None (actually ``nil``
 inside of Lua).  A lookup is therefore more similar to the ``.get()``
-method of Python dicts than to Python's indexing.
+method of Python dicts than to a mapping lookup in Python.
 
 ::
 
@@ -160,6 +159,22 @@ works well for array tables that do not contain ``nil`` values, gives
 barely predictable results for tables with 'holes' and does not work
 at all for mapping tables.  For tables with both sequential and
 mapping content, this ignores the mapping part completely.
+
+Similar to the table interface provided by Lua, Lupa also supports
+attribute access to table members::
+
+      >>> table = lua.eval('{ a=1, b=2 }')
+      >>> table.a, table.b
+      (1, 2)
+      >>> table.a == table['a']
+      True
+
+This enables access to Lua 'methods' that are associated with a table,
+as used by the standard library modules::
+
+      >>> string = lua.eval('string')    # get the 'string' library table
+      >>> print( string.lower('A') )
+      a
 
 
 Lua Coroutines
