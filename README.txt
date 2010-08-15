@@ -167,7 +167,8 @@ The next is an example of Lua coroutines.  A wrapped Lua coroutine
 behaves exactly like a Python coroutine.  It needs to get created at
 the beginning, either by using the ``.coroutine()`` method of a
 function or by creating it in Lua code.  Then, values can be sent into
-it using the ``.send()`` method or it can be iterated over.
+it using the ``.send()`` method or it can be iterated over.  Note that
+the ``.throw()`` method is not supported, though.
 
 ::
 
@@ -184,6 +185,33 @@ it using the ``.send()`` method or it can be iterated over.
       >>> gen = f.coroutine(4)
       >>> list(enumerate(gen))
       [(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]
+
+An example where values are passed into the coroutine using its
+``.send()`` method::
+
+      >>> lua_code = '''\
+      ...     function()
+      ...         local t,i = {},0
+      ...         local value = coroutine.yield()
+      ...         while value do
+      ...             t[i] = value
+      ...             i = i + 1
+      ...             value = coroutine.yield()
+      ...         end
+      ...         return t
+      ...     end
+      ... '''
+      >>> f = lua.eval(lua_code)
+
+      >>> gen = f.coroutine(4)
+      >>> gen.send(None)           # start coroutine
+
+      >>> for i in range(3):
+      ...     gen.send(i*2)
+
+      >>> mapping = gen.send(None)   # loop termination signal
+      >>> list(mapping.values())
+      [0, 2, 4]
 
 It also works to create coroutines in Lua and to pass them back into
 Python space::
