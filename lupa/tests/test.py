@@ -175,9 +175,19 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_iter_table(self):
         table = self.lua.eval('{2,3,4,5,6}')
-        self.assertEqual([2,3,4,5,6], list(table.values()))
+        self.assertEqual([1,2,3,4,5], list(table))
 
     def test_iter_table_repeat(self):
+        table = self.lua.eval('{2,3,4,5,6}')
+        self.assertEqual([1,2,3,4,5], list(table)) # 1
+        self.assertEqual([1,2,3,4,5], list(table)) # 2
+        self.assertEqual([1,2,3,4,5], list(table)) # 3
+
+    def test_iter_array_table_values(self):
+        table = self.lua.eval('{2,3,4,5,6}')
+        self.assertEqual([2,3,4,5,6], list(table.values()))
+
+    def test_iter_array_table_repeat(self):
         table = self.lua.eval('{2,3,4,5,6}')
         self.assertEqual([2,3,4,5,6], list(table.values())) # 1
         self.assertEqual([2,3,4,5,6], list(table.values())) # 2
