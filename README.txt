@@ -326,3 +326,13 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
 	import Image
         image = Image.fromstring('1', (image_size, image_size), result_buffer)
         image.show()
+
+Note how the example creates a separate ``LuaRuntime`` for each thread
+to enable parallel execution.  Each ``LuaRuntime`` is protected by a
+global lock that prevents concurrent access to it.  The low memory
+footprint of Lua makes it reasonable to use multiple runtimes, but
+this setup also means that values cannot easily be exchanged between
+threads inside of Lua.  They must either get copied through Python
+space (passing table references will not work, either) or use some Lua
+mechanism for explicit communication, such as a pipe or some kind of
+shared memory setup.
