@@ -96,13 +96,15 @@ of them as mappings than as arrays.
 
 ::
 
-      >>> table = lua.eval('{1,2,3,4}')
+      >>> table = lua.eval('{10,20,30,40}')
       >>> table[1]
-      1
+      10
       >>> table[4]
-      4
+      40
       >>> list(table)
       [1, 2, 3, 4]
+      >>> list(table.values())
+      [10, 20, 30, 40]
       >>> len(table)
       4
 
