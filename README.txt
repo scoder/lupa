@@ -160,6 +160,9 @@ barely predictable results for tables with 'holes' and does not work
 at all for mapping tables.  For tables with both sequential and
 mapping content, this ignores the mapping part completely.
 
+Note that it is best not to rely on the behaviour of len() for
+mappings.  It might change in a later version of Lupa.
+
 Similar to the table interface provided by Lua, Lupa also supports
 attribute access to table members::
 
