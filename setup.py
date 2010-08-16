@@ -3,7 +3,7 @@ import sys
 import os
 from distutils.core import setup, Extension
 
-VERSION = '0.11'
+VERSION = '0.12'
 
 extra_setup_args = {}
 
