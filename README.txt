@@ -223,8 +223,8 @@ An example where values are passed into the coroutine using its
       ... '''
       >>> f = lua.eval(lua_code)
 
-      >>> gen = f.coroutine(4)
-      >>> gen.send(None)           # start coroutine
+      >>> gen = f.coroutine()   # create coroutine
+      >>> gen.send(None)        # start coroutine (stops at first yield)
 
       >>> for i in range(3):
       ...     gen.send(i*2)
