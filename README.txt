@@ -223,15 +223,15 @@ An example where values are passed into the coroutine using its
       ... '''
       >>> f = lua.eval(lua_code)
 
-      >>> gen = f.coroutine()   # create coroutine
-      >>> gen.send(None)        # start coroutine (stops at first yield)
+      >>> co = f.coroutine()   # create coroutine
+      >>> co.send(None)        # start coroutine (stops at first yield)
 
       >>> for i in range(3):
-      ...     gen.send(i*2)
+      ...     co.send(i*2)
 
-      >>> mapping = gen.send(None)   # loop termination signal
-      >>> list(mapping.values())
-      [0, 2, 4]
+      >>> mapping = co.send(None)   # loop termination signal
+      >>> list(mapping.items())
+      [(0, 0), (1, 2), (2, 4)]
 
 It also works to create coroutines in Lua and to pass them back into
 Python space::
