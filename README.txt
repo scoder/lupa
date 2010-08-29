@@ -70,6 +70,7 @@ Examples
 
 ::
 
+      >>> import lupa
       >>> from lupa import LuaRuntime
       >>> lua = LuaRuntime()
 
@@ -81,6 +82,112 @@ Examples
       >>> def py_add1(n): return n+1
       >>> lua_func(py_add1, 2)
       3
+
+      >>> lua.eval('python.eval(" 2 ** 2 ")') == 4
+      True
+      >>> lua.eval('python.builtins.str(4)') == '4'
+      True
+
+
+Python objects in Lua
+----------------------
+
+Python objects are either converted when passed into Lua (e.g.
+numbers and strings) or passed as wrapped object references.
+
+::
+
+      >>> lua_type = lua.globals().type   # Lua's type() function
+      >>> lua_type(1) == 'number'
+      True
+      >>> lua_type('abc') == 'string'
+      True
+
+Wrapped Lua objects get unwrapped when they are passed back into Lua,
+and arbitrary Python objects get wrapped in different ways::
+
+      >>> lua_type(lua_type) == 'function'  # unwrapped Lua function
+      True
+      >>> lua_type(eval) == 'function'      # wrapped Python function
+      True
+      >>> lua_type([]) == 'userdata'        # wrapped Python object
+      True
+
+Lua supports two main protocols on objects: calling and indexing.  It
+does not distinguish between attribute access and item access like
+Python does, so the Lua operations ``obj[x]`` and ``obj.x`` both map
+to indexing.  To decide which Python protocol to use for Lua wrapped
+objects, Lupa employs a simple heuristic.
+
+Pratically all Python objects allow attribute access, so if the object
+also has a ``__getitem__`` method, it is preferred when turning it
+into an indexable Lua object.  Otherwise, it becomes a simple object
+that uses attribute access for indexing from inside Lua.
+Additionally, if the object is callable, it turns into a Lua function.
+
+Obviously, this heuristic will fail to provide the required behaviour
+in many cases, e.g. when attribute access is required to an object
+that happens to support item access.  To be explicit about the
+protocol that should be used, Lupa provides the helper functions
+``as_attrgetter()`` and ``as_itemgetter()`` that restrict the view on
+an object to a certain protocol, both from Python and from inside
+Lua::
+
+      >>> lua_func = lua.eval('function(obj) return obj["get"] end')
+      >>> lua_func({'get' : 'got'}) == 'got'
+      True
+      >>> dict_get = lua_func( lupa.as_attrgetter({'get' : 'got'}) )
+      >>> dict_get('get') == 'got'
+      True
+
+      >>> lua_func = lua.eval(
+      ...     'function(obj) return python.as_attrgetter(obj)["get"] end')
+      >>> dict_get = lua_func({'get' : 'got'})
+      >>> dict_get('get') == 'got'
+      True
+
+Lua code can also use the ``as_function()`` function to make a Python
+object callable from Lua that was not wrapped as a function at the
+Python-to-Lua border.
+
+::
+
+      >>> lua_func = lua.eval(
+      ...     'function(obj) return obj(1,2,3) end')
+      >>> lua_func({})
+      Traceback (most recent call last):
+      TypeError: 'dict' object is not callable
+      >>> lua_func = lua.eval(
+      ...     'function(obj) return python.as_function(obj)(1,2,3) end')
+      >>> lua_func({})
+      Traceback (most recent call last):
+      TypeError: 'dict' object is not callable
+
+      >>> def py_func(): pass
+      >>> lua_func = lua.eval('function(obj) return python.as_function(obj) end')
+      >>> py_func == lua_func(py_func)
+      True
+
+Note that Python objects wrapped as functions are still indexable::
+
+      >>> lua_func = lua.eval(
+      ...     'function(obj) return python.as_function(obj)["get"] end')
+      >>> lua_func({'get' : 'got'}) == 'got'
+      True
+
+      >>> def py_func(): pass
+      >>> py_func.ATTR = 2
+      >>> lua_func = lua.eval('function(obj) return obj.ATTR end')
+      >>> lua_func(py_func)
+      2
+      >>> lua_func = lua.eval(
+      ...     'function(obj) return python.as_attrgetter(obj).ATTR end')
+      >>> lua_func(py_func)
+      2
+      >>> lua_func = lua.eval(
+      ...     'function(obj) return python.as_attrgetter(obj)["ATTR"] end')
+      >>> lua_func(py_func)
+      2
 
 
 Lua Tables

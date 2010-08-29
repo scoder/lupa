@@ -60,7 +60,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             error = (IS_PYTHON3 and '%s' or '%s'.decode('ASCII')) % sys.exc_info()[1]
         else:
             self.fail('expected error not raised')
-        expected_message = 'error: [string "<python>"]:1: attempt to perform arithmetic on global \'üUNKNOWNöVALUEä\' (a nil value)'
+        expected_message = '[string "<python>"]:1: attempt to perform arithmetic on global \'üUNKNOWNöVALUEä\' (a nil value)'
         if not IS_PYTHON3:
             expected_message = expected_message.decode('UTF-8')
         self.assertEqual(expected_message, error)
@@ -137,8 +137,21 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         function = self.lua.eval('function() return python.none end')
         self.assertEqual(None, function())
 
+    def test_pybuiltins(self):
+        function = self.lua.eval('function() return python.builtins end')
+        try:
+            import __builtin__ as builtins
+        except ImportError:
+            import builtins
+        self.assertEqual(builtins, function())
+
     def test_call_none(self):
         self.assertRaises(TypeError, self.lua.eval, 'python.none()')
+
+    def test_call_non_callable(self):
+        func = self.lua.eval('function(x) CALLED = 99; return x() end')
+        self.assertRaises(TypeError, func, object())
+        self.assertEqual(99, self.lua.eval('CALLED'))
 
     def test_call_str(self):
         self.assertEqual("test-None", self.lua.eval('"test-" .. tostring(python.none)'))
@@ -149,12 +162,15 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual("test-1", function(1))
 
     def test_call_str_class(self):
+        called = [False]
         class test(object):
             def __str__(self):
+                called[0] = True
                 return 'STR!!'
 
         function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
         self.assertEqual("test-STR!!", function(test()))
+        self.assertEqual(True, called[0])
 
     def test_eval(self):
         function = self.lua.eval('function() return python.eval end')
@@ -230,7 +246,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
         l = list(table)
         l.sort()
-        self.assertEqual(range(10), l)
+        self.assertEqual(list(range(10)), l)
 
     def test_iter_table_keys(self):
         keys = list('abcdefg')
@@ -243,7 +259,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
         l = list(table.keys())
         l.sort()
-        self.assertEqual(range(10), l)
+        self.assertEqual(list(range(10)), l)
 
     def test_iter_table_values(self):
         keys = list('abcdefg')
@@ -256,7 +272,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
         l = list(table.values())
         l.sort()
-        self.assertEqual(range(-9,1), l)
+        self.assertEqual(list(range(-9,1)), l)
 
     def test_iter_table_items(self):
         keys = list('abcdefg')
@@ -370,6 +386,11 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(5, table[5])
         self.assertEqual(9, len(table))
 
+    def test_index_function_error(self):
+        lua_func = self.lua.eval('function(obj) return python.as_function(obj)["get"] end')
+        #self.assertRaises(KeyError, lua_func, None)
+        self.assertRaises(KeyError, lua_func, {})
+
     def test_setitem_array(self):
         table = self.lua.eval('{1,2,3,4,5,6,7,8,9}')
         self.assertEqual(1, table[1])
@@ -409,6 +430,34 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         get_table_const_name = self.lua.eval('function(t) return t.const.name end')
         self.assertEqual('POW', get_table_const_name(table))
 
+    def test_pygetitem(self):
+        lua_func = self.lua.eval('function(x) return x.ATTR end')
+        self.assertEqual(123, lua_func({'ATTR': 123}))
+
+    def test_pysetitem(self):
+        lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
+        d = {'ATTR': 321}
+        self.assertEqual(321, d['ATTR'])
+        lua_func(d)
+        self.assertEqual(123, d['ATTR'])
+
+    def test_pygetattr(self):
+        lua_func = self.lua.eval('function(x) return x.ATTR end')
+        class test(object):
+            def __init__(self):
+                self.ATTR = 5
+        self.assertEqual(test().ATTR, lua_func(test()))
+
+    def test_pysetattr(self):
+        lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
+        class test(object):
+            def __init__(self):
+                self.ATTR = 5
+        t = test()
+        self.assertEqual(5, t.ATTR)
+        lua_func(t)
+        self.assertEqual(123, t.ATTR)
+
     def test_globals(self):
         lua_globals = self.lua.globals()
         self.assertNotEqual(None, lua_globals.unpack)
@@ -440,11 +489,38 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             return n
         self.assertEqual(2+5, function(test, 2))
 
+    def test_callable_passthrough(self):
+        passthrough = self.lua.eval('function(f) f(); return f end')
+        called = [False]
+        def test():
+            called[0] = True
+        self.assertEqual(test, passthrough(test))
+        self.assertEqual([True], called)
+
     def test_reraise(self):
         function = self.lua.eval('function(f) return f() + 5 end')
         def test():
             raise ValueError("huhu")
         self.assertRaises(ValueError, function, test)
+
+    def test_type_conversion(self):
+        lua_type = self.lua.eval('type')
+        self.assertEquals('number', lua_type(1))
+        self.assertEquals('string', lua_type("test"))
+
+    def test_pyobject_wrapping(self):
+        lua_type = self.lua.eval('type')
+        class Callable(object):
+            def __call__(self): pass
+            def __getitem__(self, item): pass
+        class GetItem(object):
+            def __getitem__(self, item): pass
+        class GetAttr(object):
+            pass
+
+        self.assertEquals('function', lua_type(Callable()))
+        self.assertEquals('userdata', lua_type(GetItem()))
+        self.assertEquals('userdata', lua_type(GetAttr()))
 
 
 class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):

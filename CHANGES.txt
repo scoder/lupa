@@ -1,6 +1,31 @@
 Lupa change log
 ================
 
+0.13 (2010-08-29)
+------------------
+
+* fixed undefined behaviour on ``str(lua_object)`` when the object's
+  ``__tostring()`` meta method fails
+
+* removed redundant "error:" prefix from ``LuaError`` messages
+
+* access to Python's ``python.builtins`` from Lua code
+
+* more generic wrapping rules for Python objects based on supported
+  protocols (callable, getitem, getattr)
+
+* new helper functions ``as_attrgetter()`` and ``as_itemgetter()`` to
+  specify the Python object protocol used by Lua indexing when
+  wrapping Python objects in Python code
+
+* new helper functions ``python.as_attrgetter()``,
+  ``python.as_itemgetter()`` and ``python.as_function()`` to specify
+  the Python object protocol used by Lua indexing of Python objects in
+  Lua code
+
+* item and attribute access for Python objects from Lua code
+
+
 0.12 (2010-08-16)
 ------------------
 
