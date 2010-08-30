@@ -458,6 +458,18 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         lua_func(t)
         self.assertEqual(123, t.ATTR)
 
+    def test_pygetattr_function(self):
+        lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
+        def test(): pass
+        lua_func(test)
+        self.assertEqual(123, test.ATTR)
+
+    def test_pysetattr_function(self):
+        lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
+        def test(): pass
+        lua_func(test)
+        self.assertEqual(123, test.ATTR)
+
     def test_globals(self):
         lua_globals = self.lua.globals()
         self.assertNotEqual(None, lua_globals.unpack)
