@@ -1,6 +1,13 @@
 Lupa change log
 ================
 
+0.14 (2010-08-31)
+------------------
+
+* relicensed to the MIT license used by LuaJIT2 to simplify licensing
+  considerations
+
+
 0.13.1 (2010-08-30)
 --------------------
 
