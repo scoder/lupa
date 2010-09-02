@@ -1,6 +1,12 @@
 Lupa change log
 ================
 
+0.15 (2010-09-02)
+------------------
+
+* support for loading binary Lua modules on systems that support it
+
+
 0.14 (2010-08-31)
 ------------------
 
