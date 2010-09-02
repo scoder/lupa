@@ -464,3 +464,34 @@ threads inside of Lua.  They must either get copied through Python
 space (passing table references will not work, either) or use some Lua
 mechanism for explicit communication, such as a pipe or some kind of
 shared memory setup.
+
+
+Importing Lua binary modules
+-----------------------------
+
+To use binary modules in Lua, you need to do two things:
+
+* Compile the modules against the header files of the LuaJIT sources
+  that you used to build Lupa, but do not link them against the LuaJIT
+  library.
+
+* Enable global symbol visibility in CPython using
+  ``sys.setdlopenflags(flag_values)`` before loading the Lupa module.
+  The argument ``flag_values`` is the sum of your system's values for
+  ``RTLD_NEW`` and ``RTLD_GLOBAL``.  If ``RTLD_NEW`` is 2 and
+  ``RTLD_GLOBAL`` is 256, you need to call
+  ``sys.setdlopenflags(258)``.
+
+Assuming that the Lua luaposix_ (``posix``) module is available, the
+following should work on a Linux system::
+
+      >>> import sys
+      >>> orig_dlflags = sys.getdlopenflags()
+      >>> sys.setdlopenflags(258)
+      >>> import lupa
+      >>> sys.setdlopenflags(orig_dlflags)
+
+      >>> lua = lupa.LuaRuntime()
+      >>> lua.require('posix')
+
+.. _luaposix: http://git.alpinelinux.org/cgit/luaposix
