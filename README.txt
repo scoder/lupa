@@ -478,18 +478,23 @@ shared memory setup.
 Importing Lua binary modules
 -----------------------------
 
-To use binary modules in Lua, you need to do two things:
+To use binary modules in Lua, you need to compile them against the
+header files of the LuaJIT sources that you used to build Lupa, but do
+not link them against the LuaJIT library.
 
-* Compile the modules against the header files of the LuaJIT sources
-  that you used to build Lupa, but do not link them against the LuaJIT
-  library.
+Furthermore, CPython needs to enable global symbol visibility for
+shared libraries before loading the Lupa module.  This can be done by
+calling ``sys.setdlopenflags(flag_values)``.  Importing the ``lupa``
+module will automatically try to set up the correct ``dlopen`` flags
+if it can find the platform specific ``DLFCN`` Python module that
+defines the necessary flag constants.  In that case, using binary
+modules in Lua should work out of the box.
 
-* Enable global symbol visibility in CPython using
-  ``sys.setdlopenflags(flag_values)`` before loading the Lupa module.
-  The argument ``flag_values`` is the sum of your system's values for
-  ``RTLD_NEW`` and ``RTLD_GLOBAL``.  If ``RTLD_NEW`` is 2 and
-  ``RTLD_GLOBAL`` is 256, you need to call
-  ``sys.setdlopenflags(258)``.
+If this setup fails, however, you have to set the flags manually.
+When using the above configuration call, the argument ``flag_values``
+must represent the sum of your system's values for ``RTLD_NEW`` and
+``RTLD_GLOBAL``.  If ``RTLD_NEW`` is 2 and ``RTLD_GLOBAL`` is 256, you
+need to call ``sys.setdlopenflags(258)``.
 
 Assuming that the Lua luaposix_ (``posix``) module is available, the
 following should work on a Linux system::
