@@ -56,6 +56,15 @@ to write dynamic Lua code that accompanies dynamic Python code by
 switching between the two languages at runtime, based on the tradeoff
 between simplicity and speed.
 
+..
+      >>> import sys
+      >>> try:
+      ...     orig_dlflags = sys.getdlopenflags()
+      ...     sys.setdlopenflags(258)
+      ...     import lupa
+      ...     sys.setdlopenflags(orig_dlflags)
+      ... except: pass
+
 
 Examples
 ---------
@@ -492,6 +501,6 @@ following should work on a Linux system::
       >>> sys.setdlopenflags(orig_dlflags)
 
       >>> lua = lupa.LuaRuntime()
-      >>> lua.require('posix')
+      >>> posix_module = lua.require('posix')
 
 .. _luaposix: http://git.alpinelinux.org/cgit/luaposix
