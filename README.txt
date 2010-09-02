@@ -506,6 +506,6 @@ following should work on a Linux system::
       >>> sys.setdlopenflags(orig_dlflags)
 
       >>> lua = lupa.LuaRuntime()
-      >>> posix_module = lua.require('posix')
+      >>> posix_module = lua.require('posix')     # doctest: +SKIP
 
 .. _luaposix: http://git.alpinelinux.org/cgit/luaposix
