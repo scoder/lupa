@@ -187,7 +187,7 @@ cdef class LuaRuntime:
     cdef int register_py_object(self, bytes cname, bytes pyname, object obj) except -1:
         cdef lua_State *L = self._state
         lua.lua_pushlstring(L, cname, len(cname))
-        if not py_to_lua_custom(self, L, obj, 0, hasattr(obj, '__call__')):
+        if not py_to_lua_custom(self, L, obj, 0):
             lua.lua_pop(L, 1)
             raise LuaError("failed to convert %s object" % pyname)
         lua.lua_pushlstring(L, pyname, len(pyname))
@@ -311,8 +311,7 @@ cdef class _LuaObject:
         try:
             self.push_lua_object()
             # lookup and call "__tostring" metatable method manually to catch any errors
-            lua.lua_getmetatable(L, -1)
-            if not lua.lua_isnil(L, -1):
+            if lua.lua_getmetatable(L, -1):
                 lua.lua_pushlstring(L, "__tostring", 10)
                 lua.lua_rawget(L, -2)
                 if not lua.lua_isnil(L, -1) and lua.lua_pcall(L, 1, 1, 0) == 0:
@@ -803,8 +802,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) ex
         else:
             # prefer __getitem__ over __getattr__ by default
             as_index = hasattr(o, '__getitem__')
-        as_callable = hasattr(o, '__call__')
-        pushed_values_count = py_to_lua_custom(runtime, L, o, as_index, as_callable)
+        pushed_values_count = py_to_lua_custom(runtime, L, o, as_index)
     return pushed_values_count
 
 cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode ustring) except -1:
@@ -812,7 +810,7 @@ cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode u
     lua.lua_pushlstring(L, <char*>bytes_string, len(bytes_string))
     return 1
 
-cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, bint as_index, bint as_callable):
+cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, bint as_index):
     cdef py_object *py_obj = <py_object*> lua.lua_newuserdata(L, sizeof(py_object))
     if not py_obj:
         return 0 # values pushed
@@ -823,12 +821,6 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, bint as_i
     py_obj.as_index = as_index
     lua.luaL_getmetatable(L, POBJECT)
     lua.lua_setmetatable(L, -2)
-    if as_callable:
-        lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
-        # both need the metatable: the original object in case we
-        # unpack it later on and the function to support indexing
-        lua.luaL_getmetatable(L, POBJECT)
-        lua.lua_setmetatable(L, -2)
     return 1 # values pushed
 
 # error handling
@@ -1087,7 +1079,7 @@ cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, bint 
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
-        return py_to_lua_custom(runtime, L, <object>py_obj.obj, as_index, 0)
+        return py_to_lua_custom(runtime, L, <object>py_obj.obj, as_index)
     except:
         try: runtime.store_raised_exception()
         except: pass
@@ -1115,23 +1107,9 @@ cdef int py_as_itemgetter(lua_State* L) nogil:
         return lua.luaL_error(L, 'error during as_attrgetter() conversion')  # never returns!
     return result
 
-cdef int py_as_function(lua_State* L) nogil:
-    if lua.lua_gettop(L) > 1:
-        return lua.luaL_argerror(L, 1, "invalid arguments")   # never returns!
-    cdef lua.lua_CFunction cfunction = lua.lua_tocfunction(L, 1)
-    if cfunction is <lua.lua_CFunction>py_asfunc_call:
-        # already a wrapped Python function, just return it
-        return 1
-    cdef py_object* py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT) # doesn't return on error!
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
-    lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
-    return 1
-
 # 'python' module functions in Lua
 
-cdef lua.luaL_Reg py_lib[6]
+cdef lua.luaL_Reg py_lib[3]
 py_lib[0] = lua.luaL_Reg(name = "as_attrgetter", func = <lua.lua_CFunction> py_as_attrgetter)
 py_lib[1] = lua.luaL_Reg(name = "as_itemgetter", func = <lua.lua_CFunction> py_as_itemgetter)
-py_lib[2] = lua.luaL_Reg(name = "as_function",   func = <lua.lua_CFunction> py_as_function)
-py_lib[3] = lua.luaL_Reg(name = NULL, func = NULL)
+py_lib[2] = lua.luaL_Reg(name = NULL, func = NULL)

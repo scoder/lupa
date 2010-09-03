@@ -1,6 +1,20 @@
 Lupa change log
 ================
 
+0.16 (2010-09-03)
+------------------
+
+* dropped ``python.as_function()`` helper function for Lua as all
+  Python objects are callable from Lua now (potentially raising a
+  ``TypeError`` at call time if they are not callable)
+
+* fix regression in 0.13 and later where ordinary Lua functions failed
+  to print due to an accidentally used meta table
+
+* fix crash when calling ``str()`` on wrapped Lua objects without
+  metatable
+
+
 0.15 (2010-09-02)
 ------------------
 

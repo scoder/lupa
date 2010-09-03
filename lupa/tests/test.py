@@ -68,6 +68,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_execute(self):
         self.assertEqual(2, self.lua.execute('return 1+1'))
 
+    def test_execute_function(self):
+        self.assertEqual(3, self.lua.execute('f = function(i) return i+1 end; return f(2)'))
+
+    def test_execute_tostring_function(self):
+        self.assertEqual('function', self.lua.execute('f = function(i) return i+1 end; return tostring(f)')[:8])
+
     def test_function(self):
         function = self.lua.eval('function() return 1+1 end')
         self.assertNotEqual(None, function)
@@ -386,11 +392,6 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(5, table[5])
         self.assertEqual(9, len(table))
 
-    def test_index_function_error(self):
-        lua_func = self.lua.eval('function(obj) return python.as_function(obj)["get"] end')
-        #self.assertRaises(KeyError, lua_func, None)
-        self.assertRaises(KeyError, lua_func, {})
-
     def test_setitem_array(self):
         table = self.lua.eval('{1,2,3,4,5,6,7,8,9}')
         self.assertEqual(1, table[1])
@@ -517,22 +518,36 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_type_conversion(self):
         lua_type = self.lua.eval('type')
-        self.assertEquals('number', lua_type(1))
-        self.assertEquals('string', lua_type("test"))
+        self.assertEqual('number', lua_type(1))
+        self.assertEqual('string', lua_type("test"))
 
-    def test_pyobject_wrapping(self):
+    def test_pyobject_wrapping_callable(self):
         lua_type = self.lua.eval('type')
+        lua_get_call = self.lua.eval('function(obj) return getmetatable(obj).__call end')
         class Callable(object):
             def __call__(self): pass
             def __getitem__(self, item): pass
+
+        self.assertEqual('userdata', lua_type(Callable()))
+        self.assertNotEqual(None, lua_get_call(Callable()))
+
+    def test_pyobject_wrapping_getitem(self):
+        lua_type = self.lua.eval('type')
+        lua_get_index = self.lua.eval('function(obj) return getmetatable(obj).__index end')
         class GetItem(object):
             def __getitem__(self, item): pass
+
+        self.assertEqual('userdata', lua_type(GetItem()))
+        self.assertNotEqual(None, lua_get_index(GetItem()))
+
+    def test_pyobject_wrapping_getattr(self):
+        lua_type = self.lua.eval('type')
+        lua_get_index = self.lua.eval('function(obj) return getmetatable(obj).__index end')
         class GetAttr(object):
             pass
 
-        self.assertEquals('function', lua_type(Callable()))
-        self.assertEquals('userdata', lua_type(GetItem()))
-        self.assertEquals('userdata', lua_type(GetAttr()))
+        self.assertEqual('userdata', lua_type(GetAttr()))
+        self.assertNotEqual(None, lua_get_index(GetAttr()))
 
 
 class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):

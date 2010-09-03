@@ -118,7 +118,7 @@ and arbitrary Python objects get wrapped in different ways::
 
       >>> lua_type(lua_type) == 'function'  # unwrapped Lua function
       True
-      >>> lua_type(eval) == 'function'      # wrapped Python function
+      >>> lua_type(eval) == 'userdata'      # wrapped Python function
       True
       >>> lua_type([]) == 'userdata'        # wrapped Python object
       True
@@ -133,7 +133,6 @@ Pratically all Python objects allow attribute access, so if the object
 also has a ``__getitem__`` method, it is preferred when turning it
 into an indexable Lua object.  Otherwise, it becomes a simple object
 that uses attribute access for indexing from inside Lua.
-Additionally, if the object is callable, it turns into a Lua function.
 
 Obviously, this heuristic will fail to provide the required behaviour
 in many cases, e.g. when attribute access is required to an object
@@ -144,46 +143,24 @@ an object to a certain protocol, both from Python and from inside
 Lua::
 
       >>> lua_func = lua.eval('function(obj) return obj["get"] end')
-      >>> lua_func({'get' : 'got'}) == 'got'
+      >>> d = {'get' : 'got'}
+
+      >>> value = lua_func(d)
+      >>> value == 'got'
       True
-      >>> dict_get = lua_func( lupa.as_attrgetter({'get' : 'got'}) )
+
+      >>> dict_get = lua_func( lupa.as_attrgetter(d) )
       >>> dict_get('get') == 'got'
       True
 
       >>> lua_func = lua.eval(
       ...     'function(obj) return python.as_attrgetter(obj)["get"] end')
-      >>> dict_get = lua_func({'get' : 'got'})
+      >>> dict_get = lua_func(d)
       >>> dict_get('get') == 'got'
       True
 
-Lua code can also use the ``as_function()`` function to make a Python
-object callable from Lua that was not wrapped as a function at the
-Python-to-Lua border.
-
-::
-
-      >>> lua_func = lua.eval(
-      ...     'function(obj) return obj(1,2,3) end')
-      >>> lua_func({})
-      Traceback (most recent call last):
-      TypeError: 'dict' object is not callable
-      >>> lua_func = lua.eval(
-      ...     'function(obj) return python.as_function(obj)(1,2,3) end')
-      >>> lua_func({})
-      Traceback (most recent call last):
-      TypeError: 'dict' object is not callable
-
-      >>> def py_func(): pass
-      >>> lua_func = lua.eval('function(obj) return python.as_function(obj) end')
-      >>> py_func == lua_func(py_func)
-      True
-
-Note that Python objects wrapped as functions are still indexable::
-
-      >>> lua_func = lua.eval(
-      ...     'function(obj) return python.as_function(obj)["get"] end')
-      >>> lua_func({'get' : 'got'}) == 'got'
-      True
+Note that unlike Lua function objects, callable Python objects are
+indexable::
 
       >>> def py_func(): pass
       >>> py_func.ATTR = 2
