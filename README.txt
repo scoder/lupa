@@ -26,8 +26,8 @@ Major features
 * supports Python 2.x and 3.x, potentially starting with Python 2.3
   (currently untested)
 
-* written for LuaJIT2, as opposed to the Lua interpreter (tested with
-  LuaJIT 2.0.0-beta4)
+* written for LuaJIT2 (tested with LuaJIT 2.0.0-beta5), but reportedly
+  works with the normal Lua interpreter (5.1+)
 
 * easy to hack on and extend as it is written in Cython, not C
 
