@@ -1085,27 +1085,22 @@ cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, bint 
         except: pass
         return -1
 
-cdef int py_as_attrgetter(lua_State* L) nogil:
+cdef int py_wrap_object_protocol(lua_State* L, bint as_index) nogil:
     if lua.lua_gettop(L) > 1:
         return lua.luaL_argerror(L, 1, "invalid arguments")   # never returns!
     cdef py_object* py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
-    result = py_wrap_object_protocol_with_gil(L, py_obj, 0)
+    result = py_wrap_object_protocol_with_gil(L, py_obj, as_index)
     if result < 0:
-        return lua.luaL_error(L, 'error during as_attrgetter() conversion')  # never returns!
+        return lua.luaL_error(L, 'error during type adaptation')  # never returns!
     return result
 
+cdef int py_as_attrgetter(lua_State* L) nogil:
+    return py_wrap_object_protocol(L, 0)
+
 cdef int py_as_itemgetter(lua_State* L) nogil:
-    if lua.lua_gettop(L) > 1:
-        return lua.luaL_argerror(L, 1, "invalid arguments")   # never returns!
-    cdef py_object* py_obj = unwrap_lua_object(L, 1)
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
-    result = py_wrap_object_protocol_with_gil(L, py_obj, 1)
-    if result < 0:
-        return lua.luaL_error(L, 'error during as_attrgetter() conversion')  # never returns!
-    return result
+    return py_wrap_object_protocol(L, 1)
 
 # 'python' module functions in Lua
 
