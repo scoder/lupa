@@ -44,12 +44,15 @@ linked LuaJIT2 runtime, is only some 500KB on a 64 bit machine.
 
 .. _`faster than many other compiled languages`: http://shootout.alioth.debian.org/u64/performance.php?test=mandelbrot
 
-However, Lua code is harder to write than Python code as language and
-runtime lack many of the batteries that Python includes.  Lua is not
-commonly used as primary language for large applications, but it
-provides a perfect backup language when raw speed is required and the
-edit-compile-run cycles of binary extension modules are too heavy and
-too static for agile development.
+However, the Lua ecosystem lacks many of the batteries that Python
+readily includes, either directly in its standard library or as third
+party packages. This makes real-world Lua applications harder to write
+than equivalent Python applications. Lua is therefore not commonly
+used as primary language for large applications, but it makes for a
+fast, high-level and resource-friendly backup language inside of
+Python when raw speed is required and the edit-compile-run cycle of
+binary extension modules is too heavy and too static for agile
+development or hot-deployment.
 
 Lupa is a very fast and thin wrapper around LuaJIT.  It makes it easy
 to write dynamic Lua code that accompanies dynamic Python code by
