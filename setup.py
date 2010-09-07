@@ -73,7 +73,8 @@ setup(
     name = "lupa",
     version = VERSION,
     author = "Stefan Behnel",
-    author_email = "stefan_ml (at) behnel.de",
+    contact = "Lupa-dev mailing list",
+    contact_email = "lupa-dev@freelists.org",
     url = "http://pypi.python.org/pypi/lupa",
     download_url = "http://pypi.python.org/packages/source/l/lupa/lupa-%s.tar.gz" % VERSION,
 
