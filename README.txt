@@ -13,6 +13,8 @@ For questions not answered here, please contact the `Lupa mailing list`_.
 
 .. _`Lupa mailing list`: http://www.freelists.org/list/lupa-dev
 
+.. contents::
+
 
 Major features
 ---------------
