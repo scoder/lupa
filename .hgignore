@@ -1,0 +1,10 @@
+syntax: glob
+
+lupa/version.py
+*.pyc
+.coverage
+*~
+*.orig
+*.rej
+
+tags
