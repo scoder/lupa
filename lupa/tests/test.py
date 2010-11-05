@@ -516,6 +516,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             raise ValueError("huhu")
         self.assertRaises(ValueError, function, test)
 
+
+class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_explicit_python_function(self):
+        lua_func = self.lua.eval('function(func) return table.foreach({ab="cd"}, python.as_function(func)) end')
+        def join(*args):
+            return '-'.join(args)
+        self.assertEqual('ab-cd', lua_func(join))
+
     def test_type_conversion(self):
         lua_type = self.lua.eval('type')
         self.assertEqual('number', lua_type(1))
@@ -549,13 +557,23 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual('userdata', lua_type(GetAttr()))
         self.assertNotEqual(None, lua_get_index(GetAttr()))
 
+    def test_pylist(self):
+        getitem = self.lua.eval('function(L, i) return L[i] end')
+        self.assertEqual(3, getitem([1,2,3], 2))
 
-class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
-    def test_explicit_python_function(self):
-        lua_func = self.lua.eval('function(func) return table.foreach({ab="cd"}, python.as_function(func)) end')
-        def join(*args):
-            return '-'.join(args)
-        self.assertEqual('ab-cd', lua_func(join))
+    def test_python_iter_list(self):
+        values = self.lua.eval('''
+            function(L)
+                local t = {}
+                local i = 1
+                for value in python.iter(L) do
+                    t[i] = value
+                    i = i+1
+                end
+                return t
+            end
+        ''')
+        self.assertEqual([1,2,3], list(values([1,2,3])))
 
 
 class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):

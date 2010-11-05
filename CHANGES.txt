@@ -4,6 +4,9 @@ Lupa change log
 0.17 (2010-??-??)
 ------------------
 
+* new helper function ``python.iter()`` in Lua that returns a Lua
+  iterator for a Python object.
+
 * reestablished the ``python.as_function()`` helper function for Lua
   code as it can be needed in cases where Lua cannot determine how to
   run a Python function.

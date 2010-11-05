@@ -915,6 +915,24 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 ################################################################################
 # Python support in Lua
 
+## The rules:
+##
+## Each of the following blocks of functions represents the view on a
+## specific Python feature from Lua code.  As they are called from
+## Lua, the entry points are 'nogil' functions that do not hold the
+## GIL.  They do the basic error checking and argument unpacking and
+## then hand over to a 'with gil' function that acquires the GIL on
+## entry and holds it during its lifetime.  This function does the
+## actual mapping of the Python feature or object to Lua.
+##
+## Lua's C level error handling is different from that of Python.  It
+## uses long jumps instead of returning from an error function.  The
+## places where this can happen are marked with a comment.  Note that
+## this only never happen inside of a 'nogil' function, as a long jump
+## out of a function that handles Python objects would kill their
+## reference counting.
+
+
 # ref-counting support for Python objects
 
 cdef void decref_with_gil(py_object *py_obj) with gil:
@@ -1087,7 +1105,7 @@ cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, bint 
 
 cdef int py_wrap_object_protocol(lua_State* L, bint as_index) nogil:
     if lua.lua_gettop(L) > 1:
-        return lua.luaL_argerror(L, 1, "invalid arguments")   # never returns!
+        return lua.luaL_argerror(L, 2, "invalid arguments")   # never returns!
     cdef py_object* py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
@@ -1104,17 +1122,76 @@ cdef int py_as_itemgetter(lua_State* L) nogil:
 
 cdef int py_as_function(lua_State* L) nogil:
     if lua.lua_gettop(L) > 1:
-        return lua.luaL_argerror(L, 1, "invalid arguments")   # never returns!
+        return lua.luaL_argerror(L, 2, "invalid arguments")   # never returns!
     cdef py_object* py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
     lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
     return 1
 
+# iteration support for Python objects in Lua
+
+cdef int py_iter(lua_State* L) nogil:
+    if lua.lua_gettop(L) > 1:
+        return lua.luaL_argerror(L, 2, "invalid arguments")   # never returns!
+    cdef py_object* py_obj = unwrap_lua_object(L, 1)
+    if not py_obj:
+        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    result = py_iter_with_gil(L, py_obj)
+    if result < 0:
+        return lua.luaL_error(L, 'error creating an iterator')  # never returns!
+    return result
+
+cdef int py_iter_with_gil(lua_State* L, py_object* py_obj) with gil:
+    cdef LuaRuntime runtime
+    try:
+        runtime = <LuaRuntime?>py_obj.runtime
+        obj = iter(<object>py_obj.obj)
+        # push three values: the iterator C function, the Python iterator and nil
+        lua.lua_pushcclosure(L, <lua.lua_CFunction>py_iter_next, 1)
+        if py_to_lua_custom(runtime, L, obj, 0) < 1:
+            return -1
+        lua.lua_pushnil(L)
+        return 3
+    except:
+        try: runtime.store_raised_exception()
+        except: pass
+        return -1
+
+cdef int py_iter_next(lua_State* L) nogil:
+    # first value on the stack: the Python iterator
+    cdef py_object* py_obj = unwrap_lua_object(L, 1)
+    if not py_obj:
+        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    result = py_iter_next_with_gil(L, py_obj)
+    if result < 0:
+        return lua.luaL_error(L, 'error while calling next(iterator)')  # never returns!
+    return result
+
+cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
+    cdef LuaRuntime runtime
+    try:
+        runtime = <LuaRuntime?>py_iter.runtime
+        obj = next(<object>py_iter.obj)
+        if isinstance(obj, tuple):
+            # special case: when the iterable returns a tuple, unpack it
+            return push_lua_arguments(runtime, L, <tuple>obj)
+        if py_to_lua(runtime, L, obj, 1) < 1:
+            return -1
+        return 1
+    except StopIteration:
+        lua.lua_pushnil(L)
+        return 1
+    except:
+        try: runtime.store_raised_exception()
+        except: pass
+        return -1
+
 # 'python' module functions in Lua
 
-cdef lua.luaL_Reg py_lib[4]
+cdef lua.luaL_Reg py_lib[5]
 py_lib[0] = lua.luaL_Reg(name = "as_attrgetter", func = <lua.lua_CFunction> py_as_attrgetter)
 py_lib[1] = lua.luaL_Reg(name = "as_itemgetter", func = <lua.lua_CFunction> py_as_itemgetter)
 py_lib[2] = lua.luaL_Reg(name = "as_function", func = <lua.lua_CFunction> py_as_function)
-py_lib[3] = lua.luaL_Reg(name = NULL, func = NULL)
+py_lib[3] = lua.luaL_Reg(name = "iter", func = <lua.lua_CFunction> py_iter)
+py_lib[4] = lua.luaL_Reg(name = NULL, func = NULL)
