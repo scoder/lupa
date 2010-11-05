@@ -1275,21 +1275,21 @@ class TestFastRLock(unittest.TestCase):
         b.wait_for_finished()
         self.assertEqual(len(b.finished), N)
 
-    def test_with(self):
-        lock = self.locktype()
-        def f():
-            lock.acquire()
-            lock.release()
-        def _with(err=None):
-            with lock:
-                if err is not None:
-                    raise err
-        _with()
-        # Check the lock is unacquired
-        self.Bunch(f, 1).wait_for_finished()
-        self.assertRaises(TypeError, _with, TypeError)
-        # Check the lock is unacquired
-        self.Bunch(f, 1).wait_for_finished()
+    ## def test_with(self):
+    ##     lock = self.locktype()
+    ##     def f():
+    ##         lock.acquire()
+    ##         lock.release()
+    ##     def _with(err=None):
+    ##         with lock:
+    ##             if err is not None:
+    ##                 raise err
+    ##     _with()
+    ##     # Check the lock is unacquired
+    ##     self.Bunch(f, 1).wait_for_finished()
+    ##     self.assertRaises(TypeError, _with, TypeError)
+    ##     # Check the lock is unacquired
+    ##     self.Bunch(f, 1).wait_for_finished()
 
     def test_thread_leak(self):
         # The lock shouldn't leak a Thread instance when used from a foreign

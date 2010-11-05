@@ -12,6 +12,7 @@ cimport cpython.ref
 cimport cpython.bytes
 cimport cpython.tuple
 from cpython.ref cimport PyObject
+from cpython.version cimport PY_VERSION_HEX
 
 cdef extern from *:
     ctypedef char* const_char_ptr "const char*"
@@ -1187,7 +1188,10 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_iter.runtime
-        obj = next(<object>py_iter.obj)
+        if PY_VERSION_HEX >= 0x02060000:
+            obj = next(<object>py_iter.obj)
+        else:
+            obj = (<object>py_iter.obj).next()
         if (py_iter.type_flags & OBJ_UNPACK_TUPLE) and isinstance(obj, tuple):
             # special case: when the iterable returns a tuple, unpack it
             push_lua_arguments(runtime, L, <tuple>obj)
