@@ -1102,9 +1102,19 @@ cdef int py_as_attrgetter(lua_State* L) nogil:
 cdef int py_as_itemgetter(lua_State* L) nogil:
     return py_wrap_object_protocol(L, 1)
 
+cdef int py_as_function(lua_State* L) nogil:
+    if lua.lua_gettop(L) > 1:
+        return lua.luaL_argerror(L, 1, "invalid arguments")   # never returns!
+    cdef py_object* py_obj = unwrap_lua_object(L, 1)
+    if not py_obj:
+        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
+    return 1
+
 # 'python' module functions in Lua
 
-cdef lua.luaL_Reg py_lib[3]
+cdef lua.luaL_Reg py_lib[4]
 py_lib[0] = lua.luaL_Reg(name = "as_attrgetter", func = <lua.lua_CFunction> py_as_attrgetter)
 py_lib[1] = lua.luaL_Reg(name = "as_itemgetter", func = <lua.lua_CFunction> py_as_itemgetter)
-py_lib[2] = lua.luaL_Reg(name = NULL, func = NULL)
+py_lib[2] = lua.luaL_Reg(name = "as_function", func = <lua.lua_CFunction> py_as_function)
+py_lib[3] = lua.luaL_Reg(name = NULL, func = NULL)

@@ -1,6 +1,14 @@
 Lupa change log
 ================
 
+0.17 (2010-??-??)
+------------------
+
+* reestablished the ``python.as_function()`` helper function for Lua
+  code as it can be needed in cases where Lua cannot determine how to
+  run a Python function.
+
+
 0.16 (2010-09-03)
 ------------------
 

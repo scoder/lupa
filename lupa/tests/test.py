@@ -550,6 +550,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertNotEqual(None, lua_get_index(GetAttr()))
 
 
+class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_explicit_python_function(self):
+        lua_func = self.lua.eval('function(func) return table.foreach({ab="cd"}, python.as_function(func)) end')
+        def join(*args):
+            return '-'.join(args)
+        self.assertEqual('ab-cd', lua_func(join))
+
+
 class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_coroutine_iter(self):
         lua_code = '''\
