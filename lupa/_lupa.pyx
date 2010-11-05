@@ -1,5 +1,9 @@
 # cython: embedsignature=True
 
+"""
+A fast Python wrapper around Lua and LuaJIT2.
+"""
+
 cimport lua
 from lua cimport lua_State
 
@@ -27,10 +31,15 @@ DEF POBJECT = "POBJECT" # as used by LunaticPython
 
 cdef class _LuaObject
 
+cdef enum WrappedObjectFlags:
+    # flags that determine the behaviour of a wrapped object:
+    OBJ_AS_INDEX = 1 # prefers the getitem protocol (over getattr)
+    OBJ_UNPACK_TUPLE = 2 # unpacks into separate values if it is a tuple
+
 cdef struct py_object:
     PyObject* obj
     PyObject* runtime
-    int as_index
+    int type_flags  # or-ed set of WrappedObjectFlags
 
 include "lock.pxi"
 
@@ -707,22 +716,22 @@ cdef py_object* unpack_wrapped_pyfunction(lua_State* L, int n) nogil:
 
 cdef class _PyProtocolWrapper:
     cdef object _obj
-    cdef int _as_index
+    cdef int _type_flags
     def __cinit__(self):
-        self._as_index = 0
+        self._type_flags = 0
     def __init__(self):
         raise TypeError("Type cannot be instantiated from Python")
 
 def as_attrgetter(obj):
     cdef _PyProtocolWrapper wrap = _PyProtocolWrapper.__new__(_PyProtocolWrapper)
     wrap._obj = obj
-    wrap._as_index = 0
+    wrap._type_flags = 0
     return wrap
 
 def as_itemgetter(obj):
     cdef _PyProtocolWrapper wrap = _PyProtocolWrapper.__new__(_PyProtocolWrapper)
     wrap._obj = obj
-    wrap._as_index = 1
+    wrap._type_flags = OBJ_AS_INDEX
     return wrap
 
 cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
@@ -765,7 +774,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
 
 cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) except -1:
     cdef int pushed_values_count = 0
-    cdef bint as_index = 0, as_callable = 0
+    cdef int type_flags = 0
 
     if o is None:
         if withnone:
@@ -797,12 +806,12 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) ex
         pushed_values_count = 1
     else:
         if isinstance(o, _PyProtocolWrapper):
-            as_index = (<_PyProtocolWrapper>o)._as_index
+            type_flags = (<_PyProtocolWrapper>o)._type_flags
             o = (<_PyProtocolWrapper>o)._obj
         else:
             # prefer __getitem__ over __getattr__ by default
-            as_index = hasattr(o, '__getitem__')
-        pushed_values_count = py_to_lua_custom(runtime, L, o, as_index)
+            type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
+        pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
     return pushed_values_count
 
 cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode ustring) except -1:
@@ -810,7 +819,7 @@ cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode u
     lua.lua_pushlstring(L, <char*>bytes_string, len(bytes_string))
     return 1
 
-cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, bint as_index):
+cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_flags):
     cdef py_object *py_obj = <py_object*> lua.lua_newuserdata(L, sizeof(py_object))
     if not py_obj:
         return 0 # values pushed
@@ -818,7 +827,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, bint as_i
     cpython.ref.Py_INCREF(runtime)
     py_obj.obj = <PyObject*>o
     py_obj.runtime = <PyObject*>runtime
-    py_obj.as_index = as_index
+    py_obj.type_flags = type_flags
     lua.luaL_getmetatable(L, POBJECT)
     lua.lua_setmetatable(L, -2)
     return 1 # values pushed
@@ -1034,7 +1043,7 @@ cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
-        if py_obj.as_index:
+        if py_obj.type_flags & OBJ_AS_INDEX:
             return getitem_for_lua(runtime, L, py_obj, 2)
         else:
             return getattr_for_lua(runtime, L, py_obj, 2)
@@ -1057,7 +1066,7 @@ cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
-        if py_obj.as_index:
+        if py_obj.type_flags & OBJ_AS_INDEX:
             return setitem_for_lua(runtime, L, py_obj, 2, 3)
         else:
             return setattr_for_lua(runtime, L, py_obj, 2, 3)
@@ -1087,29 +1096,33 @@ py_object_lib[5] = lua.luaL_Reg(name = NULL, func = NULL)
 
 ## # Python helper functions for Lua
 
+cdef inline py_object* unpack_single_python_argument_or_jump(lua_State* L) nogil:
+    if lua.lua_gettop(L) > 1:
+        lua.luaL_argerror(L, 2, "invalid arguments")   # never returns!
+    cdef py_object* py_obj = unwrap_lua_object(L, 1)
+    if not py_obj:
+        lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    return py_obj
+
 cdef py_object* unwrap_lua_object(lua_State* L, int n) nogil:
     if lua.lua_isuserdata(L, n):
         return <py_object*> lua.luaL_checkudata(L, n, POBJECT) # doesn't return on error!
     else:
         return unpack_wrapped_pyfunction(L, n)
 
-cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, bint as_index) with gil:
+cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
-        return py_to_lua_custom(runtime, L, <object>py_obj.obj, as_index)
+        return py_to_lua_custom(runtime, L, <object>py_obj.obj, type_flags)
     except:
         try: runtime.store_raised_exception()
         except: pass
         return -1
 
-cdef int py_wrap_object_protocol(lua_State* L, bint as_index) nogil:
-    if lua.lua_gettop(L) > 1:
-        return lua.luaL_argerror(L, 2, "invalid arguments")   # never returns!
-    cdef py_object* py_obj = unwrap_lua_object(L, 1)
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
-    result = py_wrap_object_protocol_with_gil(L, py_obj, as_index)
+cdef int py_wrap_object_protocol(lua_State* L, int type_flags) nogil:
+    cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
+    result = py_wrap_object_protocol_with_gil(L, py_obj, type_flags)
     if result < 0:
         return lua.luaL_error(L, 'error during type adaptation')  # never returns!
     return result
@@ -1118,48 +1131,50 @@ cdef int py_as_attrgetter(lua_State* L) nogil:
     return py_wrap_object_protocol(L, 0)
 
 cdef int py_as_itemgetter(lua_State* L) nogil:
-    return py_wrap_object_protocol(L, 1)
+    return py_wrap_object_protocol(L, OBJ_AS_INDEX)
 
 cdef int py_as_function(lua_State* L) nogil:
-    if lua.lua_gettop(L) > 1:
-        return lua.luaL_argerror(L, 2, "invalid arguments")   # never returns!
-    cdef py_object* py_obj = unwrap_lua_object(L, 1)
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
     lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
     return 1
 
 # iteration support for Python objects in Lua
 
 cdef int py_iter(lua_State* L) nogil:
-    if lua.lua_gettop(L) > 1:
-        return lua.luaL_argerror(L, 2, "invalid arguments")   # never returns!
-    cdef py_object* py_obj = unwrap_lua_object(L, 1)
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
-    result = py_iter_with_gil(L, py_obj)
+    cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
+    result = py_iter_with_gil(L, py_obj, 0)
     if result < 0:
         return lua.luaL_error(L, 'error creating an iterator')  # never returns!
     return result
 
-cdef int py_iter_with_gil(lua_State* L, py_object* py_obj) with gil:
+cdef int py_iterex(lua_State* L) nogil:
+    cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
+    result = py_iter_with_gil(L, py_obj, OBJ_UNPACK_TUPLE)
+    if result < 0:
+        return lua.luaL_error(L, 'error creating an iterator')  # never returns!
+    return result
+
+cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         obj = iter(<object>py_obj.obj)
-        # push three values: the iterator C function, the Python iterator and nil
-        lua.lua_pushcclosure(L, <lua.lua_CFunction>py_iter_next, 1)
-        if py_to_lua_custom(runtime, L, obj, 0) < 1:
-            return -1
-        lua.lua_pushnil(L)
-        return 3
+        return py_push_iterator(runtime, L, obj, type_flags)
     except:
         try: runtime.store_raised_exception()
         except: pass
         return -1
 
+cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags):
+    # push three values: the iterator C function, the Python iterator and nil
+    lua.lua_pushcclosure(L, <lua.lua_CFunction>py_iter_next, 1)
+    if py_to_lua_custom(runtime, L, iterator, type_flags) < 1:
+        return -1
+    lua.lua_pushnil(L)
+    return 3
+
 cdef int py_iter_next(lua_State* L) nogil:
-    # first value on the stack: the Python iterator
+    # first value on the stack: the Python iterator object
     cdef py_object* py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
@@ -1173,9 +1188,10 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
     try:
         runtime = <LuaRuntime?>py_iter.runtime
         obj = next(<object>py_iter.obj)
-        if isinstance(obj, tuple):
+        if (py_iter.type_flags & OBJ_UNPACK_TUPLE) and isinstance(obj, tuple):
             # special case: when the iterable returns a tuple, unpack it
-            return push_lua_arguments(runtime, L, <tuple>obj)
+            push_lua_arguments(runtime, L, <tuple>obj)
+            return len(<tuple>obj)
         if py_to_lua(runtime, L, obj, 1) < 1:
             return -1
         return 1
@@ -1187,11 +1203,34 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
         except: pass
         return -1
 
+# 'enumerate()' iteration on Python objects (TODO: implement natively)
+
+cdef int py_enumerate(lua_State* L) nogil:
+    cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
+    result = py_enumerate_with_gil(L, py_obj)
+    if result < 0:
+        return lua.luaL_error(L, 'error creating an iterator with enumerate()')  # never returns!
+    return result
+
+cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj) with gil:
+    cdef LuaRuntime runtime
+    try:
+        runtime = <LuaRuntime?>py_obj.runtime
+        obj = enumerate(<object>py_obj.obj)
+        return py_push_iterator(runtime, L, obj, OBJ_UNPACK_TUPLE)
+    except:
+        try: runtime.store_raised_exception()
+        except: pass
+        return -1
+
+
 # 'python' module functions in Lua
 
-cdef lua.luaL_Reg py_lib[5]
+cdef lua.luaL_Reg py_lib[7]
 py_lib[0] = lua.luaL_Reg(name = "as_attrgetter", func = <lua.lua_CFunction> py_as_attrgetter)
 py_lib[1] = lua.luaL_Reg(name = "as_itemgetter", func = <lua.lua_CFunction> py_as_itemgetter)
 py_lib[2] = lua.luaL_Reg(name = "as_function", func = <lua.lua_CFunction> py_as_function)
 py_lib[3] = lua.luaL_Reg(name = "iter", func = <lua.lua_CFunction> py_iter)
-py_lib[4] = lua.luaL_Reg(name = NULL, func = NULL)
+py_lib[4] = lua.luaL_Reg(name = "iterex", func = <lua.lua_CFunction> py_iterex)
+py_lib[5] = lua.luaL_Reg(name = "enumerate", func = <lua.lua_CFunction> py_enumerate)
+py_lib[6] = lua.luaL_Reg(name = NULL, func = NULL)

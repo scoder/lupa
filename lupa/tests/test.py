@@ -575,6 +575,33 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
         ''')
         self.assertEqual([1,2,3], list(values([1,2,3])))
 
+    def test_python_enumerate_list(self):
+        values = self.lua.eval('''
+            function(L)
+                local t = {}
+                for index, value in python.enumerate(L) do
+                    t[index+1] = value
+                end
+                return t
+            end
+        ''')
+        self.assertEqual([1,2,3], list(values([1,2,3])))
+
+    def test_python_iter_dict_items(self):
+        values = self.lua.eval('''
+            function(d)
+                local t = {}
+                for key, value in python.iterex(d.items()) do
+                    t[key] = value
+                end
+                return t
+            end
+        ''')
+        table = values(lupa.as_attrgetter(dict(a=1, b=2, c=3)))
+        self.assertEqual(1, table['a'])
+        self.assertEqual(2, table['b'])
+        self.assertEqual(3, table['c'])
+
 
 class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_coroutine_iter(self):

@@ -4,6 +4,14 @@ Lupa change log
 0.17 (2010-??-??)
 ------------------
 
+* new helper function ``python.enumerate()`` in Lua that returns a Lua
+  iterator for a Python object and adds the 0-based index to each
+  item.
+
+* new helper function ``python.iterex()`` in Lua that returns a Lua
+  iterator for a Python object and unpacks any tuples that the
+  iterator yields.
+
 * new helper function ``python.iter()`` in Lua that returns a Lua
   iterator for a Python object.
 

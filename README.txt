@@ -184,6 +184,78 @@ indexable::
       2
 
 
+Iteration in Lua
+-----------------
+
+Iteration over Python objects from Lua's for-loop is fully supported.
+However, Python iterables need to be converted using one of the
+utility functions which are described here.  This is similar to the
+functions like ``pairs()`` in Lua.
+
+To iterate over a plain Python iterable, use the ``python.iter()``
+function.  For example, you can manually copy a Python list into a Lua
+table like this::
+
+      >>> lua_copy = lua.eval('''
+      ...     function(L)
+      ...         local t, i = {}, 1
+      ...         for item in python.iter(L) do
+      ...             t[i] = item
+      ...             i = i + 1
+      ...         end
+      ...         return t
+      ...     end
+      ... ''')
+
+      >>> table = lua_copy([1,2,3,4])
+      >>> len(table)
+      4
+      >>> table[1]   # Lua indexing
+      1
+
+Python's ``enumerate()`` function is also supported, so the above
+could be simplified to::
+
+      >>> lua_copy = lua.eval('''
+      ...     function(L)
+      ...         local t = {}
+      ...         for index, item in python.enumerate(L) do
+      ...             t[ index+1 ] = item
+      ...         end
+      ...         return t
+      ...     end
+      ... ''')
+
+      >>> table = lua_copy([1,2,3,4])
+      >>> len(table)
+      4
+      >>> table[1]   # Lua indexing
+      1
+
+For iterators that return tuples, such as ``dict.iteritems()``, it is
+convenient to use the special ``python.iterex()`` function that
+automatically explodes the tuple items into separate Lua arguments::
+
+      >>> lua_copy = lua.eval('''
+      ...     function(d)
+      ...         local t = {}
+      ...         for key, value in python.iterex(d.items()) do
+      ...             t[key] = value
+      ...         end
+      ...         return t
+      ...     end
+      ... ''')
+
+      >>> d = dict(a=1, b=2, c=3)
+      >>> table = lua_copy( lupa.as_attrgetter(d) )
+      >>> table['b']
+      2
+
+Note that accessing the ``d.items`` method from Lua requires passing
+the dict as ``attrgetter``.  Otherwise, attribute access in Lua would
+use the ``getitem`` protocol of Python dicts.
+
+
 Lua Tables
 -----------
 
