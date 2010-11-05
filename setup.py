@@ -64,10 +64,28 @@ ext_modules = [
         )
     ]
 
-long_description = '\n\n'.join(
-    open(os.path.join(basedir, text_file)).read()
-    for text_file in ['README.txt', 'INSTALL.txt', 'CHANGES.txt'])
-    
+def read_file(filename):
+    f = open(os.path.join(basedir, filename))
+    try:
+        return f.read()
+    finally:
+        f.close()
+
+def write_file(filename, content):
+    f = open(os.path.join(basedir, filename), 'w')
+    try:
+        f.write(content)
+    finally:
+        f.close()
+
+long_description = '\n\n'.join([
+    read_file(text_file)
+    for text_file in ['README.txt', 'INSTALL.txt', 'CHANGES.txt']])
+
+write_file(os.path.join('lupa', 'version.py'), "__version__ = '%s'\n" % VERSION)
+
+
+# call distutils
 
 setup(
     name = "lupa",

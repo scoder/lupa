@@ -23,3 +23,8 @@ del _try_import_with_global_library_symbols
 # the following is all that should stay in the namespace:
 
 from lupa._lupa import *
+
+try:
+    from lupa.version import __version__
+except ImportError:
+    pass
