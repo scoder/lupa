@@ -38,6 +38,7 @@ cdef enum WrappedObjectFlags:
     # flags that determine the behaviour of a wrapped object:
     OBJ_AS_INDEX = 1 # prefers the getitem protocol (over getattr)
     OBJ_UNPACK_TUPLE = 2 # unpacks into separate values if it is a tuple
+    OBJ_ENUMERATOR = 4 # iteration uses native enumerate() implementation
 
 cdef struct py_object:
     PyObject* obj
@@ -47,9 +48,13 @@ cdef struct py_object:
 include "lock.pxi"
 
 class LuaError(Exception):
+    """Base class for errors in the Lua runtime.
+    """
     pass
 
 class LuaSyntaxError(LuaError):
+    """Syntax error in Lua code.
+    """
     pass
 
 cdef class LuaRuntime:
@@ -1191,7 +1196,10 @@ cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_f
     lua.lua_pushcclosure(L, <lua.lua_CFunction>py_iter_next, 1)
     # Lua needs three values: iterator C function + state + last iter value
     lua.lua_pushnil(L)
-    lua.lua_pushnil(L)
+    if (type_flags & OBJ_ENUMERATOR):
+        lua.lua_pushnumber(L, -1.0)
+    else:
+        lua.lua_pushnil(L)
     return 3
 
 cdef int py_iter_next(lua_State* L) nogil:
@@ -1216,9 +1224,13 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             # special case: when the iterable returns a tuple, unpack it
             push_lua_arguments(runtime, L, <tuple>obj)
             return len(<tuple>obj)
+        elif (py_iter.type_flags & OBJ_ENUMERATOR):
+            lua.lua_pushnumber(L, lua.lua_tonumber(L, -1) + 1)
         result = py_to_lua(runtime, L, obj, 1)
         if result < 1:
             return -1
+        if (py_iter.type_flags & OBJ_ENUMERATOR):
+            result += 1
         return result
     except StopIteration:
         lua.lua_pushnil(L)
@@ -1228,7 +1240,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
         except: pass
         return -1
 
-# 'enumerate()' iteration on Python objects (TODO: implement natively)
+# 'enumerate()' iteration on Python objects
 
 cdef int py_enumerate(lua_State* L) nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
@@ -1241,8 +1253,8 @@ cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj) with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
-        obj = enumerate(<object>py_obj.obj)
-        return py_push_iterator(runtime, L, obj, OBJ_UNPACK_TUPLE)
+        obj = iter(<object>py_obj.obj)
+        return py_push_iterator(runtime, L, obj, OBJ_ENUMERATOR)
     except:
         try: runtime.store_raised_exception()
         except: pass
