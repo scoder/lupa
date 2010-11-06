@@ -1122,6 +1122,13 @@ cdef py_object* unwrap_lua_object(lua_State* L, int n) nogil:
     else:
         return unpack_wrapped_pyfunction(L, n)
 
+cdef py_object* unwrap_lua_object_from_cclosure(lua_State* L, int n) nogil:
+    cdef py_object* userdata = <py_object*> lua.lua_touserdata(L, lua.lua_upvalueindex(n))
+    if userdata:
+        return userdata
+    else:
+        return unpack_wrapped_pyfunction(L, lua.lua_upvalueindex(n))
+
 cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
     cdef LuaRuntime runtime
     try:
@@ -1178,16 +1185,18 @@ cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with 
         return -1
 
 cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags):
-    # push three values: the iterator C function, the Python iterator and nil
-    lua.lua_pushcclosure(L, <lua.lua_CFunction>py_iter_next, 1)
+    # push the wrapped iterator object into the C closure
     if py_to_lua_custom(runtime, L, iterator, type_flags) < 1:
         return -1
+    lua.lua_pushcclosure(L, <lua.lua_CFunction>py_iter_next, 1)
+    # Lua needs three values: iterator C function + state + last iter value
+    lua.lua_pushnil(L)
     lua.lua_pushnil(L)
     return 3
 
 cdef int py_iter_next(lua_State* L) nogil:
-    # first value on the stack: the Python iterator object
-    cdef py_object* py_obj = unwrap_lua_object(L, 1)
+    # first value in the C closure: the Python iterator object
+    cdef py_object* py_obj = unwrap_lua_object_from_cclosure(L, 1)
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
     result = py_iter_next_with_gil(L, py_obj)
