@@ -11,8 +11,10 @@ cimport cpython
 cimport cpython.ref
 cimport cpython.bytes
 cimport cpython.tuple
+cimport cpython.float
+cimport cpython.long
 from cpython.ref cimport PyObject
-from cpython.version cimport PY_VERSION_HEX
+from cpython.version cimport PY_VERSION_HEX, PY_MAJOR_VERSION
 
 cdef extern from *:
     ctypedef char* const_char_ptr "const char*"
@@ -789,11 +791,17 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) ex
             # with pushed_values_count == 0.
             lua.lua_pushnil(L)
             pushed_values_count = 1
-    elif isinstance(o, bool):
+    elif type(o) is bool:
         lua.lua_pushboolean(L, <bint>o)
         pushed_values_count = 1
-    elif isinstance(o, (int, long, float)):
-        lua.lua_pushnumber(L, <lua.lua_Number><double>o)
+    elif type(o) is float:
+        lua.lua_pushnumber(L, <lua.lua_Number>cpython.float.PyFloat_AS_DOUBLE(o))
+        pushed_values_count = 1
+    elif isinstance(o, long):
+        lua.lua_pushnumber(L, <lua.lua_Number>cpython.long.PyLong_AsDouble(o))
+        pushed_values_count = 1
+    elif PY_MAJOR_VERSION < 3 and isinstance(o, int):
+        lua.lua_pushnumber(L, <lua.lua_Number><long>o)
         pushed_values_count = 1
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
@@ -804,6 +812,9 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) ex
         if (<_LuaObject>o)._runtime is not runtime:
             raise LuaError("cannot mix objects from different Lua runtimes")
         lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, (<_LuaObject>o)._ref)
+        pushed_values_count = 1
+    elif isinstance(o, float):
+        lua.lua_pushnumber(L, <lua.lua_Number><double>o)
         pushed_values_count = 1
     else:
         if isinstance(o, _PyProtocolWrapper):
