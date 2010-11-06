@@ -21,6 +21,9 @@ Major features
 
 * Python coroutine wrapper for Lua coroutines
 
+* iteration support for Python objects in Lua and Lua objects in
+  Python
+
 * proper encoding and decoding of strings (configurable per runtime,
   UTF-8 by default)
 
