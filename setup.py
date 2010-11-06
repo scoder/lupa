@@ -85,7 +85,7 @@ long_description = '\n\n'.join([
 write_file(os.path.join('lupa', 'version.py'), "__version__ = '%s'\n" % VERSION)
 
 if sys.version_info >= (2,6):
-    extra_setup_args['license'] = read_file('LICENSE.txt')
+    extra_setup_args['license'] = 'MIT style'
 
 # call distutils
 
