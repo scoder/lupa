@@ -93,6 +93,7 @@ setup(
     name = "lupa",
     version = VERSION,
     author = "Stefan Behnel",
+    author_email = "stefan_ml@behnel.de",
     maintainer = "Lupa-dev mailing list",
     maintainer_email = "lupa-dev@freelists.org",
     url = "http://pypi.python.org/pypi/lupa",
