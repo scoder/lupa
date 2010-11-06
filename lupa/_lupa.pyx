@@ -1196,9 +1196,10 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             # special case: when the iterable returns a tuple, unpack it
             push_lua_arguments(runtime, L, <tuple>obj)
             return len(<tuple>obj)
-        if py_to_lua(runtime, L, obj, 1) < 1:
+        result = py_to_lua(runtime, L, obj, 1)
+        if result < 1:
             return -1
-        return 1
+        return result
     except StopIteration:
         lua.lua_pushnil(L)
         return 1
