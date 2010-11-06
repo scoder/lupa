@@ -614,6 +614,20 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(2, table['b'])
         self.assertEqual(3, table['c'])
 
+    def test_python_iter_list_None(self):
+        values = self.lua.eval('''
+            function(L)
+                local t = {}
+                local i = 1
+                for value in python.iter(L) do
+                    t[i] = value
+                    i = i + 1
+                end
+                return t
+            end
+        ''')
+        self.assertEqual([None, None, None], list(values([None, None, None]).values()))
+
 
 class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_coroutine_iter(self):

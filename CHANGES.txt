@@ -4,6 +4,13 @@ Lupa change log
 0.18 (2010-??-??)
 ------------------
 
+* when converting Python values to Lua, represent ``None`` as a
+  ``Py_None`` object in places where ``nil`` has a special meaning,
+  but leave it as ``nil`` where it doesn't hurt
+
+* fix iteration by returning ``Py_None`` object for ``None`` instead
+  of ``nil``, which would terminate the iteration
+
 * support for start value in ``python.enumerate()``
 
 * native implementation for ``python.enumerate()`` that is several

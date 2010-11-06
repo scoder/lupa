@@ -362,7 +362,7 @@ cdef class _LuaObject:
             if lua.lua_isfunction(L, -1):
                 lua.lua_pop(L, 1)
                 raise TypeError("item/attribute access not supported on functions")
-            py_to_lua(self._runtime, L, name, 0)
+            py_to_lua(self._runtime, L, name, 1)
             lua.lua_gettable(L, -2)
             return py_from_lua(self._runtime, L, -1)
         finally:
@@ -385,8 +385,8 @@ cdef class _LuaObject:
                 lua.lua_pop(L, -1)
                 raise TypeError("Lua object is not a table")
             try:
-                py_to_lua(self._runtime, L, name, 0)
-                py_to_lua(self._runtime, L, value, 0)
+                py_to_lua(self._runtime, L, name, 1)
+                py_to_lua(self._runtime, L, value, 1)
                 lua.lua_settable(L, -3)
             finally:
                 lua.lua_settop(L, 0)
@@ -589,7 +589,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
             raise StopIteration
         if args:
             nargs = len(args)
-            push_lua_arguments(thread._runtime, co, args)
+            push_lua_arguments(thread._runtime, co, args, 0)
         with nogil:
             result = lua.lua_resume(co, nargs)
         if result != lua.LUA_YIELD:
@@ -791,6 +791,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) ex
             if lua.lua_isnil(L, -1):
                 lua.lua_pop(L, 1)
                 return 0
+            pushed_values_count = 1
         else:
             # Not really needed, but this way we may check for errors
             # with pushed_values_count == 0.
@@ -895,7 +896,7 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code):
 
 cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
     # does not lock the runtime!
-    push_lua_arguments(runtime, L, args)
+    push_lua_arguments(runtime, L, args, 0)
     return execute_lua_call(runtime, L, len(args))
 
 cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
@@ -911,11 +912,11 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
     finally:
         lua.lua_settop(L, 0)
 
-cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L, tuple args) except -1:
+cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L, tuple args, int withnone) except -1:
     cdef int i
     if args:
         for i, arg in enumerate(args):
-            if not py_to_lua(runtime, L, arg, 0):
+            if not py_to_lua(runtime, L, arg, withnone):
                 lua.lua_settop(L, 0)
                 raise TypeError("failed to convert argument at index %d" % i)
     return 0
@@ -1246,7 +1247,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             obj = (<object>py_iter.obj).next()
         if (py_iter.type_flags & OBJ_UNPACK_TUPLE) and isinstance(obj, tuple):
             # special case: when the iterable returns a tuple, unpack it
-            push_lua_arguments(runtime, L, <tuple>obj)
+            push_lua_arguments(runtime, L, <tuple>obj, 1)
             return len(<tuple>obj)
         elif (py_iter.type_flags & OBJ_ENUMERATOR):
             lua.lua_pushnumber(L, lua.lua_tonumber(L, -1) + 1.0)
