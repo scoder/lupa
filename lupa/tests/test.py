@@ -573,19 +573,31 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
                 return t
             end
         ''')
-        self.assertEqual([1,2,3], list(values([1,2,3])))
+        self.assertEqual([1,2,3], list(values([1,2,3]).values()))
 
     def test_python_enumerate_list(self):
         values = self.lua.eval('''
             function(L)
                 local t = {}
                 for index, value in python.enumerate(L) do
-                    t[index+1] = value
+                    t[ index+1 ] = value
                 end
                 return t
             end
         ''')
-        self.assertEqual([1,2,3], list(values([1,2,3])))
+        self.assertEqual([1,2,3], list(values([1,2,3]).values()))
+
+    def test_python_enumerate_list_start(self):
+        values = self.lua.eval('''
+            function(L)
+                local t = {5,6,7}
+                for index, value in python.enumerate(L, 3) do
+                    t[ index ] = value
+                end
+                return t
+            end
+        ''')
+        self.assertEqual([5,6,1,2,3], list(values([1,2,3]).values()))
 
     def test_python_iter_dict_items(self):
         values = self.lua.eval('''

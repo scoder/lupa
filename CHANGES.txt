@@ -4,8 +4,10 @@ Lupa change log
 0.18 (2010-??-??)
 ------------------
 
-* native implementation for ``enumerate()`` that is several times
-  faster
+* support for start value in ``python.enumerate()``
+
+* native implementation for ``python.enumerate()`` that is several
+  times faster
 
 * much faster Lua iteration over Python objects
 
