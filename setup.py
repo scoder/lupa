@@ -3,7 +3,7 @@ import sys
 import os
 from distutils.core import setup, Extension
 
-VERSION = '0.18'
+VERSION = '0.19'
 
 extra_setup_args = {}
 
@@ -115,7 +115,6 @@ setup(
         'Topic :: Software Development',
     ],
 
-#    package_dir = {'': 'src'},
     packages = ['lupa'],
 #    package_data = {},
     ext_modules = ext_modules,
