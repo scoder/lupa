@@ -4,11 +4,17 @@
 # do it temporarily.
 
 def _try_import_with_global_library_symbols():
-    import DLFCN
+    try:
+        import DLFCN
+        dlopen_flags = DLFCN.RTLD_NOW | DLFCN.RTLD_GLOBAL
+    except ImportError:
+        import ctypes
+        dlopen_flags = ctypes.RTLD_GLOBAL
+
     import sys
     old_flags = sys.getdlopenflags()
     try:
-        sys.setdlopenflags(DLFCN.RTLD_NOW | DLFCN.RTLD_GLOBAL)
+        sys.setdlopenflags(dlopen_flags)
         import lupa._lupa
     finally:
         sys.setdlopenflags(old_flags)
