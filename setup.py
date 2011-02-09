@@ -1,4 +1,5 @@
 
+import subprocess
 import sys
 import os
 from distutils.core import setup, Extension
@@ -25,10 +26,42 @@ if 'setuptools' in sys.modules:
     extra_setup_args["zip_safe"] = False
 
 # check if LuaJIT is in a subdirectory and build statically against it
+def cmd_status_output(command):
+    """Returns the exit code and output of the program, as a tuple"""
+    proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+    buff = []
+    while proc.poll() is None:
+        buff.append(proc.stdout.read())
+
+    exit_code = proc.wait()
+    buff.append(proc.stdout.read())
+    print 'returning', (exit_code, ''.join(buff))
+    return (exit_code, ''.join(buff))
+
+def luajit2_installed():
+    if (cmd_status_output('pkg-config luajit --exists')[0] == 0) and \
+          (cmd_status_output('pkg-config luajit --modversion')[1][0] == '2'):
+        return True
+    return False
+
+def lua_include():
+    line = cmd_status_output('pkg-config luajit --cflags-only-I')[1]
+    def trim_i(s):
+        if s.startswith('-I'):
+            return s[2:]
+        return s
+    return map(trim_i, filter(None, line.split()))
+
+def lua_libs():
+    line = cmd_status_output('pkg-config luajit --libs')[1]
+    return filter(None, line.split())
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 def find_luajit_build():
+    if luajit2_installed():
+        return dict(extra_objects=lua_libs(), include_dirs=lua_include())
+
     static_libs = []
     include_dirs = []
 
@@ -80,7 +113,7 @@ def write_file(filename, content):
 
 long_description = '\n\n'.join([
     read_file(text_file)
-    for text_file in ['README.txt', 'INSTALL.txt', 'CHANGES.txt']])
+    for text_file in ['README.rst', 'INSTALL.txt', 'CHANGES.txt']])
 
 write_file(os.path.join('lupa', 'version.py'), "__version__ = '%s'\n" % VERSION)
 
