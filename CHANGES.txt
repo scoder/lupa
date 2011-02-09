@@ -1,7 +1,7 @@
 Lupa change log
 ================
 
-0.19 (2010-12-27)
+0.19 (2011-01-02)
 ------------------
 
 * portability fix for binary module importing
