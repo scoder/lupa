@@ -26,41 +26,59 @@ if 'setuptools' in sys.modules:
     extra_setup_args["zip_safe"] = False
 
 # check if LuaJIT is in a subdirectory and build statically against it
-def cmd_status_output(command):
-    """Returns the exit code and output of the program, as a tuple"""
-    proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-    buff = []
-    while proc.poll() is None:
-        buff.append(proc.stdout.read())
-
+def cmd_output(command):
+    """
+    Returns the exit code and output of the program, as a triplet of the form
+    (exit_code, stdout, stderr).
+    """
+    proc = subprocess.Popen(command,
+                            shell=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
+    stdout, stderr = proc.communicate()
     exit_code = proc.wait()
-    buff.append(proc.stdout.read())
-    print 'returning', (exit_code, ''.join(buff))
-    return (exit_code, ''.join(buff))
+    if exit_code != 0:
+        raise RuntimeError(stderr)
+    return stdout
 
-def luajit2_installed():
-    if (cmd_status_output('pkg-config luajit --exists')[0] == 0) and \
-          (cmd_status_output('pkg-config luajit --modversion')[1][0] == '2'):
-        return True
-    return False
+def check_luajit2_installed():
+    try:
+        cmd_output('pkg-config luajit --exists')
+    except RuntimeError, e:
+        # pkg-config gives no stdout when it is given --exists and it cannot
+        # find the package, so we'll give it some better output
+        if not e.args[0]:
+            raise RuntimeError("pkg-config cannot find an installed luajit")
+        raise
+
+    version_out = cmd_output('pkg-config luajit --modversion')
+    if version_out[0] != '2':
+        raise RuntimeError("Expected version 2+ of luajit, but found %s" %
+            version_out)
 
 def lua_include():
-    line = cmd_status_output('pkg-config luajit --cflags-only-I')[1]
+    cflag_out = cmd_output('pkg-config luajit --cflags-only-I')
+
     def trim_i(s):
         if s.startswith('-I'):
             return s[2:]
         return s
-    return map(trim_i, filter(None, line.split()))
+    return map(trim_i, filter(None, cflag_out.split()))
 
 def lua_libs():
-    line = cmd_status_output('pkg-config luajit --libs')[1]
-    return filter(None, line.split())
+    libs_out = cmd_output('pkg-config luajit --libs')
+    return filter(None, libs_out.split())
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 def find_luajit_build():
-    if luajit2_installed():
+    try:
+        check_luajit2_installed()
         return dict(extra_objects=lua_libs(), include_dirs=lua_include())
+    except RuntimeError, e:
+        print("Error finding installed luajit-2:")
+        print(e.args[0])
+        print("Proceding with detection of local luajit-2")
 
     static_libs = []
     include_dirs = []
