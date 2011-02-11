@@ -1,5 +1,4 @@
 
-import subprocess
 import sys
 import os
 from distutils.core import setup, Extension
@@ -25,12 +24,16 @@ if 'setuptools' in sys.modules:
     extra_setup_args['test_suite'] = 'lupa.tests.suite'
     extra_setup_args["zip_safe"] = False
 
+class PkgConfigError(RuntimeError):
+    pass
+
 # check if LuaJIT is in a subdirectory and build statically against it
 def cmd_output(command):
     """
     Returns the exit code and output of the program, as a triplet of the form
     (exit_code, stdout, stderr).
     """
+    import subprocess
     proc = subprocess.Popen(command,
                             shell=True,
                             stdout=subprocess.PIPE,
@@ -38,23 +41,25 @@ def cmd_output(command):
     stdout, stderr = proc.communicate()
     exit_code = proc.wait()
     if exit_code != 0:
-        raise RuntimeError(stderr)
+        raise PkgConfigError(stderr)
     return stdout
 
 def check_luajit2_installed():
     try:
         cmd_output('pkg-config luajit --exists')
-    except RuntimeError, e:
+    except RuntimeError:
         # pkg-config gives no stdout when it is given --exists and it cannot
         # find the package, so we'll give it some better output
-        if not e.args[0]:
+        error = sys.exc_info()[1]
+        if not error.args[0]:
             raise RuntimeError("pkg-config cannot find an installed luajit")
         raise
 
-    version_out = cmd_output('pkg-config luajit --modversion')
-    if version_out[0] != '2':
-        raise RuntimeError("Expected version 2+ of luajit, but found %s" %
-            version_out)
+    lj_version = cmd_output('pkg-config luajit --modversion')
+    if lj_version[:2] != '2.':
+        raise PkgConfigError("Expected version 2+ of LuaJIT, but found %s" %
+                             lj_version)
+    print("pkg-config found LuaJIT version %s" % lj_version)
 
 def lua_include():
     cflag_out = cmd_output('pkg-config luajit --cflags-only-I')
@@ -72,17 +77,6 @@ def lua_libs():
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 def find_luajit_build():
-    try:
-        check_luajit2_installed()
-        return dict(extra_objects=lua_libs(), include_dirs=lua_include())
-    except RuntimeError, e:
-        print("Error finding installed luajit-2:")
-        print(e.args[0])
-        print("Proceding with detection of local luajit-2")
-
-    static_libs = []
-    include_dirs = []
-
     os_path = os.path
     for filename in os.listdir(basedir):
         if filename.lower().startswith('luajit'):
@@ -90,11 +84,19 @@ def find_luajit_build():
             if os_path.isdir(filepath):
                 libfile = os_path.join(filepath, 'libluajit.a')
                 if os_path.isfile(libfile):
-                    static_libs = [libfile]
-                    include_dirs = [filepath]
                     print("found LuaJIT build in %s" % filepath)
                     print("building statically")
-    return dict(extra_objects=static_libs, include_dirs=include_dirs)
+                    return dict(extra_objects=[libfile], include_dirs=[filepath])
+
+    print("No local build of LuaJIT2 found in lupa directory, checking for installed library using pkg-config")
+    try:
+        check_luajit2_installed()
+        return dict(extra_objects=lua_libs(), include_dirs=lua_include())
+    except RuntimeError:
+        print("Did not find LuaJIT2 using pkg-config: %s" % sys.exc_info()[1])
+
+    raise RuntimeError("LuaJIT2 not found, please install the library and its development packages"
+                       ", or put a local build into the lupa main directory")
 
 def has_option(name):
     if name in sys.argv[1:]:
