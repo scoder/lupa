@@ -98,6 +98,7 @@ def find_luajit_build():
     if not IGNORE_NO_LUAJIT:
         raise RuntimeError("LuaJIT2 not found, please install the library and its development packages"
                            ", or put a local build into the lupa main directory (or pass '--no-luajit' option)")
+    return {}
 
 def has_option(name):
     if name in sys.argv[1:]:
