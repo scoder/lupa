@@ -95,8 +95,9 @@ def find_luajit_build():
     except RuntimeError:
         print("Did not find LuaJIT2 using pkg-config: %s" % sys.exc_info()[1])
 
-    raise RuntimeError("LuaJIT2 not found, please install the library and its development packages"
-                       ", or put a local build into the lupa main directory")
+    if not IGNORE_NO_LUAJIT:
+        raise RuntimeError("LuaJIT2 not found, please install the library and its development packages"
+                           ", or put a local build into the lupa main directory (or pass '--no-luajit' option)")
 
 def has_option(name):
     if name in sys.argv[1:]:
@@ -107,6 +108,8 @@ def has_option(name):
 ext_args = find_luajit_build()
 if has_option('--without-assert'):
     ext_args['define_macros'] = [('PYREX_WITHOUT_ASSERTIONS', None)]
+
+IGNORE_NO_LUAJIT = has_option('--no-luajit')
 
 ext_modules = [
     Extension(
