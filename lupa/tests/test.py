@@ -1426,7 +1426,7 @@ if __name__ == '__main__':
     suite = unittest.TestSuite()
     suite.addTest(doctest.DocTestSuite(lupa._lupa))
     suite.addTest(unittest.defaultTestLoader.loadTestsFromName('__main__'))
-    suite.addTest(doctest.DocFileSuite('../../README.txt'))
+    suite.addTest(doctest.DocFileSuite('../../README.rst'))
     runner = unittest.TextTestRunner(verbosity=2)
     if not runner.run(suite).wasSuccessful():
         sys.exit(1)
