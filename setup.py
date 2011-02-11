@@ -105,11 +105,11 @@ def has_option(name):
         return True
     return False
 
+IGNORE_NO_LUAJIT = has_option('--no-luajit')
+
 ext_args = find_luajit_build()
 if has_option('--without-assert'):
     ext_args['define_macros'] = [('PYREX_WITHOUT_ASSERTIONS', None)]
-
-IGNORE_NO_LUAJIT = has_option('--no-luajit')
 
 ext_modules = [
     Extension(
