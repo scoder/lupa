@@ -537,6 +537,9 @@ shared memory setup.
 Importing Lua binary modules
 -----------------------------
 
+**This will usually work as is**, but here are the details, in case
+anything goes wrong for you.
+
 To use binary modules in Lua, you need to compile them against the
 header files of the LuaJIT sources that you used to build Lupa, but do
 not link them against the LuaJIT library.
