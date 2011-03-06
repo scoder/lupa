@@ -34,6 +34,14 @@ class SetupLuaRuntimeMixin(object):
         self.lua = None
         gc.collect()
 
+class TestLuaRuntimeRefcounting(unittest.TestCase):
+    def test_runtime_cleanup(self):
+        lua = lupa.LuaRuntime()
+        lua_table = lua.eval('{1,2,3,4}')
+        del lua
+        self.assertEqual(1, lua_table[1])
+        del lua_table
+
 class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_eval(self):
         self.assertEqual(2, self.lua.eval('1+1'))

@@ -842,7 +842,6 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     if not py_obj:
         return 0 # values pushed
     cpython.ref.Py_INCREF(o)
-    cpython.ref.Py_INCREF(runtime)
     py_obj.obj = <PyObject*>o
     py_obj.runtime = <PyObject*>runtime
     py_obj.type_flags = type_flags
@@ -964,7 +963,6 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 
 cdef void decref_with_gil(py_object *py_obj) with gil:
     cpython.ref.Py_XDECREF(py_obj.obj)
-    cpython.ref.Py_XDECREF(py_obj.runtime)
 
 cdef int py_object_gc(lua_State* L) nogil:
     if not lua.lua_isuserdata(L, 1):

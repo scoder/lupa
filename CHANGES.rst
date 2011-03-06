@@ -1,8 +1,10 @@
 Lupa change log
 ================
 
-0.19 (2011-01-02)
+0.19 (2011-03-06)
 ------------------
+
+* fix serious resource leak when creating multiple LuaRuntime instances
 
 * portability fix for binary module importing
 
