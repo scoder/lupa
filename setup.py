@@ -153,7 +153,7 @@ setup(
     author_email = "stefan_ml@behnel.de",
     maintainer = "Lupa-dev mailing list",
     maintainer_email = "lupa-dev@freelists.org",
-    url = "http://pypi.python.org/pypi/lupa",
+    url = "https://github.com/scoder/lupa",
     download_url = "http://pypi.python.org/packages/source/l/lupa/lupa-%s.tar.gz" % VERSION,
 
     description="Python wrapper around LuaJIT",
