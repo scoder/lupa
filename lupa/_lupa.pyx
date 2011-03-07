@@ -109,7 +109,7 @@ cdef class LuaRuntime:
         self._state = L
         self._lock = FastRLock()
         self._encoding = None if encoding is None else encoding.encode('ASCII')
-        self._source_encoding = self._encoding or b'UTF-8'
+        self._source_encoding = source_encoding or self._encoding or b'UTF-8'
         self._flags = RT_DEFAULTS
         if only_public:
             self._flags |= RT_ONLY_PUBLIC

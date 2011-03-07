@@ -4,6 +4,8 @@ Lupa change log
 0.20 (???)
 ------------------
 
+* fix: setting source encoding for Lua code was broken
+
 * support for preventing access to non-private object attributes
   (starting with an underscore)
 
