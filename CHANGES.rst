@@ -4,10 +4,10 @@ Lupa change log
 0.20 (???)
 ------------------
 
-* fix: setting source encoding for Lua code was broken
+* support for filtering attribute access to Python objects for Lua
+  code
 
-* support for preventing access to non-private object attributes
-  (starting with an underscore)
+* fix: setting source encoding for Lua code was broken
 
 
 0.19 (2011-03-06)

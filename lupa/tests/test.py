@@ -21,6 +21,8 @@ except NameError:
     def _next(o):
         return o.next()
 
+unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
+
 def _wait():
     # A crude wait/yield function not relying on synchronization primitives.
     time.sleep(0.01)
@@ -524,17 +526,24 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             raise ValueError("huhu")
         self.assertRaises(ValueError, function, test)
 
-    def test_public_only(self):
-        lua = lupa.LuaRuntime(only_public=True)
+    def test_attribute_filter(self):
+        def attr_filter(obj, name, setting):
+            if isinstance(name, unicode_type):
+                if not name.startswith('_'):
+                    return name + '1'
+            raise AttributeError('denied')
+
+        lua = lupa.LuaRuntime(attribute_filter=attr_filter)
         function = lua.eval('function(obj) return obj.__name__ end')
         class X(object):
-            a = 1
+            a = 0
+            a1 = 1
             _a = 2
             __a = 3
         x = X()
 
         function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEquals(function(x), 1)
+        self.assertEquals(function(x), 0)
         function = lua.eval('function(obj) return obj.a end')
         self.assertEquals(function(x), 1)
 
@@ -554,7 +563,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertRaises(AttributeError, function, x)
 
         function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEquals(function(x), 1)
+        self.assertEquals(function(x), 0)
         function = lua.eval('function(obj) return obj.a end')
         self.assertEquals(function(x), 1)
 
@@ -960,8 +969,6 @@ class TestLuaRuntimeEncoding(unittest.TestCase):
     def tearDown(self):
         gc.collect()
 
-    unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
-
     test_string = '"abcüöä"'
     if not IS_PYTHON3:
         test_string = test_string.decode('UTF-8')
@@ -969,7 +976,7 @@ class TestLuaRuntimeEncoding(unittest.TestCase):
     def _encoding_test(self, encoding, expected_length):
         lua = lupa.LuaRuntime(encoding)
 
-        self.assertEqual(self.unicode_type,
+        self.assertEqual(unicode_type,
                          type(lua.eval(self.test_string)))
 
         self.assertEqual(self.test_string[1:-1],

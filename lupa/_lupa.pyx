@@ -40,11 +40,6 @@ cdef enum WrappedObjectFlags:
     OBJ_UNPACK_TUPLE = 2 # unpacks into separate values if it is a tuple
     OBJ_ENUMERATOR = 4 # iteration uses native enumerate() implementation
 
-cdef enum RuntimeFlags:
-    # flags that determine the behaviour of the LuaRuntime:
-    RT_DEFAULTS = 0    # default behaviour
-    RT_ONLY_PUBLIC = 1 # only allow access to public Python object attributes
-
 cdef struct py_object:
     PyObject* obj
     PyObject* runtime
@@ -77,8 +72,20 @@ cdef class LuaRuntime:
     * ``source_encoding``: the encoding used for Lua code, defaulting to
       the string encoding or UTF-8 if the string encoding is ``None``.
 
-    * ``only_public``: disable access to non-public attributes of
-      Python objects, i.e. those starting with an underscore.
+    * ``attribute_filter``: filter function for attribute access
+      (get/set).  Must have the signature ``func(obj, attr_name,
+      is_setting)``, where ``is_setting`` is True when the attribute
+      is being set.  If provided, the function will be called for all
+      Python object attributes that are being accessed from Lua code.
+      Normally, it should return an attribute name that will then be
+      used for the lookup.  If it wants to prevent access, it should
+      raise an ``AttributeError``.  Note that Lua does not guarantee
+      that the names will be strings.
+
+    * ``register_eval``: should Python's ``eval()`` function be
+      available to Lua code?  Note that this does not remove it from
+      the builtins.  Use an ``attribute_filter`` function for that.
+      (default: True)
 
     Example usage::
 
@@ -99,9 +106,10 @@ cdef class LuaRuntime:
     cdef tuple _raised_exception
     cdef bytes _encoding
     cdef bytes _source_encoding
-    cdef int _flags
+    cdef object _attribute_filter
 
-    def __cinit__(self, encoding='UTF-8', source_encoding=None, bint only_public=False):
+    def __cinit__(self, encoding='UTF-8', source_encoding=None,
+                  attribute_filter=None, bint register_eval=True):
         self._state = NULL
         cdef lua_State* L = lua.lua_open()
         if L is NULL:
@@ -110,12 +118,10 @@ cdef class LuaRuntime:
         self._lock = FastRLock()
         self._encoding = None if encoding is None else encoding.encode('ASCII')
         self._source_encoding = source_encoding or self._encoding or b'UTF-8'
-        self._flags = RT_DEFAULTS
-        if only_public:
-            self._flags |= RT_ONLY_PUBLIC
+        self._attribute_filter = attribute_filter
 
         lua.luaL_openlibs(L)
-        self.init_python_lib()
+        self.init_python_lib(register_eval)
         lua.lua_settop(L, 0)
         lua.lua_atpanic(L, <lua.lua_CFunction>1)
 
@@ -225,7 +231,7 @@ cdef class LuaRuntime:
         lua.lua_rawset(L, lua.LUA_REGISTRYINDEX)
         return 0
 
-    cdef int init_python_lib(self) except -1:
+    cdef int init_python_lib(self, bint register_eval) except -1:
         cdef lua_State *L = self._state
 
         # create 'python' lib and register our own object metatable
@@ -236,7 +242,8 @@ cdef class LuaRuntime:
 
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
-        self.register_py_object(b'eval',     b'eval', eval)
+        if register_eval:
+            self.register_py_object(b'eval',     b'eval', eval)
         self.register_py_object(b'builtins', b'builtins', builtins)
 
         return 0 # nothing left to return on the stack
@@ -1058,26 +1065,19 @@ cdef int setitem_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, in
     (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ] = py_from_lua(runtime, L, value_n)
     return 0
 
-cdef object extract_attr_name(LuaRuntime runtime, lua_State* L, int key_n):
-    cdef bint denied = False
-    attr_name = py_from_lua(runtime, L, key_n)
-    if runtime._flags & RT_ONLY_PUBLIC:
-        if PY_MAJOR_VERSION < 3 and isinstance(attr_name, bytes):
-            if <bytes>attr_name and (<bytes>attr_name)[0] == b'_':
-                denied = True
-        elif isinstance(attr_name, unicode):
-            if <unicode>attr_name and (<unicode>attr_name)[0] == u'_':
-                denied = True
-        if denied:
-            raise AttributeError('access to non-public attribute denied')
-    return attr_name
-
 cdef int getattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n) except -1:
-    return py_to_lua(runtime, L,
-                     getattr(<object>py_obj.obj, extract_attr_name(runtime, L, key_n)), 1)
+    obj = <object>py_obj.obj
+    attr_name = py_from_lua(runtime, L, key_n)
+    if runtime._attribute_filter is not None:
+        attr_name = runtime._attribute_filter(obj, attr_name, False)
+    return py_to_lua(runtime, L, getattr(obj, attr_name), 1)
 
 cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n, int value_n) except -1:
-    setattr(<object>py_obj.obj, extract_attr_name(runtime, L, key_n), py_from_lua(runtime, L, value_n))
+    obj = <object>py_obj.obj
+    attr_name = py_from_lua(runtime, L, key_n)
+    if runtime._attribute_filter is not None:
+        attr_name = runtime._attribute_filter(obj, attr_name, True)
+    setattr(obj, attr_name, py_from_lua(runtime, L, value_n))
     return 0
 
 

@@ -534,6 +534,45 @@ mechanism for explicit communication, such as a pipe or some kind of
 shared memory setup.
 
 
+Restricting Lua access to Python objects
+-----------------------------------------
+
+..
+
+        >>> try: unicode
+        ... except NameError: unicode = str
+
+Lupa provides a simple mechanism to control access to Python objects.
+Each attribute access can be passed through a filter function as
+follows::
+
+        >>> def filter_attribute_access(obj, attr_name, is_setting):
+        ...     if isinstance(attr_name, unicode):
+        ...         if not attr_name.startswith('_'):
+        ...             return attr_name
+        ...     raise AttributeError('access denied')
+
+        >>> lua = lupa.LuaRuntime(
+        ...           register_eval=False,
+        ...           attribute_filter=filter_attribute_access)
+        >>> func = lua.eval('function(x) return x.__class__ end')
+        >>> func(lua)
+        Traceback (most recent call last):
+         ...
+        AttributeError: access denied
+
+The ``is_setting`` flag indicates whether the attribute is being read
+or set.
+
+Note that the attributes of Python functions provide access to the
+current ``globals()`` and therefore to the builtins etc.  If you want
+to safely restrict access to a known set of Python objects, it is best
+to work with a whitelist of safe attribute names.  One way to do that
+could be to use a well selected list of dedicated API objects that you
+provide to Lua code, and to only allow Python attribute access to the
+set of public attribute/method names of these objects.
+
+
 Importing Lua binary modules
 -----------------------------
 
