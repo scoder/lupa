@@ -524,6 +524,40 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             raise ValueError("huhu")
         self.assertRaises(ValueError, function, test)
 
+    def test_public_only(self):
+        lua = lupa.LuaRuntime(only_public=True)
+        function = lua.eval('function(obj) return obj.__name__ end')
+        class X(object):
+            a = 1
+            _a = 2
+            __a = 3
+        x = X()
+
+        function = self.lua.eval('function(obj) return obj.a end')
+        self.assertEquals(function(x), 1)
+        function = lua.eval('function(obj) return obj.a end')
+        self.assertEquals(function(x), 1)
+
+        function = self.lua.eval('function(obj) return obj.__class__ end')
+        self.assertEquals(function(x), X)
+        function = lua.eval('function(obj) return obj.__class__ end')
+        self.assertRaises(AttributeError, function, x)
+
+        function = self.lua.eval('function(obj) return obj._a end')
+        self.assertEquals(function(x), 2)
+        function = lua.eval('function(obj) return obj._a end')
+        self.assertRaises(AttributeError, function, x)
+
+        function = self.lua.eval('function(obj) return obj._X__a end')
+        self.assertEquals(function(x), 3)
+        function = lua.eval('function(obj) return obj._X__a end')
+        self.assertRaises(AttributeError, function, x)
+
+        function = self.lua.eval('function(obj) return obj.a end')
+        self.assertEquals(function(x), 1)
+        function = lua.eval('function(obj) return obj.a end')
+        self.assertEquals(function(x), 1)
+
 
 class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_explicit_python_function(self):

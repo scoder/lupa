@@ -40,6 +40,11 @@ cdef enum WrappedObjectFlags:
     OBJ_UNPACK_TUPLE = 2 # unpacks into separate values if it is a tuple
     OBJ_ENUMERATOR = 4 # iteration uses native enumerate() implementation
 
+cdef enum RuntimeFlags:
+    # flags that determine the behaviour of the LuaRuntime:
+    RT_DEFAULTS = 0    # default behaviour
+    RT_ONLY_PUBLIC = 1 # only allow access to public Python object attributes
+
 cdef struct py_object:
     PyObject* obj
     PyObject* runtime
@@ -72,6 +77,9 @@ cdef class LuaRuntime:
     * ``source_encoding``: the encoding used for Lua code, defaulting to
       the string encoding or UTF-8 if the string encoding is ``None``.
 
+    * ``only_public``: disable access to non-public attributes of
+      Python objects, i.e. those starting with an underscore.
+
     Example usage::
 
       >>> from lupa import LuaRuntime
@@ -91,8 +99,9 @@ cdef class LuaRuntime:
     cdef tuple _raised_exception
     cdef bytes _encoding
     cdef bytes _source_encoding
+    cdef int _flags
 
-    def __cinit__(self, encoding='UTF-8', source_encoding=None):
+    def __cinit__(self, encoding='UTF-8', source_encoding=None, bint only_public=False):
         self._state = NULL
         cdef lua_State* L = lua.lua_open()
         if L is NULL:
@@ -101,6 +110,9 @@ cdef class LuaRuntime:
         self._lock = FastRLock()
         self._encoding = None if encoding is None else encoding.encode('ASCII')
         self._source_encoding = self._encoding or b'UTF-8'
+        self._flags = RT_DEFAULTS
+        if only_public:
+            self._flags |= RT_ONLY_PUBLIC
 
         lua.luaL_openlibs(L)
         self.init_python_lib()
@@ -1046,12 +1058,26 @@ cdef int setitem_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, in
     (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ] = py_from_lua(runtime, L, value_n)
     return 0
 
+cdef object extract_attr_name(LuaRuntime runtime, lua_State* L, int key_n):
+    cdef bint denied = False
+    attr_name = py_from_lua(runtime, L, key_n)
+    if runtime._flags & RT_ONLY_PUBLIC:
+        if PY_MAJOR_VERSION < 3 and isinstance(attr_name, bytes):
+            if <bytes>attr_name and (<bytes>attr_name)[0] == b'_':
+                denied = True
+        elif isinstance(attr_name, unicode):
+            if <unicode>attr_name and (<unicode>attr_name)[0] == u'_':
+                denied = True
+        if denied:
+            raise AttributeError('access to non-public attribute denied')
+    return attr_name
+
 cdef int getattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n) except -1:
     return py_to_lua(runtime, L,
-                     getattr(<object>py_obj.obj, py_from_lua(runtime, L, key_n)), 1)
+                     getattr(<object>py_obj.obj, extract_attr_name(runtime, L, key_n)), 1)
 
 cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n, int value_n) except -1:
-    setattr(<object>py_obj.obj, py_from_lua(runtime, L, key_n), py_from_lua(runtime, L, value_n))
+    setattr(<object>py_obj.obj, extract_attr_name(runtime, L, key_n), py_from_lua(runtime, L, value_n))
     return 0
 
 

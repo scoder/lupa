@@ -1,6 +1,13 @@
 Lupa change log
 ================
 
+0.20 (???)
+------------------
+
+* support for preventing access to non-private object attributes
+  (starting with an underscore)
+
+
 0.19 (2011-03-06)
 ------------------
 
