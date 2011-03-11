@@ -539,7 +539,7 @@ Restricting Lua access to Python objects
 
 ..
 
-        >>> try: unicode
+        >>> try: unicode = unicode
         ... except NameError: unicode = str
 
 Lupa provides a simple mechanism to control access to Python objects.
