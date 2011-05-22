@@ -4,6 +4,9 @@ Lupa change log
 0.20 (???)
 ------------------
 
+* fix "deallocating None" crash while iterating over Lua tables in
+  Python code
+
 * support for filtering attribute access to Python objects for Lua
   code
 

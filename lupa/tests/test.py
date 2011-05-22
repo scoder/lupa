@@ -251,6 +251,19 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
         self.assertEqual([[i]*len(table_values) for i in range(2,count+2)], l)
 
+    def test_iter_table_refcounting(self):
+        lua_func = self.lua.eval('''
+            function ()
+              local t = {}
+              t.foo = 'bar'
+              t.hello = 'world'
+              return t
+            end
+        ''')
+        table = lua_func()
+        for _ in range(10000):
+            list(table.items())
+
     def test_iter_table_mapping(self):
         keys = list('abcdefg')
         table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
