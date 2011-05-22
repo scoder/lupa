@@ -1,7 +1,7 @@
 Lupa change log
 ================
 
-0.20 (???)
+0.20 (2011-05-22)
 ------------------
 
 * fix "deallocating None" crash while iterating over Lua tables in
