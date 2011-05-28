@@ -341,7 +341,7 @@ cdef class _LuaObject:
         cdef lua_State* L = self._state
         cdef unicode py_string = None
         cdef const_char_ptr s
-        cdef size_t size
+        cdef size_t size = 0
         encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
         lock_runtime(self._runtime)
         try:
@@ -764,7 +764,7 @@ def as_itemgetter(obj):
     return wrap
 
 cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
-    cdef size_t size
+    cdef size_t size = 0
     cdef const_char_ptr s
     cdef lua.lua_Number number
     cdef py_object* py_obj
@@ -881,7 +881,7 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
         raise LuaError( build_lua_error_message(runtime, L, None, -1) )
 
 cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message, int n):
-    cdef size_t size
+    cdef size_t size = 0
     cdef const_char_ptr s = lua.lua_tolstring(L, n, &size)
     if runtime._encoding is not None:
         try:
