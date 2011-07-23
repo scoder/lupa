@@ -538,7 +538,6 @@ Restricting Lua access to Python objects
 -----------------------------------------
 
 ..
-
         >>> try: unicode = unicode
         ... except NameError: unicode = str
 
