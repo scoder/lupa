@@ -27,6 +27,12 @@ if 'setuptools' in sys.modules:
 class PkgConfigError(RuntimeError):
     pass
 
+def try_int(s):
+    try:
+        return int(s)
+    except ValueError:
+        return s
+
 # check if LuaJIT is in a subdirectory and build statically against it
 def cmd_output(command):
     """
@@ -44,25 +50,30 @@ def cmd_output(command):
         raise PkgConfigError(stderr)
     return stdout
 
-def check_luajit2_installed():
+def check_lua_installed(package='luajit', min_version='2'):
     try:
-        cmd_output('pkg-config luajit --exists')
+        cmd_output('pkg-config %s --exists' % package)
     except RuntimeError:
         # pkg-config gives no stdout when it is given --exists and it cannot
         # find the package, so we'll give it some better output
         error = sys.exc_info()[1]
         if not error.args[0]:
-            raise RuntimeError("pkg-config cannot find an installed luajit")
+            raise RuntimeError("pkg-config cannot find an installed %s" % package)
         raise
 
-    lj_version = cmd_output('pkg-config luajit --modversion')
-    if lj_version[:2] != '2.':
-        raise PkgConfigError("Expected version 2+ of LuaJIT, but found %s" %
-                             lj_version)
-    print("pkg-config found LuaJIT version %s" % lj_version)
+    lua_version = cmd_output('pkg-config %s --modversion' % package)
+    try:
+        if map(try_int, lua_version.split('.')) < map(try_int, min_version.split('.')):
+            raise PkgConfigError("Expected version %s+ of %s, but found %s" %
+                                 (min_version, package, lua_versionlj_version))
+    except (ValueError, TypeError):
+        print("failed to parse version '%s' of installed %s package, minimum is %s" % (
+            lua_version, package, min_version))
+    else:
+        print("pkg-config found %s version %s" % (package, lua_version))
 
-def lua_include():
-    cflag_out = cmd_output('pkg-config luajit --cflags-only-I')
+def lua_include(package='luajit'):
+    cflag_out = cmd_output('pkg-config %s --cflags-only-I' % package)
 
     def trim_i(s):
         if s.startswith('-I'):
@@ -70,13 +81,14 @@ def lua_include():
         return s
     return map(trim_i, filter(None, cflag_out.split()))
 
-def lua_libs():
-    libs_out = cmd_output('pkg-config luajit --libs')
+def lua_libs(package='luajit'):
+    libs_out = cmd_output('pkg-config %s --libs' % package)
     return filter(None, libs_out.split())
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-def find_luajit_build():
+def find_lua_build(no_luajit=False):
+    # try to find local LuaJIT2 build
     os_path = os.path
     for filename in os.listdir(basedir):
         if filename.lower().startswith('luajit'):
@@ -87,17 +99,29 @@ def find_luajit_build():
                     print("found LuaJIT build in %s" % filepath)
                     print("building statically")
                     return dict(extra_objects=[libfile], include_dirs=[filepath])
+    print("No local build of LuaJIT2 found in lupa directory")
 
-    print("No local build of LuaJIT2 found in lupa directory, checking for installed library using pkg-config")
-    try:
-        check_luajit2_installed()
-        return dict(extra_objects=lua_libs(), include_dirs=lua_include())
-    except RuntimeError:
-        print("Did not find LuaJIT2 using pkg-config: %s" % sys.exc_info()[1])
+    # try to find installed LuaJIT2 or Lua
+    if no_luajit:
+        packages = []
+    else:
+        packages = [('luajit', '2')]
+    packages += [(name, '5.1') for name in ('lua5.1', 'lua-5.1', 'lua')]
 
-    if not IGNORE_NO_LUAJIT:
-        raise RuntimeError("LuaJIT2 not found, please install the library and its development packages"
-                           ", or put a local build into the lupa main directory (or pass '--no-luajit' option)")
+    for package_name, min_version in packages:
+        print("Checking for installed %s library using pkg-config" % package_name)
+        try:
+            check_lua_installed(package_name, min_version)
+            return dict(extra_objects=lua_libs(package_name), include_dirs=lua_include(package_name))
+        except RuntimeError:
+            print("Did not find %s using pkg-config: %s" % (package_name, sys.exc_info()[1]))
+
+    error = ("Neither LuaJIT2 nor Lua 5.1 were found, please install the library and its development packages"
+             ", or put a local build into the lupa main directory")
+    if no_luajit:
+        print(error)
+    else:
+        raise RuntimeError(error+" (or pass '--no-luajit' option)")
     return {}
 
 def has_option(name):
@@ -106,9 +130,7 @@ def has_option(name):
         return True
     return False
 
-IGNORE_NO_LUAJIT = has_option('--no-luajit')
-
-ext_args = find_luajit_build()
+ext_args = find_lua_build(no_luajit=has_option('--no-luajit'))
 if has_option('--without-assert'):
     ext_args['define_macros'] = [('PYREX_WITHOUT_ASSERTIONS', None)]
 
