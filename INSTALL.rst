@@ -31,9 +31,9 @@ Building with LuaJIT2
 
 #) Build lupa::
 
-     python setup.py build
+     python setup.py install
 
-   Or any other distutils target of your choice, such as ``install``
+   Or any other distutils target of your choice, such as ``build``
    or one of the ``bdist`` targets.  See the `distutils
    documentation`_ for help, also the `hints on building extension
    modules`_.
