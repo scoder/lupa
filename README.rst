@@ -155,27 +155,34 @@ an object to a certain protocol, both from Python and from inside
 Lua::
 
       >>> lua_func = lua.eval('function(obj) return obj["get"] end')
-      >>> d = {'get' : 'got'}
+      >>> d = {'get' : 'value'}
 
       >>> value = lua_func(d)
-      >>> value == 'got'
+      >>> value == d['get'] == 'value'
+      True
+
+      >>> value = lua_func( lupa.as_itemgetter(d) )
+      >>> value == d['get'] == 'value'
       True
 
       >>> dict_get = lua_func( lupa.as_attrgetter(d) )
-      >>> dict_get('get') == 'got'
+      >>> dict_get == d.get
+      True
+      >>> dict_get('get') == d.get('get') == 'value'
       True
 
       >>> lua_func = lua.eval(
       ...     'function(obj) return python.as_attrgetter(obj)["get"] end')
       >>> dict_get = lua_func(d)
-      >>> dict_get('get') == 'got'
+      >>> dict_get('get') == d.get('get') == 'value'
       True
 
-Note that unlike Lua function objects, callable Python objects are
-indexable::
+Note that unlike Lua function objects, callable Python objects support
+indexing in Lua::
 
       >>> def py_func(): pass
       >>> py_func.ATTR = 2
+
       >>> lua_func = lua.eval('function(obj) return obj.ATTR end')
       >>> lua_func(py_func)
       2
@@ -258,7 +265,8 @@ automatically explodes the tuple items into separate Lua arguments::
 
 Note that accessing the ``d.items`` method from Lua requires passing
 the dict as ``attrgetter``.  Otherwise, attribute access in Lua would
-use the ``getitem`` protocol of Python dicts.
+use the ``getitem`` protocol of Python dicts and look up ``d['items']``
+instead.
 
 
 Lua Tables
