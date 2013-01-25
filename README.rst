@@ -479,44 +479,44 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
 
 ::
 
-        lua_code = '''\
-            function(N, i, total)
-                local char, unpack = string.char, unpack
-                local result = ""
-                local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
-                local start_line, end_line = N/total * (i-1), N/total * i - 1
-                for y=start_line,end_line do
-                    local Ci, b, p = y*M-1, 1, 0
-                    for x=0,N-1 do
-                        local Cr = x*M-1.5
-                        local Zr, Zi, Zrq, Ziq = Cr, Ci, Cr*Cr, Ci*Ci
-                        b = b + b
-                        for i=1,49 do
-                            Zi = Zr*Zi*2 + Ci
-                            Zr = Zrq-Ziq + Cr
-                            Ziq = Zi*Zi
-                            Zrq = Zr*Zr
-                            if Zrq+Ziq > 4.0 then b = b + 1; break; end
-                        end
-                        if b >= 256 then p = p + 1; buf[p] = 511 - b; b = 1; end
+    lua_code = '''\
+        function(N, i, total)
+            local char, unpack = string.char, unpack
+            local result = ""
+            local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
+            local start_line, end_line = N/total * (i-1), N/total * i - 1
+            for y=start_line,end_line do
+                local Ci, b, p = y*M-1, 1, 0
+                for x=0,N-1 do
+                    local Cr = x*M-1.5
+                    local Zr, Zi, Zrq, Ziq = Cr, Ci, Cr*Cr, Ci*Ci
+                    b = b + b
+                    for i=1,49 do
+                        Zi = Zr*Zi*2 + Ci
+                        Zr = Zrq-Ziq + Cr
+                        Ziq = Zi*Zi
+                        Zrq = Zr*Zr
+                        if Zrq+Ziq > 4.0 then b = b + 1; break; end
                     end
-                    if b ~= 1 then p = p + 1; buf[p] = (ba-b)*bb; end
-                    result = result .. char(unpack(buf, 1, p))
+                    if b >= 256 then p = p + 1; buf[p] = 511 - b; b = 1; end
                 end
-                return result
+                if b ~= 1 then p = p + 1; buf[p] = (ba-b)*bb; end
+                result = result .. char(unpack(buf, 1, p))
             end
-        '''
+            return result
+        end
+    '''
 
-        image_size = 1280   # == 1280 x 1280
-        thread_count = 8
+    image_size = 1280   # == 1280 x 1280
+    thread_count = 8
 
-        from lupa import LuaRuntime
-        lua_funcs = [ LuaRuntime(encoding=None).eval(lua_code)
-                      for _ in range(thread_count) ]
+    from lupa import LuaRuntime
+    lua_funcs = [ LuaRuntime(encoding=None).eval(lua_code)
+                  for _ in range(thread_count) ]
 
-        results = [None] * thread_count
-        def mandelbrot(i, lua_func):
-            results[i] = lua_func(image_size, i+1, thread_count)
+    results = [None] * thread_count
+    def mandelbrot(i, lua_func):
+        results[i] = lua_func(image_size, i+1, thread_count)
 
 	import threading
         threads = [ threading.Thread(target=mandelbrot, args=(i,lua_func))
