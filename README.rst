@@ -518,20 +518,20 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
     def mandelbrot(i, lua_func):
         results[i] = lua_func(image_size, i+1, thread_count)
 
-	import threading
+    import threading
         threads = [ threading.Thread(target=mandelbrot, args=(i,lua_func))
                     for i, lua_func in enumerate(lua_funcs) ]
-	for thread in threads:
-            thread.start()
-	for thread in threads:
-            thread.join()
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
-        result_buffer = b''.join(results)
+    result_buffer = b''.join(results)
 
-	# use PIL to display the image
+    # use PIL to display the image
 	import Image
-        image = Image.fromstring('1', (image_size, image_size), result_buffer)
-        image.show()
+    image = Image.fromstring('1', (image_size, image_size), result_buffer)
+    image.show()
 
 Note how the example creates a separate ``LuaRuntime`` for each thread
 to enable parallel execution.  Each ``LuaRuntime`` is protected by a
