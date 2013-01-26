@@ -529,7 +529,7 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
     result_buffer = b''.join(results)
 
     # use PIL to display the image
-	import Image
+    import Image
     image = Image.fromstring('1', (image_size, image_size), result_buffer)
     image.show()
 
