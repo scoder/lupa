@@ -2,7 +2,6 @@
 import sys
 import os
 from distutils.core import setup, Extension
-from distutils.command.install import INSTALL_SCHEMES
 
 VERSION = '0.20'
 
@@ -106,7 +105,7 @@ def find_lua_build(no_luajit=False):
                     print("found LuaJIT build in %s" % filepath)
                     print("building statically")
                     # And return the dll file name too, as we need to include it in the install directory
-                    return dict(extra_objects=[libfile], include_dirs=[filepath]), os_path.join(filepath, 'lua51.dll')
+                    return dict(extra_objects=[libfile], include_dirs=[filepath]), 'lua51.dll'
     print("No local build of LuaJIT2 found in lupa directory")
 
     # try to find installed LuaJIT2 or Lua
@@ -172,10 +171,8 @@ long_description = '\n\n'.join([
 write_file(os.path.join('lupa', 'version.py'), "__version__ = '%s'\n" % VERSION)
 
 # Include lua51.dll in the lib folder if we are on windows
-if not dll_file is None:
-    for scheme in INSTALL_SCHEMES.values():
-        scheme['data'] = scheme['purelib']
-    extra_setup_args['data_files'] = [('lupa', [os.path.relpath(dll_file)])]
+if dll_file is not None:
+    extra_setup_args['package_data'] = {'lupa': [dll_file]}
 
 if sys.version_info >= (2,6):
     extra_setup_args['license'] = 'MIT style'
