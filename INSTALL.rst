@@ -29,6 +29,9 @@ Building with LuaJIT2
    For trickier target platforms like Windows and MacOS-X, please see
    the official `installation instructions for LuaJIT`_.
 
+   NOTE: When building on Windows, make sure that lua51.lib is made in addition
+   to lua51.dll. The MSVC build produces this file, MinGW does NOT.
+
 #) Build lupa::
 
      python setup.py install

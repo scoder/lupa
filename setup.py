@@ -98,7 +98,14 @@ def find_lua_build(no_luajit=False):
                 if os_path.isfile(libfile):
                     print("found LuaJIT build in %s" % filepath)
                     print("building statically")
-                    return dict(extra_objects=[libfile], include_dirs=[filepath])
+                    return dict(extra_objects=[libfile], include_dirs=[filepath]), None
+                # Also check for lua51.lib, which is the Windows equivilant of libluajit.a
+                libfile = os_path.join(filepath, 'lua51.lib')
+                if os_path.isfile(libfile):
+                    print("found LuaJIT build in %s" % filepath)
+                    print("building statically")
+                    # And return the dll file name too, as we need to include it in the install directory
+                    return dict(extra_objects=[libfile], include_dirs=[filepath]), 'lua51.dll'
     print("No local build of LuaJIT2 found in lupa directory")
 
     # try to find installed LuaJIT2 or Lua
@@ -112,7 +119,7 @@ def find_lua_build(no_luajit=False):
         print("Checking for installed %s library using pkg-config" % package_name)
         try:
             check_lua_installed(package_name, min_version)
-            return dict(extra_objects=lua_libs(package_name), include_dirs=lua_include(package_name))
+            return dict(extra_objects=lua_libs(package_name), include_dirs=lua_include(package_name)), None
         except RuntimeError:
             print("Did not find %s using pkg-config: %s" % (package_name, sys.exc_info()[1]))
 
@@ -122,7 +129,7 @@ def find_lua_build(no_luajit=False):
         print(error)
     else:
         raise RuntimeError(error+" (or pass '--no-luajit' option)")
-    return {}
+    return {}, None
 
 def has_option(name):
     if name in sys.argv[1:]:
@@ -130,7 +137,7 @@ def has_option(name):
         return True
     return False
 
-ext_args = find_lua_build(no_luajit=has_option('--no-luajit'))
+ext_args, dll_file = find_lua_build(no_luajit=has_option('--no-luajit'))
 if has_option('--without-assert'):
     ext_args['define_macros'] = [('PYREX_WITHOUT_ASSERTIONS', None)]
 
@@ -162,6 +169,10 @@ long_description = '\n\n'.join([
     for text_file in ['README.rst', 'INSTALL.rst', 'CHANGES.rst']])
 
 write_file(os.path.join('lupa', 'version.py'), "__version__ = '%s'\n" % VERSION)
+
+# Include lua51.dll in the lib folder if we are on windows
+if dll_file is not None:
+    extra_setup_args['package_data'] = {'lupa': [dll_file]}
 
 if sys.version_info >= (2,6):
     extra_setup_args['license'] = 'MIT style'
