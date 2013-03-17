@@ -1,0 +1,7 @@
+language: python
+
+before_install:
+  - pip install tox
+  - sudo apt-get install python2.5-dev python2.6-dev python2.7-dev python3.1-dev python3.2-dev python3.3-dev
+
+script: tox
