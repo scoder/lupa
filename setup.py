@@ -31,16 +31,33 @@ def cmd_output(command):
     Returns the exit code and output of the program, as a triplet of the form
     (exit_code, stdout, stderr).
     """
+    env = os.environ.copy()
+    env['LANG'] = ''
     import subprocess
     proc = subprocess.Popen(command,
                             shell=True,
                             stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE)
+                            stderr=subprocess.PIPE,
+                            env=env)
     stdout, stderr = proc.communicate()
     exit_code = proc.wait()
     if exit_code != 0:
         raise PkgConfigError(stderr.decode('ISO8859-1'))
-    return stdout.decode('ISO8859-1')
+    return stdout
+
+
+def decode_path_output(s):
+    if sys.version_info[0] < 3:
+        return s  # no need to decode, and safer not to do it
+    # we don't really know in which encoding pkgconfig
+    # outputs its results, so we try to guess
+    for encoding in (sys.getfilesystemencoding(),
+                     sys.getdefaultencoding(),
+                     'utf8'):
+        try:
+            return s.decode(sys.getfilesystemencoding())
+        except UnicodeDecodeError: pass
+    return s.decode('iso8859-1')
 
 
 # try to find LuaJIT installation using pkgconfig
@@ -56,7 +73,7 @@ def check_lua_installed(package='luajit', min_version='2'):
             raise RuntimeError("pkg-config cannot find an installed %s" % package)
         raise
 
-    lua_version = cmd_output('pkg-config %s --modversion' % package)
+    lua_version = cmd_output('pkg-config %s --modversion' % package).decode('iso8859-1')
     try:
         if tuple(map(try_int, lua_version.split('.'))) < tuple(map(try_int, min_version.split('.'))):
             raise PkgConfigError("Expected version %s+ of %s, but found %s" %
@@ -70,6 +87,7 @@ def check_lua_installed(package='luajit', min_version='2'):
 
 def lua_include(package='luajit'):
     cflag_out = cmd_output('pkg-config %s --cflags-only-I' % package)
+    cflag_out = decode_path_output(cflag_out)
 
     def trim_i(s):
         if s.startswith('-I'):
@@ -80,6 +98,7 @@ def lua_include(package='luajit'):
 
 def lua_libs(package='luajit'):
     libs_out = cmd_output('pkg-config %s --libs' % package)
+    libs_out = decode_path_output(libs_out)
     return libs_out.split()
 
 
