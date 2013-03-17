@@ -24,8 +24,10 @@ if 'setuptools' in sys.modules:
     extra_setup_args['test_suite'] = 'lupa.tests.suite'
     extra_setup_args["zip_safe"] = False
 
+
 class PkgConfigError(RuntimeError):
     pass
+
 
 def try_int(s):
     try:
@@ -33,7 +35,7 @@ def try_int(s):
     except ValueError:
         return s
 
-# check if LuaJIT is in a subdirectory and build statically against it
+
 def cmd_output(command):
     """
     Returns the exit code and output of the program, as a triplet of the form
@@ -47,8 +49,11 @@ def cmd_output(command):
     stdout, stderr = proc.communicate()
     exit_code = proc.wait()
     if exit_code != 0:
-        raise PkgConfigError(stderr)
-    return stdout
+        raise PkgConfigError(stderr.decode('ISO8859-1'))
+    return stdout.decode('ISO8859-1')
+
+
+# try to find LuaJIT installation using pkgconfig
 
 def check_lua_installed(package='luajit', min_version='2'):
     try:
@@ -63,7 +68,7 @@ def check_lua_installed(package='luajit', min_version='2'):
 
     lua_version = cmd_output('pkg-config %s --modversion' % package)
     try:
-        if map(try_int, lua_version.split('.')) < map(try_int, min_version.split('.')):
+        if tuple(map(try_int, lua_version.split('.'))) < tuple(map(try_int, min_version.split('.'))):
             raise PkgConfigError("Expected version %s+ of %s, but found %s" %
                                  (min_version, package, lua_version))
     except (ValueError, TypeError):
@@ -72,6 +77,7 @@ def check_lua_installed(package='luajit', min_version='2'):
     else:
         print("pkg-config found %s version %s" % (package, lua_version))
 
+
 def lua_include(package='luajit'):
     cflag_out = cmd_output('pkg-config %s --cflags-only-I' % package)
 
@@ -79,13 +85,18 @@ def lua_include(package='luajit'):
         if s.startswith('-I'):
             return s[2:]
         return s
-    return map(trim_i, filter(None, cflag_out.split()))
+    return list(map(trim_i, cflag_out.split()))
+
 
 def lua_libs(package='luajit'):
     libs_out = cmd_output('pkg-config %s --libs' % package)
-    return filter(None, libs_out.split())
+    return libs_out.split()
+
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+
+
+# check if LuaJIT is in a subdirectory and build statically against it
 
 def find_lua_build(no_luajit=False):
     # try to find local LuaJIT2 build
@@ -123,13 +134,15 @@ def find_lua_build(no_luajit=False):
         except RuntimeError:
             print("Did not find %s using pkg-config: %s" % (package_name, sys.exc_info()[1]))
 
-    error = ("Neither LuaJIT2 nor Lua 5.1 were found, please install the library and its development packages"
-             ", or put a local build into the lupa main directory")
+    error = ("Neither LuaJIT2 nor Lua 5.1 were found, please install "
+             "the library and its development packages, "
+             "or put a local build into the lupa main directory")
     if no_luajit:
         print(error)
     else:
-        raise RuntimeError(error+" (or pass '--no-luajit' option)")
+        raise RuntimeError(error + " (or pass '--no-luajit' option)")
     return {}, None
+
 
 def has_option(name):
     if name in sys.argv[1:]:
@@ -139,7 +152,7 @@ def has_option(name):
 
 ext_args, dll_file = find_lua_build(no_luajit=has_option('--no-luajit'))
 if has_option('--without-assert'):
-    ext_args['define_macros'] = [('PYREX_WITHOUT_ASSERTIONS', None)]
+    ext_args['define_macros'] = [('CYTHON_WITHOUT_ASSERTIONS', None)]
 
 ext_modules = [
     Extension(
@@ -150,6 +163,7 @@ ext_modules = [
         )
     ]
 
+
 def read_file(filename):
     f = open(os.path.join(basedir, filename))
     try:
@@ -157,12 +171,14 @@ def read_file(filename):
     finally:
         f.close()
 
+
 def write_file(filename, content):
     f = open(os.path.join(basedir, filename), 'w')
     try:
         f.write(content)
     finally:
         f.close()
+
 
 long_description = '\n\n'.join([
     read_file(text_file)
@@ -176,6 +192,7 @@ if dll_file is not None:
 
 if sys.version_info >= (2,6):
     extra_setup_args['license'] = 'MIT style'
+
 
 # call distutils
 
