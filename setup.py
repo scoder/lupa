@@ -65,7 +65,7 @@ def check_lua_installed(package='luajit', min_version='2'):
     try:
         if map(try_int, lua_version.split('.')) < map(try_int, min_version.split('.')):
             raise PkgConfigError("Expected version %s+ of %s, but found %s" %
-                                 (min_version, package, lua_versionlj_version))
+                                 (min_version, package, lua_version))
     except (ValueError, TypeError):
         print("failed to parse version '%s' of installed %s package, minimum is %s" % (
             lua_version, package, min_version))
