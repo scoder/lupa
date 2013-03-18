@@ -55,7 +55,7 @@ def decode_path_output(s):
                      sys.getdefaultencoding(),
                      'utf8'):
         try:
-            return s.decode(sys.getfilesystemencoding())
+            return s.decode(encoding)
         except UnicodeDecodeError: pass
     return s.decode('iso8859-1')
 
