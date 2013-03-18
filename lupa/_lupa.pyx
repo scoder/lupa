@@ -311,12 +311,14 @@ cdef class _LuaObject:
         assert self._runtime is not None
         cdef lua_State* L = self._state
         lock_runtime(self._runtime)
+        size = 0
         try:
             self.push_lua_object()
-            return lua.lua_objlen(L, -1)
+            size = lua.lua_objlen(L, -1)
         finally:
             lua.lua_settop(L, 0)
             unlock_runtime(self._runtime)
+        return size
 
     def __nonzero__(self):
         return True
@@ -441,6 +443,8 @@ cdef object lua_object_repr(lua_State* L, encoding):
         ptr = <void*>lua.lua_touserdata(L, -1)
     elif lua_type == lua.LUA_TTHREAD:
         ptr = <void*>lua.lua_tothread(L, -1)
+    else:
+        ptr = NULL
     if ptr:
         py_bytes = cpython.bytes.PyBytes_FromFormat(
             "<Lua %s at %p>", lua.lua_typename(L, lua_type), ptr)
