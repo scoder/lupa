@@ -1,0 +1,8 @@
+# Build/test processes
+.tox
+build
+MANIFEST
+*.pyc
+
+# Vim swapfiles
+*.swp
