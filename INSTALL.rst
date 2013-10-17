@@ -50,6 +50,17 @@ Building with LuaJIT2
    `somewhat unclear blog post`_, which may or may not tell you at
    which point in the installation process to provide these flags.
 
+   Also, on 64bit MacOS-X, you will typically have to set the
+   environment variable ``ARCHFLAGS`` to make sure it only builds
+   for your system instead of trying to generate a fat binary with
+   both 32bit and 64bit support::
+
+     export ARCHFLAGS="-arch x86_64"
+
+   Note that this applies to both LuaJIT and Lupa, so make sure
+   you try a clean build of everything if you forgot to set it
+   initially.
+
 .. _`installation instructions for LuaJIT`: http://luajit.org/install.html
 .. _`somewhat unclear blog post`: http://t-p-j.blogspot.com/2010/11/lupa-on-os-x-with-macports-python-26.html
 .. _`distutils documentation`: http://docs.python.org/install/index.html#install-index
