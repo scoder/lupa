@@ -913,7 +913,12 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) ex
     cdef int type_flags = 0
 
     if o is None:
-        if withnone:
+	# As far as I can tell, py->lua should ALWAYS translate None to nil.
+	# The only possible exception might be where python.iter (or similar)
+	# is asking for the to_lua translation.  So instead of tracking down
+	# where withnone is 1 or 0, just treat 1 and 0 the same and add the
+	# case where withnone is 2 when called from the python.iter zone.
+        if withnone == 2:
             lua.lua_pushlstring(L, "Py_None", 7)
             lua.lua_rawget(L, lua.LUA_REGISTRYINDEX)
             if lua.lua_isnil(L, -1):
@@ -1430,7 +1435,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             return len(<tuple>obj)
         elif (py_iter.type_flags & OBJ_ENUMERATOR):
             lua.lua_pushnumber(L, lua.lua_tonumber(L, -1) + 1.0)
-        result = py_to_lua(runtime, L, obj, 1)
+        result = py_to_lua(runtime, L, obj, 2)
         if result < 1:
             return -1
         if (py_iter.type_flags & OBJ_ENUMERATOR):

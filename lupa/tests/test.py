@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# flake8: noqa
 
 try:
     from thread import start_new_thread, get_ident
@@ -1731,6 +1732,18 @@ class TestUnpackTuples(unittest.TestCase):
         self.lua.execute("a, b = fun()")
         self.assertEqual("one", self.lua.eval("a"))
         self.assertEqual("two", self.lua.eval("b"))
+
+    def test_translate_None(self):
+        """Lua does not understand None.  Should (almost) never see it."""
+        self.lua.globals()['f'] = lambda: (None, None)
+
+        self.lua.execute("x, y = f()")
+
+        self.assertEqual(None, self.lua.eval("x"))
+        self.assertEqual(self.lua.eval("x"), self.lua.eval("y"))
+        self.assertEqual(self.lua.eval("x"), self.lua.eval("z"))
+        self.assertTrue(self.lua.eval("x == y"))
+        self.assertTrue(self.lua.eval("x == z"))
 
 if __name__ == '__main__':
     unittest.main()
