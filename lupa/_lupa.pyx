@@ -284,6 +284,7 @@ cdef inline void unlock_runtime(LuaRuntime runtime) nogil:
 # Lua object wrappers
 
 @cython.internal
+@cython.no_gc_clear
 cdef class _LuaObject:
     """A wrapper around a Lua object such as a table of function.
     """
