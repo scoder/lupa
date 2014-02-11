@@ -94,7 +94,7 @@ Examples
 
       >>> import lupa
       >>> from lupa import LuaRuntime
-      >>> lua = LuaRuntime()
+      >>> lua = LuaRuntime(unpack_returned_tuples=True)
 
       >>> lua.eval('1+1')
       2
@@ -109,6 +109,36 @@ Examples
       True
       >>> lua.eval('python.builtins.str(4)') == '4'
       True
+
+Note the flag ``unpack_returned_tuples=True`` that is passed to create
+the Lua runtime.  It is new in Lupa 0.21 and changes the behaviour of
+tuples that get returned by Python functions.  With this flag, they
+explode into separate Lua values::
+
+      >>> lua.execute('a,b,c = python.eval("(1,2)")')
+      >>> g = lua.globals()
+      >>> g['a']
+      1
+      >>> g['b']
+      2
+      >>> g['c'] is None
+      True
+
+When set to False, functions that return a tuple pass it through to the
+Lua code::
+
+      >>> non_explode_lua = lupa.LuaRuntime(unpack_returned_tuples=False)
+      >>> non_explode_lua.execute('a,b,c = python.eval("(1,2)")')
+      >>> g = non_explode_lua.globals()
+      >>> g['a']
+      (1, 2)
+      >>> g['b'] is None
+      True
+      >>> g['c'] is None
+      True
+
+Since the default behaviour (to not explode tuples) might change in a
+later version of Lupa, it is best to always pass this flag explicitly.
 
 
 Python objects in Lua
