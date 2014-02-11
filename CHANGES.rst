@@ -1,6 +1,28 @@
 Lupa change log
 ================
 
+0.21 (2014-02-11)
+------------------
+
+* new ``LuaRuntime`` option ``unpack_returned_tuples`` which automatically
+  unpacks tuples returned from Python functions into separate Lua objects
+  (instead of returning a single Python tuple object)
+
+* some internal wrapper classes were removed from the module API
+
+* Windows build fixes
+
+* Py3.x build fixes
+
+* support for building with Lua 5.1 instead of LuaJIT (setup.py --no-luajit)
+
+* no longer uses Cython by default when building from released sources
+
+* requires Cython 0.20+ for building from unreleased sources
+
+* built with Cython 0.20.1
+
+
 0.20 (2011-05-22)
 ------------------
 
