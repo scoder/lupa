@@ -598,6 +598,152 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         function = lua.eval('function(obj) return obj.a end')
         self.assertEqual(function(x), 1)
 
+class TestAttributeHandlers(unittest.TestCase):
+    def setUp(self):
+        self.lua = lupa.LuaRuntime()
+        self.lua_handling = lupa.LuaRuntime(attribute_handlers=(self.attr_getter, self.attr_setter))
+
+        self.x, self.y = self.X(), self.Y()
+        self.d = {'a': "aval", "b": "bval", "c": "cval"}
+
+    def tearDown(self):
+        self.lua = None
+        gc.collect()
+
+    class X(object):
+        a = 0
+        a1 = 1
+        _a = 2
+        __a = 3
+
+    class Y(object):
+        a = 0
+        a1 = 1
+        _a = 2
+        __a = 3
+
+    def attr_getter(self, obj, name):
+        if not isinstance(name, unicode_type):
+            raise AttributeError('bad type for attr_name')
+        if isinstance(obj, self.X):
+            if not name.startswith('_'):
+                value = getattr(obj, name, None)
+                if value is not None:
+                    return value + 10
+                return None
+            else:
+                return "forbidden"
+        elif isinstance(obj, dict):
+            if name == "c":
+                name = "b"
+            return obj.get(name, None)
+        return None
+
+    def attr_setter(self, obj, name, value):
+        if isinstance(obj, self.Y):
+            return  # class Y is read only.
+        if isinstance(obj, self.X):
+            if name.startswith('_'):
+                return
+            if hasattr(obj, name):
+                setattr(obj, name, value)
+        elif isinstance(obj, dict):
+            if 'forbid_new' in obj and name not in obj:
+                return
+            obj[name] = value
+
+    def test_attribute_setter_normal(self):
+        function = self.lua_handling.eval("function (obj) obj.a = 100 end")
+        function(self.x)
+        self.assertEqual(self.x.a, 100)
+
+    def test_attribute_setter_forbid_underscore(self):
+        function = self.lua_handling.eval("function (obj) obj._a = 100 end")
+        function(self.x)
+        self.assertEqual(self.x._a, 2)
+
+    def test_attribute_setter_readonly_object(self):
+        function = self.lua_handling.eval("function (obj) obj.a1 = 100 end")
+        function(self.y)
+        self.assertEqual(self.y.a1, 1)
+
+    def test_attribute_setter_dict_create(self):
+        function = self.lua_handling.eval("function (obj) obj['x'] = 'new' end")
+        function(self.d)
+        self.assertEquals(self.d.get('x'), 'new')
+
+    def test_attribute_setter_forbidden_dict_create(self):
+        self.d['forbid_new'] = True
+        function = self.lua_handling.eval("function (obj) obj['x'] = 'new' end")
+        function(self.d)
+        self.assertEquals(self.d.get('x'), None)
+
+    def test_attribute_setter_dict_update(self):
+        function = self.lua_handling.eval("function (obj) obj['a'] = 'new' end")
+        function(self.d)
+        self.assertEquals(self.d['a'], 'new')
+
+    def test_attribute_setter_forbidden_dict_update(self):
+        self.d['forbid_new'] = True
+        function = self.lua_handling.eval("function (obj) obj['a'] = 'new' end")
+        function(self.d)
+        self.assertEquals(self.d['a'], 'new')
+
+    def test_attribute_getter_forbid_double_underscores(self):
+        function = self.lua_handling.eval('function(obj) return obj.__name__ end')
+        self.assertEquals(function(self.x), "forbidden")
+
+        function = self.lua.eval('function(obj) return obj.__class__ end')
+        self.assertEquals(function(self.x), self.X)
+        function = self.lua_handling.eval('function(obj) return obj.__class__ end')
+        self.assertEquals(function(self.x), "forbidden")
+
+        function = self.lua.eval('function(obj) return obj._X__a end')
+        self.assertEquals(function(self.x), 3)
+        function = self.lua_handling.eval('function(obj) return obj._X__a end')
+        self.assertEquals(function(self.x), "forbidden")
+
+    def test_attribute_getter_mess_with_underscores(self):
+        function = self.lua.eval('function(obj) return obj._a end')
+        self.assertEquals(function(self.x), 2)
+        function = self.lua_handling.eval('function(obj) return obj._a end')
+        self.assertEquals(function(self.x), "forbidden")
+
+    def test_attribute_getter_replace_values(self):
+        function = self.lua.eval('function(obj) return obj.a end')
+        self.assertEquals(function(self.x), 0)
+        function = self.lua_handling.eval('function(obj) return obj.a end')
+        self.assertEquals(function(self.x), 10)
+
+        function = self.lua.eval('function(obj) return obj.a end')
+        self.assertEquals(function(self.x), 0)
+        function = self.lua_handling.eval('function(obj) return obj.a end')
+        self.assertEquals(function(self.x), 10)
+
+    def test_attribute_getter_lenient_retrieval(self):
+        function = self.lua.eval('function(obj) return obj.bad_attr end')
+        self.assertRaises(AttributeError, function, self.y)
+        function = self.lua_handling.eval('function(obj) return obj.bad_attr end')
+        self.assertEquals(function(self.y), None)
+
+    def test_attribute_getter_normal_dict_retrieval(self):
+        function = self.lua.eval('function(obj) return obj.a end')
+        self.assertEquals(function(self.d), "aval")
+        function = self.lua_handling.eval('function(obj) return obj.a end')
+        self.assertEquals(function(self.d), "aval")
+
+    def test_attribute_getter_modify_dict_retrival(self):
+        function = self.lua.eval('function(obj) return obj.c end')
+        self.assertEquals(function(self.d), "cval")
+        function = self.lua_handling.eval('function(obj) return obj.c end')
+        self.assertEquals(function(self.d), "bval")
+
+    def test_attribute_getter_lenient_dict_retrival(self):
+        function = self.lua.eval('function(obj) return obj.g end')
+        self.assertRaises(KeyError, function, self.d)
+        function = self.lua_handling.eval('function(obj) return obj.g end')
+        self.assertEquals(function(self.d), None)
+
 
 class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_explicit_python_function(self):
