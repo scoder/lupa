@@ -1480,6 +1480,67 @@ class TestFastRLock(unittest.TestCase):
         self.assertFalse(lock._is_owned())
 
 
+class TestDontUnpackTuples(unittest.TestCase):
+    def setUp(self):
+
+        self.lua = lupa.LuaRuntime()  # default is uknpack_tuples=False
+
+        # Define a Python function which returns a tuple
+        # and is accessible from Lua as fun().
+        def tuple_fun():
+            return "one", "two", "three", "four"
+        self.lua.globals()['fun'] = tuple_fun
+
+    def tearDown(self):
+        self.lua = None
+        gc.collect()
+
+    def test_python_function_tuple(self):
+        self.lua.execute("a, b, c = fun()")
+        self.assertEqual(("one", "two", "three", "four"), self.lua.eval("a"))
+        self.assertEqual(None, self.lua.eval("b"))
+        self.assertEqual(None, self.lua.eval("c"))
+
+    def test_python_function_tuple_exact(self):
+        self.lua.execute("a = fun()")
+        self.assertEqual(("one", "two", "three", "four"), self.lua.eval("a"))
+
+
+class TestUnpackTuples(unittest.TestCase):
+    def setUp(self):
+
+        self.lua = lupa.LuaRuntime(unpack_returned_tuples=True)
+
+        # Define a Python function which returns a tuple
+        # and is accessible from Lua as fun().
+        def tuple_fun():
+            return "one", "two", "three", "four"
+        self.lua.globals()['fun'] = tuple_fun
+
+    def tearDown(self):
+        self.lua = None
+        gc.collect()
+
+    def test_python_function_tuple_expansion_exact(self):
+        self.lua.execute("a, b, c, d = fun()")
+        self.assertEqual("one", self.lua.eval("a"))
+        self.assertEqual("two", self.lua.eval("b"))
+        self.assertEqual("three", self.lua.eval("c"))
+        self.assertEqual("four", self.lua.eval("d"))
+
+    def test_python_function_tuple_expansion_extra_args(self):
+        self.lua.execute("a, b, c, d, e, f = fun()")
+        self.assertEqual("one", self.lua.eval("a"))
+        self.assertEqual("two", self.lua.eval("b"))
+        self.assertEqual("three", self.lua.eval("c"))
+        self.assertEqual("four", self.lua.eval("d"))
+        self.assertEqual(None, self.lua.eval("e"))
+        self.assertEqual(None, self.lua.eval("f"))
+
+    def test_python_function_tuple_expansion_missing_args(self):
+        self.lua.execute("a, b = fun()")
+        self.assertEqual("one", self.lua.eval("a"))
+        self.assertEqual("two", self.lua.eval("b"))
 
 if __name__ == '__main__':
     import os

@@ -87,6 +87,13 @@ cdef class LuaRuntime:
       the builtins.  Use an ``attribute_filter`` function for that.
       (default: True)
 
+    * ``unpack_returned_tuples``: should Python tuples be unpacked in Lua?
+      If ``py_fun()`` returns ``(1, 2, 3)`` does ``a, b, c = py_fun()``
+      give ``a == 1 and b == 2 and c == 3`` or does it give
+      ``a == (1,2,3), b == nil, c == nil``?  ``unpack_returned_tuples=True``
+      gives the former.
+      (default: False)
+
     Example usage::
 
       >>> from lupa import LuaRuntime
@@ -107,9 +114,11 @@ cdef class LuaRuntime:
     cdef bytes _encoding
     cdef bytes _source_encoding
     cdef object _attribute_filter
+    cdef bint _unpack_returned_tuples
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
-                  attribute_filter=None, bint register_eval=True):
+                  attribute_filter=None, bint register_eval=True,
+                  bint unpack_returned_tuples=False):
         self._state = NULL
         cdef lua_State* L = lua.lua_open()
         if L is NULL:
@@ -119,6 +128,7 @@ cdef class LuaRuntime:
         self._encoding = None if encoding is None else encoding.encode('ASCII')
         self._source_encoding = source_encoding or self._encoding or b'UTF-8'
         self._attribute_filter = attribute_filter
+        self._unpack_returned_tuples = unpack_returned_tuples
 
         lua.luaL_openlibs(L)
         self.init_python_lib(register_eval)
@@ -805,6 +815,12 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
         return new_lua_function(runtime, L, n)
     return new_lua_object(runtime, L, n)
 
+cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) except -1:
+     if isinstance(o, tuple) and runtime._unpack_returned_tuples:
+         push_lua_arguments(runtime, L, <tuple>o, 1)
+         return len(<tuple>o)
+     return py_to_lua(runtime, L, o, withnone)
+
 cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) except -1:
     cdef int pushed_values_count = 0
     cdef int type_flags = 0
@@ -1012,7 +1028,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
         cpython.ref.Py_INCREF(arg)
         cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
 
-    return py_to_lua(runtime, L, (<object>py_obj.obj)(*args), 0)
+    return py_function_result_to_lua(runtime, L, (<object>py_obj.obj)(*args), 0)
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
     cdef LuaRuntime runtime = None
