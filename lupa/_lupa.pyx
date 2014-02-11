@@ -4,6 +4,8 @@
 A fast Python wrapper around Lua and LuaJIT2.
 """
 
+cimport cython
+
 cimport lua
 from lua cimport lua_State
 
@@ -32,7 +34,6 @@ except ImportError:
 
 DEF POBJECT = "POBJECT" # as used by LunaticPython
 
-cdef class _LuaObject
 
 cdef enum WrappedObjectFlags:
     # flags that determine the behaviour of a wrapped object:
@@ -45,17 +46,21 @@ cdef struct py_object:
     PyObject* runtime
     int type_flags  # or-ed set of WrappedObjectFlags
 
+
 include "lock.pxi"
+
 
 class LuaError(Exception):
     """Base class for errors in the Lua runtime.
     """
     pass
 
+
 class LuaSyntaxError(LuaError):
     """Syntax error in Lua code.
     """
     pass
+
 
 cdef class LuaRuntime:
     """The main entry point to the Lua runtime.
@@ -88,7 +93,7 @@ cdef class LuaRuntime:
       (default: True)
 
     * ``unpack_returned_tuples``: should Python tuples be unpacked in Lua?
-      If ``py_fun()`` returns ``(1, 2, 3)`` does ``a, b, c = py_fun()``
+      If ``py_fun()`` returns ``(1, 2, 3)``, then does ``a, b, c = py_fun()``
       give ``a == 1 and b == 2 and c == 3`` or does it give
       ``a == (1,2,3), b == nil, c == nil``?  ``unpack_returned_tuples=True``
       gives the former.
@@ -140,6 +145,7 @@ cdef class LuaRuntime:
             lua.lua_close(self._state)
             self._state = NULL
 
+    @cython.final
     cdef int reraise_on_exception(self) except -1:
         if self._raised_exception is not None:
             exception = self._raised_exception
@@ -147,6 +153,7 @@ cdef class LuaRuntime:
             raise exception[0], exception[1], exception[2]
         return 0
 
+    @cython.final
     cdef int store_raised_exception(self) except -1:
         self._raised_exception = exc_info()
         return 0
@@ -229,6 +236,7 @@ cdef class LuaRuntime:
             lua.lua_settop(L, 0)
             unlock_runtime(self)
 
+    @cython.final
     cdef int register_py_object(self, bytes cname, bytes pyname, object obj) except -1:
         cdef lua_State *L = self._state
         lua.lua_pushlstring(L, cname, len(cname))
@@ -241,6 +249,7 @@ cdef class LuaRuntime:
         lua.lua_rawset(L, lua.LUA_REGISTRYINDEX)
         return 0
 
+    @cython.final
     cdef int init_python_lib(self, bint register_eval) except -1:
         cdef lua_State *L = self._state
 
@@ -274,6 +283,7 @@ cdef inline void unlock_runtime(LuaRuntime runtime) nogil:
 ################################################################################
 # Lua object wrappers
 
+@cython.internal
 cdef class _LuaObject:
     """A wrapper around a Lua object such as a table of function.
     """
@@ -299,6 +309,7 @@ cdef class _LuaObject:
         # undo additional INCREF at instantiation time
         cpython.ref.Py_DECREF(self._runtime)
 
+    @cython.final
     cdef inline int push_lua_object(self) except -1:
         cdef lua_State* L = self._state
         lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
@@ -468,6 +479,8 @@ cdef object lua_object_repr(lua_State* L, encoding):
         return py_bytes.decode('ISO-8859-1')
 
 
+@cython.final
+@cython.internal
 cdef class _LuaTable(_LuaObject):
     def __iter__(self):
         return _LuaIter(self, KEYS)
@@ -496,6 +509,7 @@ cdef _LuaTable new_lua_table(LuaRuntime runtime, lua_State* L, int n):
     return obj
 
 
+@cython.internal
 cdef class _LuaFunction(_LuaObject):
     """A Lua function (which may become a coroutine).
     """
@@ -531,6 +545,8 @@ cdef _LuaFunction new_lua_function(LuaRuntime runtime, lua_State* L, int n):
     return obj
 
 
+@cython.final
+@cython.internal
 cdef class _LuaCoroutineFunction(_LuaFunction):
     """A function that returns a new coroutine when called.
     """
@@ -543,6 +559,8 @@ cdef _LuaCoroutineFunction new_lua_coroutine_function(LuaRuntime runtime, lua_St
     return obj
 
 
+@cython.final
+@cython.internal
 cdef class _LuaThread(_LuaObject):
     """A Lua thread (coroutine).
     """
@@ -644,6 +662,9 @@ cdef enum:
     VALUES = 2
     ITEMS = 3
 
+
+@cython.final
+@cython.internal
 cdef class _LuaIter:
     cdef LuaRuntime _runtime
     cdef _LuaObject _obj
@@ -757,6 +778,9 @@ cdef py_object* unpack_wrapped_pyfunction(lua_State* L, int n) nogil:
             return <py_object*> lua.luaL_checkudata(L, -1, POBJECT) # doesn't return on error!
     return NULL
 
+
+@cython.final
+@cython.internal
 cdef class _PyProtocolWrapper:
     cdef object _obj
     cdef int _type_flags
@@ -764,6 +788,7 @@ cdef class _PyProtocolWrapper:
         self._type_flags = 0
     def __init__(self):
         raise TypeError("Type cannot be instantiated from Python")
+
 
 def as_attrgetter(obj):
     cdef _PyProtocolWrapper wrap = _PyProtocolWrapper.__new__(_PyProtocolWrapper)
@@ -816,7 +841,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     return new_lua_object(runtime, L, n)
 
 cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) except -1:
-     if isinstance(o, tuple) and runtime._unpack_returned_tuples:
+     if runtime._unpack_returned_tuples and isinstance(o, tuple):
          push_lua_arguments(runtime, L, <tuple>o, 1)
          return len(<tuple>o)
      return py_to_lua(runtime, L, o, withnone)
