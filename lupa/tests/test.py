@@ -1416,7 +1416,7 @@ class TestFastRLock(unittest.TestCase):
             _wait()
         self.assertEqual(len(phase), 2)
 
-    def test_different_thread(self):
+    def test_different_thread_release_succeeds(self):
         # Lock can be released from a different thread.
         lock = self.locktype()
         lock.acquire()
@@ -1451,7 +1451,7 @@ class TestFastRLock(unittest.TestCase):
         lock.release()
         self.assertRaises(RuntimeError, lock.release)
 
-    def test_different_thread(self):
+    def test_different_thread_release_fails(self):
         # Cannot release from a different thread
         lock = self.locktype()
         def f():
