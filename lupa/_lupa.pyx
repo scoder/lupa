@@ -308,8 +308,6 @@ cdef class _LuaObject:
         lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
         if locked:
             unlock_runtime(self._runtime)
-        # undo additional INCREF at instantiation time
-        cpython.ref.Py_DECREF(self._runtime)
 
     @cython.final
     cdef inline int push_lua_object(self) except -1:
@@ -450,8 +448,6 @@ cdef _LuaObject new_lua_object(LuaRuntime runtime, lua_State* L, int n):
     return obj
 
 cdef void init_lua_object(_LuaObject obj, LuaRuntime runtime, lua_State* L, int n):
-    # additional INCREF to keep runtime from disappearing in GC runs
-    cpython.ref.Py_INCREF(runtime)
     obj._runtime = runtime
     obj._state = L
     lua.lua_pushvalue(L, n)
@@ -483,6 +479,7 @@ cdef object lua_object_repr(lua_State* L, encoding):
 
 @cython.final
 @cython.internal
+@cython.no_gc_clear
 cdef class _LuaTable(_LuaObject):
     def __iter__(self):
         return _LuaIter(self, KEYS)
@@ -512,6 +509,7 @@ cdef _LuaTable new_lua_table(LuaRuntime runtime, lua_State* L, int n):
 
 
 @cython.internal
+@cython.no_gc_clear
 cdef class _LuaFunction(_LuaObject):
     """A Lua function (which may become a coroutine).
     """
@@ -549,6 +547,7 @@ cdef _LuaFunction new_lua_function(LuaRuntime runtime, lua_State* L, int n):
 
 @cython.final
 @cython.internal
+@cython.no_gc_clear
 cdef class _LuaCoroutineFunction(_LuaFunction):
     """A function that returns a new coroutine when called.
     """
@@ -563,6 +562,7 @@ cdef _LuaCoroutineFunction new_lua_coroutine_function(LuaRuntime runtime, lua_St
 
 @cython.final
 @cython.internal
+@cython.no_gc_clear   # FIXME: get rid if this
 cdef class _LuaThread(_LuaObject):
     """A Lua thread (coroutine).
     """
@@ -667,6 +667,7 @@ cdef enum:
 
 @cython.final
 @cython.internal
+@cython.no_gc_clear
 cdef class _LuaIter:
     cdef LuaRuntime _runtime
     cdef _LuaObject _obj
@@ -678,9 +679,6 @@ cdef class _LuaIter:
         self._state = NULL
         assert obj._runtime is not None
         self._runtime = obj._runtime
-        # additional INCREF to keep runtime from disappearing in GC runs
-        cpython.ref.Py_INCREF(self._runtime)
-
         self._obj = obj
         self._state = obj._state
         self._refiter = 0
@@ -700,8 +698,6 @@ cdef class _LuaIter:
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
             if locked:
                 unlock_runtime(self._runtime)
-        # undo additional INCREF at instantiation time
-        cpython.ref.Py_DECREF(self._runtime)
 
     def __repr__(self):
         return u"LuaIter(%r)" % (self._obj)
