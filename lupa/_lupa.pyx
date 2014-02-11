@@ -24,7 +24,8 @@ cdef extern from *:
 cdef object exc_info
 from sys import exc_info
 
-__all__ = ['LuaRuntime', 'LuaError', 'as_itemgetter', 'as_attrgetter']
+__all__ = ['LuaRuntime', 'LuaError', 'LuaSyntaxError',
+           'as_itemgetter', 'as_attrgetter']
 
 cdef object builtins
 try:
