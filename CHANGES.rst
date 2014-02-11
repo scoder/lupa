@@ -1,7 +1,7 @@
 Lupa change log
 ================
 
-0.21 (2014-02-11)
+0.21 (2014-02-??)
 ------------------
 
 * new ``LuaRuntime`` option ``unpack_returned_tuples`` which automatically
