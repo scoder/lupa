@@ -14,11 +14,11 @@ Building with LuaJIT2
 
 #) Unpack the archive into the lupa base directory, e.g.::
 
-     .../lupa-0.1/LuaJIT-2.0.0-beta4
+     .../lupa-0.1/LuaJIT-2.0.2
 
 #) Build LuaJIT::
 
-     cd LuaJIT-2.0.0-beta4
+     cd LuaJIT-2.0.2
      make
      cd ..
 
@@ -76,13 +76,13 @@ any development packages (header files etc.).
 
 On systems that use the "pkg-config" configuration mechanism, Lupa's
 setup.py will pick up either LuaJIT2 or Lua automatically, with a
-preference for LuaJIT2 if it is found.  Pass the "--no-luajit" option
+preference for LuaJIT2 if it is found.  Pass the ``--no-luajit`` option
 to the setup.py script if you have both installed but do not want to
 use LuaJIT2.
 
 On other systems, you may have to supply the build parameters
 externally, e.g. using environment variables or by changing the
-setup.py script manually.  Pass the "--no-luajit" option to the
+setup.py script manually.  Pass the ``--no-luajit`` option to the
 setup.py script in order to ignore the failure you get when neither
 LuaJIT2 nor Lua are found automatically.
 
