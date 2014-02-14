@@ -117,11 +117,11 @@ explode into separate Lua values::
 
       >>> lua.execute('a,b,c = python.eval("(1,2)")')
       >>> g = lua.globals()
-      >>> g['a']
+      >>> g.a
       1
-      >>> g['b']
+      >>> g.b
       2
-      >>> g['c'] is None
+      >>> g.c is None
       True
 
 When set to False, functions that return a tuple pass it through to the
@@ -130,11 +130,11 @@ Lua code::
       >>> non_explode_lua = lupa.LuaRuntime(unpack_returned_tuples=False)
       >>> non_explode_lua.execute('a,b,c = python.eval("(1,2)")')
       >>> g = non_explode_lua.globals()
-      >>> g['a']
+      >>> g.a
       (1, 2)
-      >>> g['b'] is None
+      >>> g.b is None
       True
-      >>> g['c'] is None
+      >>> g.c is None
       True
 
 Since the default behaviour (to not explode tuples) might change in a
@@ -149,7 +149,7 @@ numbers and strings) or passed as wrapped object references.
 
 ::
 
-      >>> lua_type = lua.globals().type   # Lua's type() function
+      >>> lua_type = lua.globals().type     # Lua's type() function
       >>> lua_type(1) == 'number'
       True
       >>> lua_type('abc') == 'string'
