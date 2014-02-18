@@ -1744,6 +1744,9 @@ class TestUnpackTuples(unittest.TestCase):
         self.assertEqual(self.lua.eval("x"), self.lua.eval("z"))
         self.assertTrue(self.lua.eval("x == y"))
         self.assertTrue(self.lua.eval("x == z"))
+        self.assertTrue(self.lua.eval("x == nil"))
+        self.assertTrue(self.lua.eval("nil == z"))
+
 
 if __name__ == '__main__':
     unittest.main()
