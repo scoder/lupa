@@ -1621,6 +1621,79 @@ class TestUnpackTuples(unittest.TestCase):
                          list(values(zip([10, 20, 30], [20, 30, 40])).values()))
 
 
+class TestMethodCall(unittest.TestCase):
+    def setUp(self):
+
+        self.lua = lupa.LuaRuntime(unpack_returned_tuples=True)
+
+        class C(object):
+            def __init__(self, x):
+                self.x = int(x)
+
+            def getx(self):
+                return self.x
+
+            def getx1(self, n):
+                return int(n) + self.x
+
+            def setx(self, v):
+                self.x = int(v)
+
+        def f():
+            return 100
+
+        def g(n):
+            return int(n) + 100
+
+        self.lua.globals()['x'] = C(1)
+        self.lua.globals()['f'] = f
+        self.lua.globals()['g'] = g
+        self.lua.globals()['d'] = { 'F': f, "G": g }
+
+    def tearDown(self):
+        self.lua = None
+        gc.collect()
+
+    def test_method_call_as_method(self):
+        self.assertEqual(self.lua.eval("x:getx()"), 1)
+        self.assertEqual(self.lua.eval("x:getx1(2)"), 3)
+        self.lua.execute("x:setx(4)")
+        self.assertEqual(self.lua.eval("x:getx()"), 4)
+        self.assertEqual(self.lua.eval("x:getx1(2)"), 6)
+
+    def test_method_call_as_attribute(self):
+        self.assertEqual(self.lua.eval("x.getx()"), 1)
+        self.assertEqual(self.lua.eval("x.getx1(2)"), 3)
+        self.lua.execute("x.setx(4)")
+        self.assertEqual(self.lua.eval("x.getx()"), 4)
+        self.assertEqual(self.lua.eval("x.getx1(2)"), 6)
+
+    def test_method_call_mixed(self):
+        self.assertEqual(self.lua.eval("x.getx()"), 1)
+        self.assertEqual(self.lua.eval("x:getx1(2)"), 3)
+        self.assertEqual(self.lua.eval("x:getx()"), 1)
+        self.assertEqual(self.lua.eval("x.getx1(2)"), 3)
+
+        self.lua.execute("x:setx(4)")
+        self.assertEqual(self.lua.eval("x:getx()"), 4)
+        self.assertEqual(self.lua.eval("x.getx1(2)"), 6)
+        self.assertEqual(self.lua.eval("x.getx()"), 4)
+        self.assertEqual(self.lua.eval("x:getx1(2)"), 6)
+
+        self.lua.execute("x.setx(6)")
+        self.assertEqual(self.lua.eval("x.getx()"), 6)
+        self.assertEqual(self.lua.eval("x:getx()"), 6)
+        self.assertEqual(self.lua.eval("x.getx()"), 6)
+        self.assertEqual(self.lua.eval("x.getx1(2)"), 8)
+        self.assertEqual(self.lua.eval("x:getx1(2)"), 8)
+
+    def test_method_call_function_lookup(self):
+        self.assertEqual(self.lua.eval("f()"), 100)
+        self.assertEqual(self.lua.eval("g(10)"), 110)
+        self.assertEqual(self.lua.eval("d.F()"), 100)
+        self.assertEqual(self.lua.eval("d.G(9)"), 109)
+
+
 ################################################################################
 # tests for the FastRLock implementation
 

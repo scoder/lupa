@@ -16,6 +16,7 @@ cimport cpython.tuple
 cimport cpython.float
 cimport cpython.long
 from cpython.ref cimport PyObject
+from cpython.method cimport PyMethod_Check, PyMethod_GET_SELF
 from cpython.version cimport PY_VERSION_HEX, PY_MAJOR_VERSION
 
 cdef extern from *:
@@ -1143,7 +1144,22 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
         cpython.ref.Py_INCREF(arg)
         cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
 
-    return py_function_result_to_lua(runtime, L, (<object>py_obj.obj)(*args))
+    # Check if this is a method call.
+    # Lua x:m(a, b) => Python as x.m(x, a, b) but should be x.m(a, b)
+    #
+    # Don't know if method calls should *always* remove self.  There is an
+    # argument for doing so in that Lua syntax is sensitive to method calls vs
+    # function lookups, while Python's syntax is not.  In a way, we are leaking
+    # Python syntax into Lua by *not* always removing the first argument
+    # from method calls.
+
+    f = <object>py_obj.obj
+    if PyMethod_Check(f) and len(args) and args[0] is <object>PyMethod_GET_SELF(f):
+        # This is a bound method call, with self as first arg.  (as described above)
+        # Remove self from the args list.
+        args = args[1:]
+
+    return py_function_result_to_lua(runtime, L, f(*args))
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
     cdef LuaRuntime runtime = None
