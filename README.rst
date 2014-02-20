@@ -549,8 +549,8 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
         results[i] = lua_func(image_size, i+1, thread_count)
 
     import threading
-        threads = [ threading.Thread(target=mandelbrot, args=(i,lua_func))
-                    for i, lua_func in enumerate(lua_funcs) ]
+    threads = [ threading.Thread(target=mandelbrot, args=(i,lua_func))
+                for i, lua_func in enumerate(lua_funcs) ]
     for thread in threads:
         thread.start()
     for thread in threads:
