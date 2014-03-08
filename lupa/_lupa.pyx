@@ -23,7 +23,6 @@ cdef extern from *:
 
 cdef object exc_info
 from sys import exc_info
-import pprint
 
 __all__ = ['LuaRuntime', 'LuaError', 'LuaSyntaxError',
            'as_itemgetter', 'as_attrgetter']
