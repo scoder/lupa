@@ -863,7 +863,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) ex
             # with pushed_values_count == 0.
             lua.lua_pushnil(L)
             pushed_values_count = 1
-    elif type(o) is bool:
+    elif o is True or o is False:
         lua.lua_pushboolean(L, <bint>o)
         pushed_values_count = 1
     elif type(o) is float:
