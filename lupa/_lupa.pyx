@@ -417,9 +417,11 @@ cdef class _LuaObject:
         if isinstance(name, unicode):
             if (<unicode>name).startswith(u'__') and (<unicode>name).endswith(u'__'):
                 object.__setattr__(self, name, value)
+                return
             name = (<unicode>name).encode(self._runtime._source_encoding)
         elif isinstance(name, bytes) and (<bytes>name).startswith(b'__') and (<bytes>name).endswith(b'__'):
             object.__setattr__(self, name, value)
+            return
         lock_runtime(self._runtime)
         try:
             self.push_lua_object()
