@@ -23,6 +23,7 @@ cdef extern from *:
 
 cdef object exc_info
 from sys import exc_info
+import pprint
 
 __all__ = ['LuaRuntime', 'LuaError', 'LuaSyntaxError',
            'as_itemgetter', 'as_attrgetter']
@@ -501,6 +502,32 @@ cdef class _LuaTable(_LuaObject):
         that this object represents.
         """
         return _LuaIter(self, ITEMS)
+
+    def __delattr__(self, item):
+        assert self._runtime is not None
+        cdef lua_State* L = self._state
+        if isinstance(item, unicode):
+            if (<unicode>item).startswith(u'__') and (<unicode>item).endswith(u'__'):
+                object.__delattr__(self, item)
+            item = (<unicode>item).encode(self._runtime._source_encoding)
+        elif isinstance(item, bytes) and (<bytes>item).startswith(b'__') and (<bytes>item).endswith(b'__'):
+            object.__delattr__(self, item)
+        lock_runtime(self._runtime)
+        try:
+            self.push_lua_object()
+            if isinstance(item, int):
+                lua.lua_remove(L, item)
+            else:
+                py_to_lua(self._runtime, L, item, 1)
+                lua.lua_pushnil(L)
+                lua.lua_settable(L, -3)
+        finally:
+            lua.lua_settop(L, 0)
+            unlock_runtime(self._runtime)
+
+    def __delitem__(self, key):
+        self.__delattr__(key)
+
 
 cdef _LuaTable new_lua_table(LuaRuntime runtime, lua_State* L, int n):
     cdef _LuaTable obj = _LuaTable.__new__(_LuaTable)
@@ -1103,11 +1130,22 @@ cdef int py_object_str(lua_State* L) nogil:
 # item access for Python objects
 
 cdef int getitem_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n) except -1:
-    return py_to_lua(runtime, L,
-                     (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ], 1)
+    try:
+        value = (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ]
+        return py_to_lua(runtime, L, value, 1)
+    except (IndexError, KeyError):
+        lua.lua_pushnil(L)
+        return 1
+
 
 cdef int setitem_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n, int value_n) except -1:
-    (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ] = py_from_lua(runtime, L, value_n)
+    obj = <object>py_obj.obj
+    index = py_from_lua(runtime, L, key_n)
+    cdef int lua_type = lua.lua_type(L, value_n)
+    if lua_type == lua.LUA_TNIL:
+            del obj[index]
+    else:
+        obj[index] = py_from_lua(runtime, L, value_n)
     return 0
 
 cdef int getattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n) except -1:
@@ -1115,16 +1153,25 @@ cdef int getattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, in
     attr_name = py_from_lua(runtime, L, key_n)
     if runtime._attribute_filter is not None:
         attr_name = runtime._attribute_filter(obj, attr_name, False)
-    return py_to_lua(runtime, L, getattr(obj, attr_name), 1)
+    sentinel = object()
+    attr_value = getattr(obj, attr_name, sentinel)
+    if attr_value is sentinel:
+        lua.lua_pushnil(L)
+        return 1
+    else:
+        return py_to_lua(runtime, L, attr_value, 1)
 
 cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n, int value_n) except -1:
     obj = <object>py_obj.obj
     attr_name = py_from_lua(runtime, L, key_n)
+    cdef int lua_type = lua.lua_type(L, value_n)
     if runtime._attribute_filter is not None:
         attr_name = runtime._attribute_filter(obj, attr_name, True)
-    setattr(obj, attr_name, py_from_lua(runtime, L, value_n))
+    if lua_type == lua.LUA_TNIL:
+        delattr(obj, attr_name)
+    else:
+        setattr(obj, attr_name, py_from_lua(runtime, L, value_n))
     return 0
-
 
 cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
     cdef LuaRuntime runtime
