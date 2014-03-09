@@ -63,14 +63,13 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(2, self.lua.eval('1+1'))
 
     def test_eval_error_message_decoding(self):
-        error = None
         try:
-            self.lua.eval('-üUNKNOWNöVALUEä')
+            self.lua.eval('-UNKNOWNöVALUEä')
         except lupa.LuaError:
             error = (IS_PYTHON3 and '%s' or '%s'.decode('ASCII')) % sys.exc_info()[1]
         else:
             self.fail('expected error not raised')
-        expected_message = '[string "<python>"]:1: attempt to perform arithmetic on global \'üUNKNOWNöVALUEä\' (a nil value)'
+        expected_message = '[string "<python>"]:1: attempt to perform arithmetic on global \'UNKNOWNöVALUEä\' (a nil value)'
         if not IS_PYTHON3:
             expected_message = expected_message.decode('UTF-8')
         self.assertEqual(expected_message, error)
