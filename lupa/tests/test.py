@@ -509,8 +509,9 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertNotEqual(None, stringlib.char)
 
     def test_libraries(self):
-        libraries = self.lua.eval('{require, table, io, os, math, string, debug, bit, jit}')
-        self.assertEqual(9, len(libraries))
+        # jit, bit only exists in luajit
+        libraries = self.lua.eval('{require, table, io, os, math, string, debug}')
+        self.assertEqual(7, len(libraries))
         self.assertTrue(None not in libraries)
 
     def test_callable_values(self):
@@ -1543,13 +1544,4 @@ class TestUnpackTuples(unittest.TestCase):
         self.assertEqual("two", self.lua.eval("b"))
 
 if __name__ == '__main__':
-    import os
-    import unittest
-    import doctest
-    suite = unittest.TestSuite()
-    suite.addTest(doctest.DocTestSuite(lupa._lupa))
-    suite.addTest(unittest.defaultTestLoader.loadTestsFromName('__main__'))
-    suite.addTest(doctest.DocFileSuite('../../README.rst'))
-    runner = unittest.TextTestRunner(verbosity=2)
-    if not runner.run(suite).wasSuccessful():
-        sys.exit(1)
+    unittest.main()
