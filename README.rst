@@ -446,7 +446,7 @@ An example where values are passed into the coroutine using its
       ...     co.send(i*2)
 
       >>> mapping = co.send(None)   # loop termination signal
-      >>> list(mapping.items())
+      >>> sorted(mapping.items())
       [(0, 0), (1, 2), (2, 4)]
 
 It also works to create coroutines in Lua and to pass them back into
