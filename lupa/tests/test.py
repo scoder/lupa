@@ -508,8 +508,8 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertNotEqual(None, stringlib.char)
 
     def test_libraries(self):
-        libraries = self.lua.eval('{require, table, io, os, math, string, debug, bit, jit}')
-        self.assertEqual(9, len(libraries))
+        libraries = self.lua.eval('{require, table, io, os, math, string, debug}')
+        self.assertEqual(7, len(libraries))
         self.assertTrue(None not in libraries)
 
     def test_callable_values(self):
