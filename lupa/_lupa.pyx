@@ -286,8 +286,9 @@ cdef inline void unlock_runtime(LuaRuntime runtime) nogil:
 
 @cython.internal
 @cython.no_gc_clear
+@cython.freelist(16)
 cdef class _LuaObject:
-    """A wrapper around a Lua object such as a table of function.
+    """A wrapper around a Lua object such as a table or function.
     """
     cdef LuaRuntime _runtime
     cdef lua_State* _state
@@ -781,6 +782,7 @@ cdef py_object* unpack_wrapped_pyfunction(lua_State* L, int n) nogil:
 
 @cython.final
 @cython.internal
+@cython.freelist(8)
 cdef class _PyProtocolWrapper:
     cdef object _obj
     cdef int _type_flags
