@@ -1,6 +1,8 @@
 
 import sys
 import os
+
+from glob import iglob
 from distutils.core import setup, Extension
 
 VERSION = '0.21'
@@ -111,21 +113,28 @@ def find_lua_build(no_luajit=False):
     # try to find local LuaJIT2 build
     os_path = os.path
     for filename in os.listdir(basedir):
-        if filename.lower().startswith('luajit'):
-            filepath = os_path.join(basedir, filename, 'src')
-            if os_path.isdir(filepath):
-                libfile = os_path.join(filepath, 'libluajit.a')
-                if os_path.isfile(libfile):
-                    print("found LuaJIT build in %s" % filepath)
-                    print("building statically")
-                    return dict(extra_objects=[libfile], include_dirs=[filepath]), None
-                # Also check for lua51.lib, which is the Windows equivilant of libluajit.a
-                libfile = os_path.join(filepath, 'lua51.lib')
-                if os_path.isfile(libfile):
-                    print("found LuaJIT build in %s" % filepath)
-                    print("building statically")
-                    # And return the dll file name too, as we need to include it in the install directory
-                    return dict(extra_objects=[libfile], include_dirs=[filepath]), 'lua51.dll'
+        if not filename.lower().startswith('luajit'):
+            continue
+        filepath = os_path.join(basedir, filename, 'src')
+        if not os_path.isdir(filepath):
+            continue
+        libfile = os_path.join(filepath, 'libluajit.a')
+        if os_path.isfile(libfile):
+            print("found LuaJIT build in %s" % filepath)
+            print("building statically")
+            return dict(extra_objects=[libfile], include_dirs=[filepath]), None
+        # also check for lua51.lib, the Windows equivalent of libluajit.a
+        for libfile in iglob(os_path.join(filepath, 'lua5?.lib')):
+            if os_path.isfile(libfile):
+                print("found LuaJIT build in %s (%s)" % (
+                    filepath, os.path.basename(libfile)))
+                print("building statically")
+                # And return the dll file name too, as we need to
+                # include it in the install directory
+                return (
+                    dict(extra_objects=[libfile], include_dirs=[filepath]),
+                    os.path.basename(libfile),
+                )
     print("No local build of LuaJIT2 found in lupa directory")
 
     # try to find installed LuaJIT2 or Lua
@@ -133,15 +142,22 @@ def find_lua_build(no_luajit=False):
         packages = []
     else:
         packages = [('luajit', '2')]
-    packages += [(name, '5.1') for name in ('lua5.1', 'lua-5.1', 'lua')]
+    packages += [
+        (name, lua_version)
+        for lua_version in ('5.1',)
+        for name in ('lua%s' % lua_version, 'lua-%s' % lua_version, 'lua')
+    ]
 
     for package_name, min_version in packages:
-        print("Checking for installed %s library using pkg-config" % package_name)
+        print("Checking for installed %s library using pkg-config" %
+              package_name)
         try:
             check_lua_installed(package_name, min_version)
-            return dict(extra_objects=lua_libs(package_name), include_dirs=lua_include(package_name)), None
+            return dict(extra_objects=lua_libs(package_name),
+                        include_dirs=lua_include(package_name)), None
         except RuntimeError:
-            print("Did not find %s using pkg-config: %s" % (package_name, sys.exc_info()[1]))
+            print("Did not find %s using pkg-config: %s" % (
+                package_name, sys.exc_info()[1]))
 
     error = ("Neither LuaJIT2 nor Lua 5.1 were found, please install "
              "the library and its development packages, "
