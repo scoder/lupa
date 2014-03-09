@@ -188,8 +188,8 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual("test-STR!!", function(test()))
         self.assertEqual(True, called[0])
 
-    def test_eval(self):
-        function = self.lua.eval('function() return python.eval end')
+    def test_python_eval(self):
+        eval = self.lua.eval('function() return python.eval end')()
         self.assertEqual(2, eval('1+1'))
         self.assertEqual(2, self.lua.eval('python.eval("1+1")'))
 
