@@ -3,7 +3,12 @@ import sys
 import os
 
 from glob import iglob
-from distutils.core import setup, Extension
+
+try:
+    # use setuptools if available
+    from setuptools import setup, Extension
+except ImportError:
+    from distutils.core import setup, Extension
 
 VERSION = '0.21'
 
