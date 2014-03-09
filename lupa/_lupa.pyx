@@ -126,7 +126,7 @@ cdef class LuaRuntime:
                   attribute_filter=None, bint register_eval=True,
                   bint unpack_returned_tuples=False):
         self._state = NULL
-        cdef lua_State* L = lua.lua_open()
+        cdef lua_State* L = lua.luaL_newstate()
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L

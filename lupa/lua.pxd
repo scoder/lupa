@@ -150,7 +150,7 @@ cdef extern from "lua.h" nogil:
 
     # coroutine functions
     int  lua_yield (lua_State *L, int nresults)
-    int  lua_resume (lua_State *L, int narg)
+    int  lua_resume "__lupa_lua_resume" (lua_State *L, int narg)
     int  lua_status (lua_State *L)
 
     # garbage-collection function and options
@@ -201,7 +201,7 @@ cdef extern from "lua.h" nogil:
 
 
     # compatibility macros and functions
-    lua_State* lua_open() # luaL_newstate()
+    lua_State* luaL_newstate()
     void lua_getregistry(lua_State *L) # lua_pushvalue(L, LUA_REGISTRYINDEX)
     int lua_getgccount(lua_State *L)
 
@@ -417,3 +417,7 @@ cdef extern from "lualib.h":
     int luaopen_jit(lua_State *L)
 
     void luaL_openlibs(lua_State *L)
+
+
+cdef extern from "lupa_defs.h":
+    pass
