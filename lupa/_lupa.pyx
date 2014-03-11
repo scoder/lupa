@@ -504,6 +504,29 @@ cdef class _LuaTable(_LuaObject):
         """
         return _LuaIter(self, ITEMS)
 
+    def __delattr__(self, item):
+        assert self._runtime is not None
+        cdef lua_State* L = self._state
+        if isinstance(item, unicode):
+            if (<unicode>item).startswith(u'__') and (<unicode>item).endswith(u'__'):
+                object.__delattr__(self, item)
+            item = (<unicode>item).encode(self._runtime._source_encoding)
+        elif isinstance(item, bytes) and (<bytes>item).startswith(b'__') and (<bytes>item).endswith(b'__'):
+            object.__delattr__(self, item)
+        lock_runtime(self._runtime)
+        try:
+            self.push_lua_object()
+            py_to_lua(self._runtime, L, item, 1)
+            lua.lua_pushnil(L)
+            lua.lua_settable(L, -3)
+        finally:
+            lua.lua_settop(L, 0)
+            unlock_runtime(self._runtime)
+
+    def __delitem__(self, key):
+        self.__delattr__(key)
+
+
 cdef _LuaTable new_lua_table(LuaRuntime runtime, lua_State* L, int n):
     cdef _LuaTable obj = _LuaTable.__new__(_LuaTable)
     init_lua_object(obj, runtime, L, n)
