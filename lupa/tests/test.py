@@ -1542,4 +1542,4 @@ class TestUnpackTuples(unittest.TestCase):
         self.assertEqual("two", self.lua.eval("b"))
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(verbosity=2)
