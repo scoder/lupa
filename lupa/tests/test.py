@@ -200,6 +200,18 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         table = self.lua.eval('{a=1, b=2, c=3}')
         self.assertEqual(0, len(table)) # as returned by Lua's "#" operator
 
+    def test_table_delattr(self):
+        table = self.lua.eval('{a=1, b=2, c=3}')
+        self.assertEqual(True, 'a' in table)
+        del table.a
+        self.assertEqual(False, 'a' in table)
+
+    def test_table_delitem(self):
+        table = self.lua.eval('{a=1, b=2, c=3}')
+        self.assertIn('c', table)
+        del table['c']
+        self.assertNotIn('c', table)
+
     def test_len_table(self):
         table = self.lua.eval('{1,2,3,4, a=1, b=2, c=3}')
         self.assertEqual(4, len(table)) # as returned by Lua's "#" operator
