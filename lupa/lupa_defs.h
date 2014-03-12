@@ -10,6 +10,6 @@
 #define __lupa_lua_resume(L, nargs)   lua_resume(L, nargs)
 
 #else
-#error "Lupa requires at least Lua 5.1 or LuaJIT 2.x"
+#error Lupa requires at least Lua 5.1 or LuaJIT 2.x
 #endif
 #endif
