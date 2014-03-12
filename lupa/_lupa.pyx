@@ -418,40 +418,6 @@ cdef class _LuaObject:
             lua.lua_settop(L, 0)
             unlock_runtime(self._runtime)
 
-    def __setattr__(self, name, value):
-        assert self._runtime is not None
-        if isinstance(name, unicode):
-            if (<unicode>name).startswith(u'__') and (<unicode>name).endswith(u'__'):
-                object.__setattr__(self, name, value)
-                return
-            name = (<unicode>name).encode(self._runtime._source_encoding)
-        elif isinstance(name, bytes) and (<bytes>name).startswith(b'__') and (<bytes>name).endswith(b'__'):
-            object.__setattr__(self, name, value)
-            return
-        self._setitem(name, value)
-
-    def __setitem__(self, index_or_name, value):
-        self._setitem(index_or_name, value)
-
-    @cython.final
-    cdef int _setitem(self, name, value) except -1:
-        cdef lua_State* L = self._state
-        lock_runtime(self._runtime)
-        try:
-            self.push_lua_object()
-            if not lua.lua_istable(L, -1):
-                lua.lua_pop(L, -1)
-                raise TypeError("Lua object is not a table")
-            try:
-                py_to_lua(self._runtime, L, name, 1)
-                py_to_lua(self._runtime, L, value, 1)
-                lua.lua_settable(L, -3)
-            finally:
-                lua.lua_settop(L, 0)
-        finally:
-            unlock_runtime(self._runtime)
-        return 0
-
 
 cdef _LuaObject new_lua_object(LuaRuntime runtime, lua_State* L, int n):
     cdef _LuaObject obj = _LuaObject.__new__(_LuaObject)
@@ -512,6 +478,35 @@ cdef class _LuaTable(_LuaObject):
         that this object represents.
         """
         return _LuaIter(self, ITEMS)
+
+    def __setattr__(self, name, value):
+        assert self._runtime is not None
+        if isinstance(name, unicode):
+            if (<unicode>name).startswith(u'__') and (<unicode>name).endswith(u'__'):
+                object.__setattr__(self, name, value)
+                return
+            name = (<unicode>name).encode(self._runtime._source_encoding)
+        elif isinstance(name, bytes) and (<bytes>name).startswith(b'__') and (<bytes>name).endswith(b'__'):
+            object.__setattr__(self, name, value)
+            return
+        self._setitem(name, value)
+
+    def __setitem__(self, index_or_name, value):
+        self._setitem(index_or_name, value)
+
+    @cython.final
+    cdef int _setitem(self, name, value) except -1:
+        cdef lua_State* L = self._state
+        lock_runtime(self._runtime)
+        try:
+            self.push_lua_object()
+            py_to_lua(self._runtime, L, name, 1)
+            py_to_lua(self._runtime, L, value, 1)
+            lua.lua_settable(L, -3)
+        finally:
+            lua.lua_settop(L, 0)
+            unlock_runtime(self._runtime)
+        return 0
 
     def __delattr__(self, item):
         assert self._runtime is not None
