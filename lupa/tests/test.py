@@ -1542,13 +1542,4 @@ class TestUnpackTuples(unittest.TestCase):
         self.assertEqual("two", self.lua.eval("b"))
 
 if __name__ == '__main__':
-    import os
-    import unittest
-    import doctest
-    suite = unittest.TestSuite()
-    suite.addTest(doctest.DocTestSuite(lupa._lupa))
-    suite.addTest(unittest.defaultTestLoader.loadTestsFromName('__main__'))
-    suite.addTest(doctest.DocFileSuite('../../README.rst'))
-    runner = unittest.TextTestRunner(verbosity=2)
-    if not runner.run(suite).wasSuccessful():
-        sys.exit(1)
+    unittest.main(verbosity=2)
