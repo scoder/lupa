@@ -202,15 +202,21 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_table_delattr(self):
         table = self.lua.eval('{a=1, b=2, c=3}')
-        self.assertEqual(True, 'a' in table)
+        self.assertTrue('a' in table)
         del table.a
-        self.assertEqual(False, 'a' in table)
+        self.assertFalse('a' in table)
 
     def test_table_delitem(self):
         table = self.lua.eval('{a=1, b=2, c=3}')
-        self.assertIn('c', table)
+        self.assertTrue('c' in table)
         del table['c']
-        self.assertNotIn('c', table)
+        self.assertFalse('c' in table)
+
+    def test_table_delitem_special(self):
+        table = self.lua.eval('{a=1, b=2, c=3, __attr__=4}')
+        self.assertTrue('__attr__' in table)
+        del table['__attr__']
+        self.assertFalse('__attr__' in table)
 
     def test_len_table(self):
         table = self.lua.eval('{1,2,3,4, a=1, b=2, c=3}')
