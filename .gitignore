@@ -1,12 +1,14 @@
 # Build/test processes
+
 .tox
+.idea
 build
 dist
 MANIFEST
 *.pyc
 *.egg-info
-lupa/_lupa.c
-lupa/_lupa.so
+*.so
+*.c
 lupa/version.py
 
 # Vim swapfiles

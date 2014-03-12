@@ -1,10 +1,16 @@
 syntax: glob
 
 lupa/version.py
+dist
+build
+.tox
+.idea
 *.pyc
 .coverage
 *~
 *.orig
 *.rej
+*.so
+*.c
 
 tags
