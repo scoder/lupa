@@ -46,9 +46,10 @@ Why use it?
 It complements Python very well.  Lua is a language as dynamic as
 Python, but LuaJIT compiles it to very fast machine code, sometimes
 faster than many statically compiled languages for computational code.
-The language runtime is extremely small and carefully designed for
+The language runtime is very small and carefully designed for
 embedding.  The complete binary module of Lupa, including a statically
-linked LuaJIT2 runtime, is only some 500KB on a 64 bit machine.
+linked LuaJIT2 runtime, only weighs some 700KB on a 64 bit machine.
+With standard Lua 5.1, it's less than 400KB.
 
 However, the Lua ecosystem lacks many of the batteries that Python
 readily includes, either directly in its standard library or as third
