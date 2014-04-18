@@ -183,8 +183,7 @@ cdef class LuaRuntime:
             raise TypeError("modulename must be a string")
         lock_runtime(self)
         try:
-            lua.lua_pushlstring(L, 'require', 7)
-            lua.lua_rawget(L, lua.LUA_GLOBALSINDEX)
+            lua.lua_getglobal(L, 'require')
             if lua.lua_isnil(L, -1):
                 lua.lua_pop(L, 1)
                 raise LuaError("require is not defined")
@@ -200,8 +199,7 @@ cdef class LuaRuntime:
         cdef lua_State *L = self._state
         lock_runtime(self)
         try:
-            lua.lua_pushlstring(L, '_G', 2)
-            lua.lua_rawget(L, lua.LUA_GLOBALSINDEX)
+            lua.lua_getglobal(L, '_G')
             if lua.lua_isnil(L, -1):
                 lua.lua_pop(L, 1)
                 raise LuaError("globals not defined")
