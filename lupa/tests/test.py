@@ -64,15 +64,15 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_eval_error_message_decoding(self):
         try:
-            self.lua.eval('-UNKNOWNöVALUEä')
+            self.lua.eval('require "UNKNOWNöMODULEäNAME"')
         except lupa.LuaError:
             error = (IS_PYTHON3 and '%s' or '%s'.decode('ASCII')) % sys.exc_info()[1]
         else:
             self.fail('expected error not raised')
-        expected_message = '[string "<python>"]:1: attempt to perform arithmetic on global \'UNKNOWNöVALUEä\' (a nil value)'
+        expected_message = 'module \'UNKNOWNöMODULEäNAME\' not found'
         if not IS_PYTHON3:
             expected_message = expected_message.decode('UTF-8')
-        self.assertEqual(expected_message, error)
+        self.assertIn(expected_message, error)
 
     def test_execute(self):
         self.assertEqual(2, self.lua.execute('return 1+1'))
