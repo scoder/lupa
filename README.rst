@@ -32,11 +32,10 @@ Major features
 * frees the GIL and supports threading in separate runtimes when
   calling into Lua
 
-* supports Python 2.x and 3.x, potentially starting with Python 2.3
-  (currently untested)
+* supports Python 2.x and 3.x, tested with Python 2.6/3.2 and later
 
 * written for LuaJIT2 (tested with LuaJIT 2.0.2), but reportedly
-  works with the normal Lua interpreter (5.1+)
+  works with the normal Lua interpreter (5.1)
 
 * easy to hack on and extend as it is written in Cython, not C
 
@@ -46,12 +45,10 @@ Why use it?
 
 It complements Python very well.  Lua is a language as dynamic as
 Python, but LuaJIT compiles it to very fast machine code, sometimes
-`faster than many other compiled languages`_ for computational code.
+faster than many statically compiled languages for computational code.
 The language runtime is extremely small and carefully designed for
 embedding.  The complete binary module of Lupa, including a statically
 linked LuaJIT2 runtime, is only some 500KB on a 64 bit machine.
-
-.. _`faster than many other compiled languages`: http://shootout.alioth.debian.org/u64/performance.php?test=mandelbrot
 
 However, the Lua ecosystem lacks many of the batteries that Python
 readily includes, either directly in its standard library or as third
