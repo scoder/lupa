@@ -149,7 +149,7 @@ def find_lua_build(no_luajit=False):
         packages = [('luajit', '2')]
     packages += [
         (name, lua_version)
-        for lua_version in ('5.1',)
+        for lua_version in ('5.2', '5.1')
         for name in ('lua%s' % lua_version, 'lua-%s' % lua_version, 'lua')
     ]
 
