@@ -600,10 +600,10 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
 class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_explicit_python_function(self):
-        lua_func = self.lua.eval('function(func) return table.foreach({ab="cd"}, python.as_function(func)) end')
-        def join(*args):
-            return '-'.join(args)
-        self.assertEqual('ab-cd', lua_func(join))
+        lua_func = self.lua.eval('function(func) t = {1, 5, 2, 4, 3}; table.sort(t, python.as_function(func)); return t end')
+        def compare(a, b):
+            return a < b
+        self.assertEqual([1, 2, 3, 4, 5], list(lua_func(compare)))
 
     def test_type_conversion(self):
         lua_type = self.lua.eval('type')
