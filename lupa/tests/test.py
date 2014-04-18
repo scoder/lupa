@@ -72,7 +72,8 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         expected_message = 'module \'UNKNOWNöMODULEäNAME\' not found'
         if not IS_PYTHON3:
             expected_message = expected_message.decode('UTF-8')
-        self.assertIn(expected_message, error)
+        self.assertTrue(expected_message in error,
+                        '"%s" not found in "%s"' % (expected_message, error))
 
     def test_execute(self):
         self.assertEqual(2, self.lua.execute('return 1+1'))
