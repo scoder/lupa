@@ -4,10 +4,12 @@ Lupa change log
 Latest changes
 --------------
 
+* support for Lua 5.2
+
 * Lua tables support Python's "del" statement for item deletion
   (patch by Jason Fried)
 
-* Item assignments/lookups on Lua objects from Python no longer
+* item assignments/lookups on Lua objects from Python no longer
   special case double underscore names (as opposed to attribute lookups)
 
 
