@@ -262,7 +262,7 @@ setup(
     url="https://github.com/scoder/lupa",
     download_url="http://pypi.python.org/packages/source/l/lupa/lupa-%s.tar.gz" % VERSION,
 
-    description="Python wrapper around LuaJIT",
+    description="Python wrapper around Lua and LuaJIT",
 
     long_description=long_description,
     classifiers=[
