@@ -32,10 +32,10 @@ Major features
 * frees the GIL and supports threading in separate runtimes when
   calling into Lua
 
-* supports Python 2.x and 3.x, tested with Python 2.6/3.2 and later
+* tested with Python 2.6/3.2 and later
 
-* written for LuaJIT2 (tested with LuaJIT 2.0.2), but reportedly
-  works with the normal Lua interpreter (5.1)
+* written for LuaJIT2 (tested with LuaJIT 2.0.2), but also works
+  with the normal Lua interpreter (5.1 and 5.2)
 
 * easy to hack on and extend as it is written in Cython, not C
 
@@ -71,19 +71,10 @@ Python when raw speed is required and the edit-compile-run cycle of
 binary extension modules is too heavy and too static for agile
 development or hot-deployment.
 
-Lupa is a very fast and thin wrapper around LuaJIT.  It makes it easy
-to write dynamic Lua code that accompanies dynamic Python code by
+Lupa is a very fast and thin wrapper around Lua or LuaJIT.  It makes it
+easy to write dynamic Lua code that accompanies dynamic Python code by
 switching between the two languages at runtime, based on the tradeoff
 between simplicity and speed.
-
-..
-      >>> import sys
-      >>> try:
-      ...     orig_dlflags = sys.getdlopenflags()
-      ...     sys.setdlopenflags(258)
-      ...     import lupa
-      ...     sys.setdlopenflags(orig_dlflags)
-      ... except: pass
 
 
 Examples
