@@ -40,6 +40,16 @@ Major features
 * easy to hack on and extend as it is written in Cython, not C
 
 
+Why the name?
+--------------
+
+In Latin, "lupa" is a female wolf, as elegant and wild as it sounds.
+If you don't like this kind of straight forward allegory to an
+endangered species, you may also happily assume it's just an
+amalgamation of the phonetic sounds that start the words "Lua" and
+"Python", two from each to keep the balance.
+
+
 Why use it?
 ------------
 
