@@ -142,8 +142,8 @@ cdef class LuaRuntime:
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L
         self._lock = FastRLock()
-        self._encoding = None if encoding is None else encoding.encode('ASCII')
-        self._source_encoding = source_encoding or self._encoding or b'UTF-8'
+        self._encoding = _asciiOrNone(encoding)
+        self._source_encoding = _asciiOrNone(source_encoding) or self._encoding or b'UTF-8'
         self._attribute_filter = attribute_filter
         self._unpack_returned_tuples = unpack_returned_tuples
 
@@ -969,6 +969,29 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     lua.luaL_getmetatable(L, POBJECT)
     lua.lua_setmetatable(L, -2)
     return 1 # values pushed
+
+
+cdef inline int _isascii(unsigned char* s):
+    cdef unsigned char c = 0
+    while s[0]:
+        c |= s[0]
+        s += 1
+    return c & 0x80 == 0
+
+
+cdef bytes _asciiOrNone(s):
+    if s is None:
+        return s
+    elif isinstance(s, unicode):
+        return (<unicode>s).encode('ascii')
+    elif isinstance(s, bytearray):
+        s = bytes(s)
+    elif not isinstance(s, bytes):
+        raise ValueError("expected string, got %s" % type(s))
+    if not _isascii(<bytes>s):
+        raise ValueError("byte string input has unknown encoding, only ASCII is allowed")
+    return <bytes>s
+
 
 # error handling
 
