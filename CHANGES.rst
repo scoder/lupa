@@ -9,6 +9,10 @@ Latest changes
 * Lua tables support Python's "del" statement for item deletion
   (patch by Jason Fried)
 
+* Attribute lookup can use a more fine-grained control mechanism by
+  implementing explicit getter and setter functions for a LuaRuntime
+  (``attribute_handlers`` argument).
+
 * item assignments/lookups on Lua objects from Python no longer
   special case double underscore names (as opposed to attribute lookups)
 
