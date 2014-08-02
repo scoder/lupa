@@ -610,6 +610,43 @@ could be to use a well selected list of dedicated API objects that you
 provide to Lua code, and to only allow Python attribute access to the
 set of public attribute/method names of these objects.
 
+Since Lupa 0.22, you can alternatively provide dedicated getter and
+setter function implementations for a ``LuaRuntime``::
+
+        >>> def getter(obj, attr_name):
+        ...     if attr_name == 'yes':
+        ...         return getattr(obj, attr_name)
+        ...     raise AttributeError(
+        ...         'not allowed to read attribute "%s"' % attr_name)
+
+        >>> def setter(obj, attr_name, value):
+        ...     if attr_name == 'put':
+        ...         setattr(obj, attr_name, value)
+        ...         return
+        ...     raise AttributeError(
+        ...         'not allowed to write attribute "%s"' % attr_name)
+
+        >>> class X(object):
+        ...     yes = 123
+        ...     put = 'abc'
+        ...     noway = 2.1
+
+        >>> x = X()
+
+        >>> lua = lupa.LuaRuntime(attribute_handlers=(getter, setter))
+        >>> func = lua.eval('function(x) return x.yes end')
+        >>> func(x)  # getting 'yes'
+        123
+        >>> func = lua.eval('function(x) x.put = "ABC"; end')
+        >>> func(x)  # setting 'put'
+        >>> print(x.put)
+        ABC
+        >>> func = lua.eval('function(x) x.noway = 42; end')
+        >>> func(x)  # setting 'noway'
+        Traceback (most recent call last):
+         ...
+        AttributeError: not allowed to write attribute "noway"
+
 
 Importing Lua binary modules
 -----------------------------
