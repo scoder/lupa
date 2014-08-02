@@ -652,6 +652,32 @@ class TestAttributeHandlers(unittest.TestCase):
                 return
             obj[name] = value
 
+    def test_legal_arguments(self):
+        lupa.LuaRuntime(attribute_filter=None)
+        lupa.LuaRuntime(attribute_filter=len)
+        lupa.LuaRuntime(attribute_handlers=None)
+        lupa.LuaRuntime(attribute_handlers=())
+        lupa.LuaRuntime(attribute_handlers=[len, bool])
+        lupa.LuaRuntime(attribute_handlers=iter([len, bool]))
+        lupa.LuaRuntime(attribute_handlers=(None, None))
+        lupa.LuaRuntime(attribute_handlers=iter([None, None]))
+
+    def test_illegal_arguments(self):
+        self.assertRaises(
+            ValueError, lupa.LuaRuntime, attribute_filter=123)
+        self.assertRaises(
+            ValueError, lupa.LuaRuntime, attribute_handlers=(1, 2, 3, 4))
+        self.assertRaises(
+            ValueError, lupa.LuaRuntime, attribute_handlers=(1,))
+        self.assertRaises(
+            ValueError, lupa.LuaRuntime, attribute_handlers=(1, 2))
+        self.assertRaises(
+            ValueError, lupa.LuaRuntime, attribute_handlers=(1, len))
+        self.assertRaises(
+            ValueError, lupa.LuaRuntime, attribute_handlers=(len, 2))
+        self.assertRaises(
+            ValueError, lupa.LuaRuntime, attribute_handlers=(len, bool), attribute_filter=bool)
+
     def test_attribute_setter_normal(self):
         function = self.lua_handling.eval("function (obj) obj.a = 100 end")
         function(self.x)

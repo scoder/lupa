@@ -144,19 +144,26 @@ cdef class LuaRuntime:
         self._lock = FastRLock()
         self._encoding = _asciiOrNone(encoding)
         self._source_encoding = _asciiOrNone(source_encoding) or self._encoding or b'UTF-8'
+        if attribute_filter is not None and not callable(attribute_filter):
+            raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
         self._unpack_returned_tuples = unpack_returned_tuples
 
-        self._attribute_setter = self._attribute_getter = None
         if attribute_handlers:
-            if isinstance(attribute_handlers, tuple) and len(attribute_handlers) == 2:
-                self._attribute_getter = attribute_handlers[0]
-                self._attribute_setter = attribute_handlers[1]
+            raise_error = False
+            try:
+                getter, setter = attribute_handlers
+            except (ValueError, TypeError):
+                raise_error = True
             else:
-                raise LuaError("attribute_handlers must be a tuple of length 2")
-
-        if attribute_handlers and attribute_filter:
-            raise LuaError("attribute_filter and attribute_handlers are mutually exclusive")
+                if (getter is not None and not callable(getter) or
+                        setter is not None and not callable(setter)):
+                    raise_error = True
+            if raise_error:
+                raise ValueError("attribute_handlers must be a sequence of two callables")
+            if attribute_filter and (getter is not None or setter is not None):
+                raise ValueError("attribute_filter and attribute_handlers are mutually exclusive")
+            self._attribute_getter, self._attribute_setter = getter, setter
 
         lua.luaL_openlibs(L)
         self.init_python_lib(register_eval)
