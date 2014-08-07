@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# flake8: noqa
 
 try:
     from thread import start_new_thread, get_ident
