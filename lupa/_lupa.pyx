@@ -1062,13 +1062,15 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
     finally:
         lua.lua_settop(L, 0)
 
-cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L, tuple args) except -1:
+cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L,
+                            tuple args, bint first_may_be_nil=True) except -1:
     cdef int i
     if args:
         for i, arg in enumerate(args):
-            if not py_to_lua(runtime, L, arg, 0):
+            if not py_to_lua(runtime, L, arg, withnone=not first_may_be_nil):
                 lua.lua_settop(L, 0)
                 raise TypeError("failed to convert argument at index %d" % i)
+            first_may_be_nil = True
     return 0
 
 cdef inline object unpack_lua_results(LuaRuntime runtime, lua_State *L):
@@ -1307,13 +1309,6 @@ cdef py_object* unwrap_lua_object(lua_State* L, int n) nogil:
     else:
         return unpack_wrapped_pyfunction(L, n)
 
-cdef py_object* unwrap_lua_object_from_cclosure(lua_State* L, int n) nogil:
-    cdef py_object* userdata = <py_object*> lua.lua_touserdata(L, lua.lua_upvalueindex(n))
-    if userdata:
-        return userdata
-    else:
-        return unpack_wrapped_pyfunction(L, lua.lua_upvalueindex(n))
-
 cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
     cdef LuaRuntime runtime
     try:
@@ -1393,14 +1388,16 @@ cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with 
         except: pass
         return -1
 
-cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags, double initial_value):
-    # push the wrapped iterator object into the C closure
+cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags,
+                          lua.lua_Number initial_value):
+    # Lua needs three values: iterator C function + state + control variable (last iter) value
+    lua.lua_pushcfunction(L, <lua.lua_CFunction>py_iter_next)
+    # push the wrapped iterator object as for-loop state object
     if py_to_lua_custom(runtime, L, iterator, type_flags) < 1:
+        lua.lua_settop(L, 0)
         return -1
-    lua.lua_pushcclosure(L, <lua.lua_CFunction>py_iter_next, 1)
-    # Lua needs three values: iterator C function + state + last iter value
-    lua.lua_pushnil(L)
-    if (type_flags & OBJ_ENUMERATOR):
+    # push either enumerator index or nil as control variable value
+    if type_flags & OBJ_ENUMERATOR:
         lua.lua_pushnumber(L, initial_value)
     else:
         lua.lua_pushnil(L)
@@ -1408,7 +1405,7 @@ cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_f
 
 cdef int py_iter_next(lua_State* L) nogil:
     # first value in the C closure: the Python iterator object
-    cdef py_object* py_obj = unwrap_lua_object_from_cclosure(L, 1)
+    cdef py_object* py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
     result = py_iter_next_with_gil(L, py_obj)
@@ -1423,15 +1420,15 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
         obj = next(<object>py_iter.obj)
         if (py_iter.type_flags & OBJ_UNPACK_TUPLE) and isinstance(obj, tuple):
             # special case: when the iterable returns a tuple, unpack it
-            push_lua_arguments(runtime, L, <tuple>obj)
+            push_lua_arguments(runtime, L, <tuple>obj, first_may_be_nil=False)
             return len(<tuple>obj)
-        elif (py_iter.type_flags & OBJ_ENUMERATOR):
+        elif py_iter.type_flags & OBJ_ENUMERATOR:
             lua.lua_pushnumber(L, lua.lua_tonumber(L, -1) + 1.0)
         # special case: cannot return nil for None here as Lua interprets it as end of the iterator
-        result = py_to_lua(runtime, L, obj, 1)
+        result = py_to_lua(runtime, L, obj, withnone=True)
         if result < 1:
             return -1
-        if (py_iter.type_flags & OBJ_ENUMERATOR):
+        if py_iter.type_flags & OBJ_ENUMERATOR:
             result += 1
         return result
     except StopIteration:
