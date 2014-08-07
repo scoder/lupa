@@ -5,6 +5,7 @@ try:
 except ImportError:
     # Python 3?
     from _thread import start_new_thread, get_ident
+
 import threading
 import unittest
 import time
@@ -1555,6 +1556,47 @@ class TestUnpackTuples(unittest.TestCase):
         self.assertTrue(self.lua.eval("x == z"))
         self.assertTrue(self.lua.eval("x == nil"))
         self.assertTrue(self.lua.eval("nil == z"))
+
+    def test_python_enumerate_list_unpacked(self):
+        values = self.lua.eval('''
+            function(L)
+                local t = {}
+                for index, a, b in python.enumerate(L) do
+                    assert(a + 30 == b)
+                    t[ index+1 ] = a + b
+                end
+                return t
+            end
+        ''')
+        self.assertEqual([50, 70, 90], list(values(zip([10, 20, 30], [40, 50, 60])).values()))
+
+    def test_python_enumerate_list_unpacked_None(self):
+        values = self.lua.eval('''
+            function(L)
+                local t = {}
+                for index, a, b in python.enumerate(L) do
+                    assert(a == nil)
+                    t[ index+1 ] = b
+                end
+                return t
+            end
+        ''')
+        self.assertEqual([3, 5], list(values(zip([None, None, None], [3, None, 5])).values()))
+
+    def test_python_enumerate_list_start(self):
+        values = self.lua.eval('''
+            function(L)
+                local t = {5,6,7}
+                for index, a, b, c in python.enumerate(L, 3) do
+                    assert(c == nil)
+                    assert(a + 10 == b)
+                    t[ index ] = a + b
+                end
+                return t
+            end
+        ''')
+        self.assertEqual([5, 6, 30, 50, 70],
+                         list(values(zip([10, 20, 30], [20, 30, 40])).values()))
 
 
 ################################################################################

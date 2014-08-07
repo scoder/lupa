@@ -1393,6 +1393,8 @@ cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_f
     # Lua needs three values: iterator C function + state + control variable (last iter) value
     lua.lua_pushcfunction(L, <lua.lua_CFunction>py_iter_next)
     # push the wrapped iterator object as for-loop state object
+    if runtime._unpack_returned_tuples:
+        type_flags |= OBJ_UNPACK_TUPLE
     if py_to_lua_custom(runtime, L, iterator, type_flags) < 1:
         lua.lua_settop(L, 0)
         return -1
@@ -1417,23 +1419,29 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_iter.runtime
-        obj = next(<object>py_iter.obj)
+        try:
+            obj = next(<object>py_iter.obj)
+        except StopIteration:
+            lua.lua_pushnil(L)
+            return 1
+
+        allow_nil = False
+        if py_iter.type_flags & OBJ_ENUMERATOR:
+            lua.lua_pushnumber(L, lua.lua_tonumber(L, -1) + 1.0)
+            allow_nil = True
         if (py_iter.type_flags & OBJ_UNPACK_TUPLE) and isinstance(obj, tuple):
             # special case: when the iterable returns a tuple, unpack it
-            push_lua_arguments(runtime, L, <tuple>obj, first_may_be_nil=False)
-            return len(<tuple>obj)
-        elif py_iter.type_flags & OBJ_ENUMERATOR:
-            lua.lua_pushnumber(L, lua.lua_tonumber(L, -1) + 1.0)
-        # special case: cannot return nil for None here as Lua interprets it as end of the iterator
-        result = py_to_lua(runtime, L, obj, withnone=True)
-        if result < 1:
-            return -1
+            push_lua_arguments(runtime, L, <tuple>obj, first_may_be_nil=allow_nil)
+            result = len(<tuple>obj)
+        else:
+            # special case: cannot return nil for None here as Lua interprets it
+            # as end of the iterator
+            result = py_to_lua(runtime, L, obj, withnone=not allow_nil)
+            if result < 1:
+                return -1
         if py_iter.type_flags & OBJ_ENUMERATOR:
             result += 1
         return result
-    except StopIteration:
-        lua.lua_pushnil(L)
-        return 1
     except:
         try: runtime.store_raised_exception()
         except: pass
