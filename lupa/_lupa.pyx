@@ -253,11 +253,11 @@ cdef class LuaRuntime:
             lua.lua_createtable(L, len(items), len(kwargs))
             # FIXME: how to check for failure?
             for i, arg in enumerate(items):
-                py_to_lua(self, L, arg, 0)
+                py_to_lua(self, L, arg)
                 lua.lua_rawseti(L, -2, i+1)
             for key, value in kwargs.iteritems():
-                py_to_lua(self, L, key, 0)
-                py_to_lua(self, L, value, 0)
+                py_to_lua(self, L, key)
+                py_to_lua(self, L, value)
                 lua.lua_rawset(L, -3)
             return py_from_lua(self, L, -1)
         finally:
@@ -439,7 +439,7 @@ cdef class _LuaObject:
             if lua.lua_isfunction(L, -1):
                 lua.lua_pop(L, 1)
                 raise TypeError("item/attribute access not supported on functions")
-            py_to_lua(self._runtime, L, name, 0)
+            py_to_lua(self._runtime, L, name)
             lua.lua_gettable(L, -2)
             return py_from_lua(self._runtime, L, -1)
         finally:
@@ -528,8 +528,8 @@ cdef class _LuaTable(_LuaObject):
         lock_runtime(self._runtime)
         try:
             self.push_lua_object()
-            py_to_lua(self._runtime, L, name, 0)
-            py_to_lua(self._runtime, L, value, 0)
+            py_to_lua(self._runtime, L, name)
+            py_to_lua(self._runtime, L, value)
             lua.lua_settable(L, -3)
         finally:
             lua.lua_settop(L, 0)
@@ -557,7 +557,7 @@ cdef class _LuaTable(_LuaObject):
         lock_runtime(self._runtime)
         try:
             self.push_lua_object()
-            py_to_lua(self._runtime, L, name, 0)
+            py_to_lua(self._runtime, L, name)
             lua.lua_pushnil(L)
             lua.lua_settable(L, -3)
         finally:
@@ -906,14 +906,14 @@ cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) e
      if runtime._unpack_returned_tuples and isinstance(o, tuple):
          push_lua_arguments(runtime, L, <tuple>o)
          return len(<tuple>o)
-     return py_to_lua(runtime, L, o, 0)
+     return py_to_lua(runtime, L, o)
 
-cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint withnone) except -1:
+cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False) except -1:
     cdef int pushed_values_count = 0
     cdef int type_flags = 0
 
     if o is None:
-        if withnone:
+        if wrap_none:
             lua.lua_pushlstring(L, "Py_None", 7)
             lua.lua_rawget(L, lua.LUA_REGISTRYINDEX)
             if lua.lua_isnil(L, -1):
@@ -1067,7 +1067,7 @@ cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L,
     cdef int i
     if args:
         for i, arg in enumerate(args):
-            if not py_to_lua(runtime, L, arg, withnone=not first_may_be_nil):
+            if not py_to_lua(runtime, L, arg, wrap_none=not first_may_be_nil):
                 lua.lua_settop(L, 0)
                 raise TypeError("failed to convert argument at index %d" % i)
             first_may_be_nil = True
@@ -1209,7 +1209,7 @@ cdef int py_object_str(lua_State* L) nogil:
 
 cdef int getitem_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n) except -1:
     return py_to_lua(runtime, L,
-                     (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ], 0)
+                     (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ])
 
 cdef int setitem_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n, int value_n) except -1:
     (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ] = py_from_lua(runtime, L, value_n)
@@ -1220,10 +1220,10 @@ cdef int getattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, in
     attr_name = py_from_lua(runtime, L, key_n)
     if runtime._attribute_getter is not None:
         value = runtime._attribute_getter(obj, attr_name)
-        return py_to_lua(runtime, L, value, 0)
+        return py_to_lua(runtime, L, value)
     if runtime._attribute_filter is not None:
         attr_name = runtime._attribute_filter(obj, attr_name, False)
-    return py_to_lua(runtime, L, getattr(obj, attr_name), 0)
+    return py_to_lua(runtime, L, getattr(obj, attr_name))
 
 cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n, int value_n) except -1:
     obj = <object>py_obj.obj
@@ -1436,7 +1436,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             push_lua_arguments(runtime, L, <tuple>obj, first_may_be_nil=allow_nil)
             result = len(<tuple>obj)
         else:
-            result = py_to_lua(runtime, L, obj, withnone=not allow_nil)
+            result = py_to_lua(runtime, L, obj, wrap_none=not allow_nil)
             if result < 1:
                 return -1
         if py_iter.type_flags & OBJ_ENUMERATOR:
