@@ -1427,6 +1427,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             return len(<tuple>obj)
         elif (py_iter.type_flags & OBJ_ENUMERATOR):
             lua.lua_pushnumber(L, lua.lua_tonumber(L, -1) + 1.0)
+        # special case: cannot return nil for None here as Lua interprets it as end of the iterator
         result = py_to_lua(runtime, L, obj, 1)
         if result < 1:
             return -1
