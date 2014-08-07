@@ -1425,6 +1425,8 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             lua.lua_pushnil(L)
             return 1
 
+        # NOTE: cannot return nil for None as first item
+        # as Lua interprets it as end of the iterator
         allow_nil = False
         if py_iter.type_flags & OBJ_ENUMERATOR:
             lua.lua_pushnumber(L, lua.lua_tonumber(L, -1) + 1.0)
@@ -1434,8 +1436,6 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             push_lua_arguments(runtime, L, <tuple>obj, first_may_be_nil=allow_nil)
             result = len(<tuple>obj)
         else:
-            # special case: cannot return nil for None here as Lua interprets it
-            # as end of the iterator
             result = py_to_lua(runtime, L, obj, withnone=not allow_nil)
             if result < 1:
                 return -1
