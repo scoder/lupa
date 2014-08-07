@@ -1420,10 +1420,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_iter.runtime
-        if PY_VERSION_HEX >= 0x02060000:
-            obj = next(<object>py_iter.obj)
-        else:
-            obj = (<object>py_iter.obj).next()
+        obj = next(<object>py_iter.obj)
         if (py_iter.type_flags & OBJ_UNPACK_TUPLE) and isinstance(obj, tuple):
             # special case: when the iterable returns a tuple, unpack it
             push_lua_arguments(runtime, L, <tuple>obj)
