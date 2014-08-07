@@ -1672,8 +1672,7 @@ class TestFastRLock(unittest.TestCase):
 
 class TestDontUnpackTuples(unittest.TestCase):
     def setUp(self):
-
-        self.lua = lupa.LuaRuntime()  # default is uknpack_tuples=False
+        self.lua = lupa.LuaRuntime()  # default is unpack_returned_tuples=False
 
         # Define a Python function which returns a tuple
         # and is accessible from Lua as fun().
@@ -1698,7 +1697,6 @@ class TestDontUnpackTuples(unittest.TestCase):
 
 class TestUnpackTuples(unittest.TestCase):
     def setUp(self):
-
         self.lua = lupa.LuaRuntime(unpack_returned_tuples=True)
 
         # Define a Python function which returns a tuple
@@ -1720,6 +1718,12 @@ class TestUnpackTuples(unittest.TestCase):
 
     def test_python_function_tuple_expansion_extra_args(self):
         self.lua.execute("a, b, c, d, e, f = fun()")
+        self.assertTrue(self.lua.eval("a == 'one'"))
+        self.assertTrue(self.lua.eval("b == 'two'"))
+        self.assertTrue(self.lua.eval("c == 'three'"))
+        self.assertTrue(self.lua.eval("d == 'four'"))
+        self.assertTrue(self.lua.eval("e == nil"))
+        self.assertTrue(self.lua.eval("f == nil"))
         self.assertEqual("one", self.lua.eval("a"))
         self.assertEqual("two", self.lua.eval("b"))
         self.assertEqual("three", self.lua.eval("c"))
