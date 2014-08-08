@@ -185,8 +185,13 @@ ext_args = {
     'extra_objects': config.get('extra_objects'),
     'include_dirs': config.get('include_dirs'),
 }
+
+macros = []
 if has_option('--without-assert'):
-    ext_args['define_macros'] = [('CYTHON_WITHOUT_ASSERTIONS', None)]
+    macros.append(('CYTHON_WITHOUT_ASSERTIONS', None))
+if has_option('--with-lua-checks'):
+    macros.append(('LUA_USE_APICHECK', None))
+ext_args['define_macros'] = macros
 
 
 # check if Cython is installed, and use it if requested or necessary
