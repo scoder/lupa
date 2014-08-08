@@ -186,7 +186,7 @@ ext_args = {
     'include_dirs': config.get('include_dirs'),
 }
 
-macros = []
+macros = [('LUA_COMPAT_ALL', None)]
 if has_option('--without-assert'):
     macros.append(('CYTHON_WITHOUT_ASSERTIONS', None))
 if has_option('--with-lua-checks'):
