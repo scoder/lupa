@@ -1,10 +1,31 @@
 Lupa change log
-================
+===============
 
 Latest changes
 --------------
 
-* support for Lua 5.2
+* NOTE: this release includes the major backwards incompatible changes listed
+  below.  It is believed that they simplify the interaction between Python code
+  and Lua code by more strongly following idiomatic Lua on the Lua side.
+
+  * Instead of passing a wrapped ``Py_None`` object into Lua, ``None`` return
+    values are now mapped to ``nil``, making them more straight forward to
+    handle in Lua code.  The only remaining exception is during iteration,
+    where the first returned value must not be ``nil`` in Lua, or otherwise
+    the loop terminates prematurely.  To prevent this, any ``None`` value
+    that the iterator returns, or any first item in exploded tuples that is
+    ``None``, is still mapped to ``python.Py_None``. Any further values
+    returned in the same iteration will be mapped to ``nil`` if they are
+    ``None``, not to ``Py_None``.  This means that only the first argument
+    needs to be manually checked for this special case.  For the
+    ``enumerate()`` iterator, the counter is never ``None`` and thus the
+    following unpacked items will never be mapped to``Py_None``.
+
+  * When ``unpack_returned_tuples=True``, iteration now also unpacks tuple
+    values, including ``enumerate()`` iteration, which yields a flat sequence
+    of counter and unpacked values.
+
+* support for Lua 5.2 (in addition to Lua 5.1 and LuaJIT 2.0)
 
 * Lua tables support Python's "del" statement for item deletion
   (patch by Jason Fried)
