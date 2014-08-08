@@ -283,6 +283,7 @@ cdef extern from "lauxlib.h" nogil:
 
     void luaL_openlib (lua_State *L, char *libname, luaL_Reg *l, int nup)
     void luaL_register (lua_State *L, char *libname, luaL_Reg *l)
+    void luaL_setfuncs (lua_State *L, luaL_Reg *l, int nup)  # 5.2+
     int luaL_getmetafield (lua_State *L, int obj, char *e)
     int luaL_callmeta (lua_State *L, int obj, char *e)
     int luaL_typerror (lua_State *L, int narg, char *tname)
