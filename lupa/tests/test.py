@@ -442,6 +442,28 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(2, table[2])
         self.assertEqual(9, len(table))
 
+    def test_setitem_array_none(self):
+        table = self.lua.eval('{1,2}')
+        get_none = self.lua.eval('function(t) return t[python.none] end')
+        self.assertEqual(2, len(table))
+        self.assertEqual(None, table[None])
+        self.assertEqual(None, get_none(table))
+        table[None] = 123
+        self.assertEqual(123, table[None])
+        self.assertEqual(123, get_none(table))
+        self.assertEqual(2, len(table))
+
+    def test_setitem_array_none_initial(self):
+        table = self.lua.eval('{1,python.none,3}')
+        get_none = self.lua.eval('function(t) return t[python.none] end')
+        self.assertEqual(3, len(table))
+        self.assertEqual(None, table[None])
+        self.assertEqual(None, get_none(table))
+        table[None] = 123
+        self.assertEqual(123, table[None])
+        self.assertEqual(123, get_none(table))
+        self.assertEqual(3, len(table))
+
     def test_setattr_table(self):
         table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
 

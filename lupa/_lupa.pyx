@@ -436,10 +436,12 @@ cdef class _LuaObject:
         lock_runtime(self._runtime)
         try:
             self.push_lua_object()
-            if lua.lua_isfunction(L, -1):
+            lua_type = lua.lua_type(L, -1)
+            if lua_type == lua.LUA_TFUNCTION:
                 lua.lua_pop(L, 1)
                 raise TypeError("item/attribute access not supported on functions")
-            py_to_lua(self._runtime, L, name)
+            # table[nil] fails, so map None -> python.none for Lua tables
+            py_to_lua(self._runtime, L, name, wrap_none=lua_type == lua.LUA_TTABLE)
             lua.lua_gettable(L, -2)
             return py_from_lua(self._runtime, L, -1)
         finally:
@@ -528,7 +530,8 @@ cdef class _LuaTable(_LuaObject):
         lock_runtime(self._runtime)
         try:
             self.push_lua_object()
-            py_to_lua(self._runtime, L, name)
+            # table[nil] fails, so map None -> python.none for Lua tables
+            py_to_lua(self._runtime, L, name, wrap_none=True)
             py_to_lua(self._runtime, L, value)
             lua.lua_settable(L, -3)
         finally:
@@ -557,7 +560,7 @@ cdef class _LuaTable(_LuaObject):
         lock_runtime(self._runtime)
         try:
             self.push_lua_object()
-            py_to_lua(self._runtime, L, name)
+            py_to_lua(self._runtime, L, name, wrap_none=True)
             lua.lua_pushnil(L)
             lua.lua_settable(L, -3)
         finally:
