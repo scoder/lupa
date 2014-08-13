@@ -10,7 +10,9 @@ Latest changes
 
   * Instead of passing a wrapped ``Py_None`` object into Lua, ``None`` return
     values are now mapped to ``nil``, making them more straight forward to
-    handle in Lua code.  The only remaining exception is during iteration,
+    handle in Lua code.  This makes the behaviour more consistent, as it was
+    previously somewhat arbitrary where ``Py_None`` could appear and where a
+    ``nil`` value was used.  The only remaining exception is during iteration,
     where the first returned value must not be ``nil`` in Lua, or otherwise
     the loop terminates prematurely.  To prevent this, any ``None`` value
     that the iterator returns, or any first item in exploded tuples that is
