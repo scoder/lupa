@@ -1639,12 +1639,25 @@ class TestMethodCall(unittest.TestCase):
             def setx(self, v):
                 self.x = int(v)
 
+            @classmethod
+            def classmeth(cls, v):
+                return v
+
+            @staticmethod
+            def staticmeth(v):
+                return v
+
+        class D(C):
+            pass
+
         def f():
             return 100
 
         def g(n):
             return int(n) + 100
 
+        self.lua.globals()['C'] = C
+        self.lua.globals()['D'] = D
         self.lua.globals()['x'] = C(1)
         self.lua.globals()['f'] = f
         self.lua.globals()['g'] = g
@@ -1692,6 +1705,23 @@ class TestMethodCall(unittest.TestCase):
         self.assertEqual(self.lua.eval("g(10)"), 110)
         self.assertEqual(self.lua.eval("d.F()"), 100)
         self.assertEqual(self.lua.eval("d.G(9)"), 109)
+
+    def test_method_call_class_hierarchy(self):
+        self.assertEqual(self.lua.eval("C(5).getx()"), 5)
+        self.assertEqual(self.lua.eval("D(5).getx()"), 5)
+
+        self.assertEqual(self.lua.eval("C(5):getx()"), 5)
+        self.assertEqual(self.lua.eval("D(5):getx()"), 5)
+
+    def test_method_call_class_methods(self):
+        # unbound methods
+        self.assertEqual(self.lua.eval("C.getx(C(5))"), 5)
+        self.assertEqual(self.lua.eval("C.getx(D(5))"), 5)
+
+        # class/static methods
+        self.assertEqual(self.lua.eval("C:classmeth(5)"), 5)
+        self.assertEqual(self.lua.eval("C.classmeth(5)"), 5)
+        self.assertEqual(self.lua.eval("C.staticmeth(5)"), 5)
 
 
 ################################################################################

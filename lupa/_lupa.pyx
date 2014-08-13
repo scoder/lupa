@@ -16,7 +16,8 @@ cimport cpython.tuple
 cimport cpython.float
 cimport cpython.long
 from cpython.ref cimport PyObject
-from cpython.method cimport PyMethod_Check, PyMethod_GET_SELF
+from cpython.method cimport (
+    PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
 from cpython.version cimport PY_VERSION_HEX, PY_MAJOR_VERSION
 
 cdef extern from *:
@@ -1133,33 +1134,42 @@ cdef int py_object_gc(lua_State* L) nogil:
 
 cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) except -1:
     cdef int i, nargs = lua.lua_gettop(L) - 1
-    cdef bint ret = 0
+    cdef tuple args
 
     if not py_obj:
         raise TypeError("not a python object")
 
-    cdef tuple args = cpython.tuple.PyTuple_New(nargs)
-    for i in range(nargs):
-        arg = py_from_lua(runtime, L, i+2)
-        cpython.ref.Py_INCREF(arg)
-        cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
-
-    # Check if this is a method call.
-    # Lua x:m(a, b) => Python as x.m(x, a, b) but should be x.m(a, b)
-    #
-    # Don't know if method calls should *always* remove self.  There is an
-    # argument for doing so in that Lua syntax is sensitive to method calls vs
-    # function lookups, while Python's syntax is not.  In a way, we are leaking
-    # Python syntax into Lua by *not* always removing the first argument
-    # from method calls.
-
     f = <object>py_obj.obj
-    if PyMethod_Check(f) and len(args) and args[0] is <object>PyMethod_GET_SELF(f):
-        # This is a bound method call, with self as first arg.  (as described above)
-        # Remove self from the args list.
-        args = args[1:]
 
-    return py_function_result_to_lua(runtime, L, f(*args))
+    if not nargs:
+        result = f()
+    else:
+        arg = py_from_lua(runtime, L, 2)
+
+        if PyMethod_Check(f) and (<PyObject*>arg) is PyMethod_GET_SELF(f):
+            # Calling a bound method and self is already the first argument.
+            # Lua x:m(a, b) => Python as x.m(x, a, b) but should be x.m(a, b)
+            #
+            # Lua syntax is sensitive to method calls vs function lookups, while
+            # Python's syntax is not.  In a way, we are leaking Python semantics
+            # into Lua by duplicating the first argument from method calls.
+            #
+            # The method wrapper would only prepend self to the tuple again,
+            # so we just call the underlying function directly instead.
+            f = <object>PyMethod_GET_FUNCTION(f)
+
+        args = cpython.tuple.PyTuple_New(nargs)
+        cpython.ref.Py_INCREF(arg)
+        cpython.tuple.PyTuple_SET_ITEM(args, 0, arg)
+
+        for i in range(1, nargs):
+            arg = py_from_lua(runtime, L, i+2)
+            cpython.ref.Py_INCREF(arg)
+            cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
+
+        result = f(*args)
+
+    return py_function_result_to_lua(runtime, L, result)
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
     cdef LuaRuntime runtime = None
