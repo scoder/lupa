@@ -1656,12 +1656,15 @@ class TestMethodCall(unittest.TestCase):
         def g(n):
             return int(n) + 100
 
+        x = C(1)
         self.lua.globals()['C'] = C
         self.lua.globals()['D'] = D
-        self.lua.globals()['x'] = C(1)
+        self.lua.globals()['x'] = x
         self.lua.globals()['f'] = f
         self.lua.globals()['g'] = g
         self.lua.globals()['d'] = { 'F': f, "G": g }
+        self.lua.globals()['bound0'] = x.getx
+        self.lua.globals()['bound1'] = x.getx1
 
     def tearDown(self):
         self.lua = None
@@ -1722,6 +1725,16 @@ class TestMethodCall(unittest.TestCase):
         self.assertEqual(self.lua.eval("C:classmeth(5)"), 5)
         self.assertEqual(self.lua.eval("C.classmeth(5)"), 5)
         self.assertEqual(self.lua.eval("C.staticmeth(5)"), 5)
+
+    def test_method_call_bound(self):
+        self.assertEqual(self.lua.eval("bound0()"), 1)
+        self.assertEqual(self.lua.eval("bound1(3)"), 4)
+        self.assertEqual(self.lua.eval("python.eval('1 .__add__')(1)"), 2)
+        self.assertEqual(self.lua.eval("python.eval('1 .__add__')(2)"), 3)
+
+        # the following is an unfortunate side effect of the "self" removal
+        # on bound method calls:
+        self.assertRaises(TypeError, self.lua.eval, "bound1(x)")
 
 
 ################################################################################
