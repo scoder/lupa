@@ -27,6 +27,15 @@ Latest changes
     values, including ``enumerate()`` iteration, which yields a flat sequence
     of counter and unpacked values.
 
+  * When calling bound Python methods from Lua as "obj:meth()", Lupa now
+    prevents Python from prepending the self argument a second time, so that
+    the Python method is now called as "obj.meth()".  Previously, it was called
+    as "obj.meth(obj)".  Note that this can be undesired when the object itself
+    is explicitly passed as first argument from Lua, e.g. when calling
+    "func(obj)" where "func" is "obj.meth", but these constellations should be
+    rare.  As a work-around for this case, user code can wrap the bound method
+    in another function so that the final call comes from Python.
+
 * support for Lua 5.2 (in addition to Lua 5.1 and LuaJIT 2.0)
 
 * Lua tables support Python's "del" statement for item deletion
