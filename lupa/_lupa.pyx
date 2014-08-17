@@ -1178,8 +1178,7 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
         return call_python(runtime, L, py_obj)
     except:
         try: runtime.store_raised_exception()
-        except: pass
-        return -1
+        finally: return -1
 
 cdef int py_object_call(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
@@ -1206,8 +1205,7 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
         return 1 # returning 1 value
     except:
         try: runtime.store_raised_exception()
-        except: pass
-        return -1
+        finally: return -1
 
 cdef int py_object_str(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
@@ -1277,8 +1275,7 @@ cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
             return getattr_for_lua(runtime, L, py_obj, 2)
     except:
         try: runtime.store_raised_exception()
-        except: pass
-        return -1
+        finally: return -1
 
 cdef int py_object_getindex(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
@@ -1300,8 +1297,7 @@ cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
             return setattr_for_lua(runtime, L, py_obj, 2, 3)
     except:
         try: runtime.store_raised_exception()
-        except: pass
-        return -1
+        finally: return -1
 
 cdef int py_object_setindex(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
@@ -1345,8 +1341,7 @@ cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int t
         return py_to_lua_custom(runtime, L, <object>py_obj.obj, type_flags)
     except:
         try: runtime.store_raised_exception()
-        except: pass
-        return -1
+        finally: return -1
 
 cdef int py_wrap_object_protocol(lua_State* L, int type_flags) nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
@@ -1403,8 +1398,7 @@ cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj, double start) wi
         return py_push_iterator(runtime, L, obj, OBJ_ENUMERATOR, start - 1.0)
     except:
         try: runtime.store_raised_exception()
-        except: pass
-        return -1
+        finally: return -1
 
 cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
     cdef LuaRuntime runtime
@@ -1414,8 +1408,7 @@ cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with 
         return py_push_iterator(runtime, L, obj, type_flags, 0.0)
     except:
         try: runtime.store_raised_exception()
-        except: pass
-        return -1
+        finally: return -1
 
 cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags,
                           lua.lua_Number initial_value):
@@ -1473,8 +1466,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
         return result
     except:
         try: runtime.store_raised_exception()
-        except: pass
-        return -1
+        finally: return -1
 
 # 'python' module functions in Lua
 
