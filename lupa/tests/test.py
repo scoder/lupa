@@ -1,11 +1,5 @@
 # -*- coding: utf-8 -*-
 
-try:
-    from thread import start_new_thread, get_ident
-except ImportError:
-    # Python 3?
-    from _thread import start_new_thread, get_ident
-
 import threading
 import unittest
 import time
@@ -24,9 +18,6 @@ except NameError:
 
 unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
 
-def _wait():
-    # A crude wait/yield function not relying on synchronization primitives.
-    time.sleep(0.01)
 
 class SetupLuaRuntimeMixin(object):
 
@@ -1739,6 +1730,18 @@ class TestMethodCall(unittest.TestCase):
 
 ################################################################################
 # tests for the FastRLock implementation
+
+try:
+    from thread import start_new_thread, get_ident
+except ImportError:
+    # Python 3?
+    from _thread import start_new_thread, get_ident
+
+
+def _wait():
+    # A crude wait/yield function not relying on synchronization primitives.
+    time.sleep(0.01)
+
 
 class TestFastRLock(unittest.TestCase):
     """Copied from CPython's test.lock_tests module
