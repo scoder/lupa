@@ -298,8 +298,70 @@ use the ``getitem`` protocol of Python dicts and look up ``d['items']``
 instead.
 
 
+None vs. nil
+------------
+
+While ``None`` in Python and ``nil`` in Lua differ in their semantics, they
+usually just mean the same thing: no value.  Lupa therefore tries to map one
+directly to the other whenever possible::
+
+      >>> lua.eval('nil') is None
+      True
+      >>> is_nil = lua.eval('function(x) return x == nil end')
+      >>> is_nil(None)
+      True
+
+The only place where this cannot work is during iteration, because Lua
+considers a ``nil`` value the termination marker of iterators.  Therefore,
+Lupa special cases ``None`` values here and replaces them by a constant
+``python.none`` instead of returning ``nil``::
+
+      >>> _ = lua.require("table")
+      >>> func = lua.eval('''
+      ...     function(items)
+      ...         local t = {}
+      ...         for value in python.iter(items) do
+      ...             table.insert(t, value == python.none)
+      ...         end
+      ...         return t
+      ...     end
+      ... ''')
+
+      >>> items = [1, None ,2]
+      >>> list(func(items).values())
+      [False, True, False]
+
+Lupa avoids this value escaping whenever it's obviously not necessary.
+Thus, when unpacking tuples during iteration, only the first value will
+be subject to ``python.none`` replacement, as Lua does not look at the
+other items for loop termination anymore.  And on ``enumerate()``
+iteration, the first value is known to be always a number and never None,
+so no replacement is needed.
+
+::
+
+      >>> func = lua.eval('''
+      ...     function(items)
+      ...         for a, b, c, d in python.iterex(items) do
+      ...             return {a == python.none, a == nil,   -->  a == python.none
+      ...                     b == python.none, b == nil,   -->  b == nil
+      ...                     c == python.none, c == nil,   -->  c == nil
+      ...                     d == python.none, d == nil}   -->  d == nil ...
+      ...         end
+      ...     end
+      ... ''')
+
+      >>> items = [(None, None, None, None)]
+      >>> list(func(items).values())
+      [True, False, False, True, False, True, False, True]
+
+      >>> items = [(None, None)]   # note: no values for c/d => nil in Lua
+      >>> list(func(items).values())
+      [True, False, False, True, False, True, False, True]
+
+
 Lua Tables
------------
+----------
 
 Lua tables mimic Python's mapping protocol.  For the special case of
 array tables, Lua automatically inserts integer indices as keys into
