@@ -28,6 +28,7 @@ class SetupLuaRuntimeMixin(object):
         self.lua = None
         gc.collect()
 
+
 class TestLuaRuntimeRefcounting(unittest.TestCase):
     def test_runtime_cleanup(self):
         lua = lupa.LuaRuntime()
@@ -35,6 +36,25 @@ class TestLuaRuntimeRefcounting(unittest.TestCase):
         del lua
         self.assertEqual(1, lua_table[1])
         del lua_table
+
+    def test_refcycles(self):
+        def make_refcycle(runtime):
+            def use_runtime():
+                return runtime.eval('1+1')
+            runtime.globals()['use_runtime'] = use_runtime
+            runtime.globals()['some_leaky_data'] = list(range(1000))
+
+        gc.collect()
+        old_count = len(gc.get_objects())
+        for i in range(1000):
+            lua = lupa.LuaRuntime()
+            make_refcycle(lua)
+            self.assertEqual(2, lua.eval('use_runtime()'))
+            del lua, i
+        gc.collect()
+        new_count = len(gc.get_objects())
+        self.assertEqual(old_count, new_count)
+
 
 class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_eval(self):
