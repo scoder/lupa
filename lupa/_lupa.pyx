@@ -1174,6 +1174,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
     f = <object>py_obj.obj
 
     if not nargs:
+        lua.lua_settop(L, 0)
         result = f()
     else:
         arg = py_from_lua(runtime, L, 2)
@@ -1199,6 +1200,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
             cpython.ref.Py_INCREF(arg)
             cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
 
+        lua.lua_settop(L, 0)
         result = f(*args)
 
     return py_function_result_to_lua(runtime, L, result)
