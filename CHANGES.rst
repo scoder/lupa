@@ -21,7 +21,7 @@ Lupa change log
     ``None``, not to ``none``.  This means that only the first argument
     needs to be manually checked for this special case.  For the
     ``enumerate()`` iterator, the counter is never ``None`` and thus the
-    following unpacked items will never be mapped to``python.none``.
+    following unpacked items will never be mapped to ``python.none``.
 
   * When ``unpack_returned_tuples=True``, iteration now also unpacks tuple
     values, including ``enumerate()`` iteration, which yields a flat sequence
