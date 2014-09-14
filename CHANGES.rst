@@ -8,20 +8,20 @@ Lupa change log
   below.  It is believed that they simplify the interaction between Python code
   and Lua code by more strongly following idiomatic Lua on the Lua side.
 
-  * Instead of passing a wrapped ``Py_None`` object into Lua, ``None`` return
-    values are now mapped to ``nil``, making them more straight forward to
-    handle in Lua code.  This makes the behaviour more consistent, as it was
-    previously somewhat arbitrary where ``Py_None`` could appear and where a
+  * Instead of passing a wrapped ``python.none`` object into Lua, ``None``
+    return values are now mapped to ``nil``, making them more straight forward
+    to handle in Lua code.  This makes the behaviour more consistent, as it
+    was previously somewhat arbitrary where ``none`` could appear and where a
     ``nil`` value was used.  The only remaining exception is during iteration,
     where the first returned value must not be ``nil`` in Lua, or otherwise
     the loop terminates prematurely.  To prevent this, any ``None`` value
     that the iterator returns, or any first item in exploded tuples that is
-    ``None``, is still mapped to ``python.Py_None``. Any further values
+    ``None``, is still mapped to ``python.none``. Any further values
     returned in the same iteration will be mapped to ``nil`` if they are
-    ``None``, not to ``Py_None``.  This means that only the first argument
+    ``None``, not to ``none``.  This means that only the first argument
     needs to be manually checked for this special case.  For the
     ``enumerate()`` iterator, the counter is never ``None`` and thus the
-    following unpacked items will never be mapped to``Py_None``.
+    following unpacked items will never be mapped to``python.none``.
 
   * When ``unpack_returned_tuples=True``, iteration now also unpacks tuple
     values, including ``enumerate()`` iteration, which yields a flat sequence
