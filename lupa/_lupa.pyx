@@ -20,6 +20,8 @@ from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
 from cpython.version cimport PY_VERSION_HEX, PY_MAJOR_VERSION
 
+from libc.stdint cimport uintptr_t
+
 cdef extern from *:
     ctypedef char* const_char_ptr "const char*"
 
@@ -127,6 +129,7 @@ cdef class LuaRuntime:
     """
     cdef lua_State *_state
     cdef FastRLock _lock
+    cdef dict _pyrefs_in_lua
     cdef tuple _raised_exception
     cdef bytes _encoding
     cdef bytes _source_encoding
@@ -144,6 +147,7 @@ cdef class LuaRuntime:
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L
         self._lock = FastRLock()
+        self._pyrefs_in_lua = {}
         self._encoding = _asciiOrNone(encoding)
         self._source_encoding = _asciiOrNone(source_encoding) or self._encoding or b'UTF-8'
         if attribute_filter is not None and not callable(attribute_filter):
@@ -974,7 +978,17 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     cdef py_object *py_obj = <py_object*> lua.lua_newuserdata(L, sizeof(py_object))
     if not py_obj:
         return 0 # values pushed
-    cpython.ref.Py_INCREF(o)
+
+    # originally, we just used:
+    #cpython.ref.Py_INCREF(o)
+    # now, we store an owned reference in "runtime._pyrefs_in_lua" to keep it visible to Python
+    # and a borrowed reference in "py_obj.obj" for access from Lua
+    obj_id = <object><uintptr_t><PyObject*>(o)
+    if obj_id in runtime._pyrefs_in_lua:
+        runtime._pyrefs_in_lua[obj_id].append(o)
+    else:
+        runtime._pyrefs_in_lua[obj_id] = [o]
+
     py_obj.obj = <PyObject*>o
     py_obj.runtime = <PyObject*>runtime
     py_obj.type_flags = type_flags
@@ -1119,15 +1133,33 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 
 # ref-counting support for Python objects
 
-cdef void decref_with_gil(py_object *py_obj) with gil:
-    cpython.ref.Py_XDECREF(py_obj.obj)
+cdef int decref_with_gil(py_object *py_obj) with gil:
+    # originally, we just used:
+    #cpython.ref.Py_XDECREF(py_obj.obj)
+    # now, we keep Python object references in Lua visible to Python in a dict of lists:
+    runtime = <LuaRuntime>py_obj.runtime
+    try:
+        obj_id = <object><uintptr_t>py_obj.obj
+        try:
+            refs = <list>runtime._pyrefs_in_lua[obj_id]
+        except (TypeError, KeyError):
+            return 0  # runtime was already cleared during GC, nothing left to do
+        if len(refs) == 1:
+            del runtime._pyrefs_in_lua[obj_id]
+        else:
+            refs.pop()  # any, really
+        return 0
+    except:
+        try: runtime.store_raised_exception()
+        finally: return -1
 
 cdef int py_object_gc(lua_State* L) nogil:
     if not lua.lua_isuserdata(L, 1):
         return 0
     cdef py_object* py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT) # doesn't return on error!
     if py_obj is not NULL and py_obj.obj is not NULL:
-        decref_with_gil(py_obj)
+        if decref_with_gil(py_obj):
+            return lua.luaL_error(L, 'error while cleaning up a Python object')  # never returns!
     return 0
 
 # calling Python objects

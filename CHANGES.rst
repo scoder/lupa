@@ -36,6 +36,9 @@ Latest changes
     rare.  As a work-around for this case, user code can wrap the bound method
     in another function so that the final call comes from Python.
 
+* garbage collection works for reference cycles that span both runtimes,
+  Python and Lua
+
 * support for Lua 5.2 (in addition to Lua 5.1 and LuaJIT 2.0)
 
 * Lua tables support Python's "del" statement for item deletion
