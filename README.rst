@@ -360,6 +360,10 @@ so no replacement is needed.
       [True, False, False, True, False, True, False, True]
 
 
+Note that this behaviour changed in Lupa 1.0.  Previously, the ``python.none``
+replacement was done in more places, which made it not always very predictable.
+
+
 Lua Tables
 ----------
 

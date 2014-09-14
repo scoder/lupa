@@ -1,8 +1,8 @@
 Lupa change log
 ===============
 
-Latest changes
---------------
+1.0b1 (2014-09-14)
+------------------
 
 * NOTE: this release includes the major backwards incompatible changes listed
   below.  It is believed that they simplify the interaction between Python code
