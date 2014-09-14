@@ -39,6 +39,10 @@ Latest changes
 * garbage collection works for reference cycles that span both runtimes,
   Python and Lua
 
+* calling from Python into Lua and back into Python did not clean up the
+  Lua call arguments before the innermost call, so that they could leak
+  into the nested Python call or its return arguments
+
 * support for Lua 5.2 (in addition to Lua 5.1 and LuaJIT 2.0)
 
 * Lua tables support Python's "del" statement for item deletion
