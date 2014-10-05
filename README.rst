@@ -676,7 +676,7 @@ could be to use a well selected list of dedicated API objects that you
 provide to Lua code, and to only allow Python attribute access to the
 set of public attribute/method names of these objects.
 
-Since Lupa 0.22, you can alternatively provide dedicated getter and
+Since Lupa 1.0, you can alternatively provide dedicated getter and
 setter function implementations for a ``LuaRuntime``::
 
         >>> def getter(obj, attr_name):
