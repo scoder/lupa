@@ -1898,7 +1898,7 @@ class TestFastRLock(unittest.TestCase):
     (which can be acquired and released from different threads).
     """
 
-    def test_reacquire(self):
+    def DISABLED_test_reacquire_non_recursive(self):
         # Lock needs to be released before re-acquiring.
         lock = self.locktype()
         phase = []
