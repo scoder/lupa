@@ -302,53 +302,53 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(keys, l)
 
     def test_iter_table_mapping_int_keys(self):
-        table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
+        table = self.lua.eval('{%s}' % ','.join('[%d]=%d' % (i, -i) for i in range(10)))
         l = list(table)
         l.sort()
         self.assertEqual(list(range(10)), l)
 
     def test_iter_table_keys(self):
         keys = list('abcdefg')
-        table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
+        table = self.lua.eval('{%s}' % ','.join('%s=%d' % (c, i) for i, c in enumerate(keys)))
         l = list(table.keys())
         l.sort()
         self.assertEqual(keys, l)
 
     def test_iter_table_keys_int_keys(self):
-        table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
+        table = self.lua.eval('{%s}' % ','.join('[%d]=%d' % (i, -i) for i in range(10)))
         l = list(table.keys())
         l.sort()
         self.assertEqual(list(range(10)), l)
 
     def test_iter_table_values(self):
         keys = list('abcdefg')
-        table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
+        table = self.lua.eval('{%s}' % ','.join('%s=%d' % (c, i) for i, c in enumerate(keys)))
         l = list(table.values())
         l.sort()
         self.assertEqual(list(range(len(keys))), l)
 
     def test_iter_table_values_int_keys(self):
-        table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
+        table = self.lua.eval('{%s}' % ','.join('[%d]=%d' % (i, -i) for i in range(10)))
         l = list(table.values())
         l.sort()
         self.assertEqual(list(range(-9,1)), l)
 
     def test_iter_table_items(self):
         keys = list('abcdefg')
-        table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
+        table = self.lua.eval('{%s}' % ','.join('%s=%d' % (c, i) for i, c in enumerate(keys)))
         l = list(table.items())
         l.sort()
         self.assertEqual(list(zip(keys,range(len(keys)))), l)
 
     def test_iter_table_items_int_keys(self):
-        table = self.lua.eval('{%s}' % ','.join(['[%d]=%d' % (i,-i) for i in range(10) ]))
+        table = self.lua.eval('{%s}' % ','.join('[%d]=%d' % (i, -i) for i in range(10)))
         l = list(table.items())
         l.sort()
         self.assertEqual(list(zip(range(10), range(0,-10,-1))), l)
 
     def test_iter_table_values_mixed(self):
         keys = list('abcdefg')
-        table = self.lua.eval('{98, 99; %s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
+        table = self.lua.eval('{98, 99; %s}' % ','.join('%s=%d' % (c, i) for i, c in enumerate(keys)))
         l = list(table.values())
         l.sort()
         self.assertEqual(list(range(len(keys))) + [98, 99], l)
@@ -1084,7 +1084,7 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
             end
         '''
         count = self.lua.eval(lua_code).coroutine()
-        result = [ count.send(value) for value in ([None]+[True]*9+[False]) ]
+        result = [count.send(value) for value in ([None] + [True] * 9 + [False])]
         self.assertEqual(list(range(10)) + [9], result)
         self.assertRaises(StopIteration, count.send, True)
 
@@ -1099,8 +1099,8 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         count = self.lua.eval(lua_code).coroutine(5)
         result = []
         try:
-            for value in ([None]+list(range(10))):
-                result.append( count.send(value) )
+            for value in ([None] + list(range(10))):
+                result.append(count.send(value))
         except StopIteration:
             pass
         else:
