@@ -233,17 +233,17 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_len_table(self):
         table = self.lua.eval('{1,2,3,4, a=1, b=2, c=3}')
-        self.assertEqual(4, len(table)) # as returned by Lua's "#" operator
+        self.assertEqual(4, len(table))  # as returned by Lua's "#" operator
 
     def test_iter_table(self):
         table = self.lua.eval('{2,3,4,5,6}')
         self.assertEqual([1,2,3,4,5], list(table))
 
-    def test_iter_table_repeat(self):
+    def test_iter_table_list_repeat(self):
         table = self.lua.eval('{2,3,4,5,6}')
-        self.assertEqual([1,2,3,4,5], list(table)) # 1
-        self.assertEqual([1,2,3,4,5], list(table)) # 2
-        self.assertEqual([1,2,3,4,5], list(table)) # 3
+        self.assertEqual([1,2,3,4,5], list(table))  # 1
+        self.assertEqual([1,2,3,4,5], list(table))  # 2
+        self.assertEqual([1,2,3,4,5], list(table))  # 3
 
     def test_iter_array_table_values(self):
         table = self.lua.eval('{2,3,4,5,6}')
@@ -251,30 +251,30 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_iter_array_table_repeat(self):
         table = self.lua.eval('{2,3,4,5,6}')
-        self.assertEqual([2,3,4,5,6], list(table.values())) # 1
-        self.assertEqual([2,3,4,5,6], list(table.values())) # 2
-        self.assertEqual([2,3,4,5,6], list(table.values())) # 3
+        self.assertEqual([2,3,4,5,6], list(table.values()))  # 1
+        self.assertEqual([2,3,4,5,6], list(table.values()))  # 2
+        self.assertEqual([2,3,4,5,6], list(table.values()))  # 3
 
     def test_iter_multiple_tables(self):
         count = 10
-        table_values = [ self.lua.eval('{%s}' % ','.join(map(str, range(2,count+2)))).values()
-                         for _ in range(4) ]
+        table_values = [self.lua.eval('{%s}' % ','.join(map(str, range(2, count+2)))).values()
+                        for _ in range(4)]
 
         # round robin
-        l = [ [] for _ in range(count) ]
+        l = [[] for _ in range(count)]
         for sublist in l:
             for table in table_values:
                 sublist.append(_next(table))
 
-        self.assertEqual([[i]*len(table_values) for i in range(2,count+2)], l)
+        self.assertEqual([[i]*len(table_values) for i in range(2, count+2)], l)
 
     def test_iter_table_repeat(self):
         count = 10
-        table_values = [ self.lua.eval('{%s}' % ','.join(map(str, range(2,count+2)))).values()
-                         for _ in range(4) ]
+        table_values = [self.lua.eval('{%s}' % ','.join(map(str, range(2, count+2)))).values()
+                        for _ in range(4)]
 
         # one table after the other
-        l = [ [] for _ in range(count) ]
+        l = [[] for _ in range(count)]
         for table in table_values:
             for sublist in l:
                 sublist.append(_next(table))
@@ -296,7 +296,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_iter_table_mapping(self):
         keys = list('abcdefg')
-        table = self.lua.eval('{%s}' % ','.join(['%s=%d' % (c,i) for i,c in enumerate(keys)]))
+        table = self.lua.eval('{%s}' % ','.join('%s=%d' % (c, i) for i, c in enumerate(keys)))
         l = list(table)
         l.sort()
         self.assertEqual(keys, l)
