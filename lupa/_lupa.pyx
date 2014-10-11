@@ -429,23 +429,25 @@ cdef class _LuaObject:
             if (<unicode>name).startswith(u'__') and (<unicode>name).endswith(u'__'):
                 return object.__getattr__(self, name)
             name = (<unicode>name).encode(self._runtime._source_encoding)
-        elif isinstance(name, bytes) and (<bytes>name).startswith(b'__') and (<bytes>name).endswith(b'__'):
-            return object.__getattr__(self, name)
-        return self._getitem(name)
+        elif isinstance(name, bytes):
+            if (<bytes>name).startswith(b'__') and (<bytes>name).endswith(b'__'):
+                return object.__getattr__(self, name)
+        return self._getitem(name, is_attr_access=True)
 
     def __getitem__(self, index_or_name):
-        return self._getitem(index_or_name)
+        return self._getitem(index_or_name, is_attr_access=False)
 
     @cython.final
-    cdef _getitem(self, name):
+    cdef _getitem(self, name, bint is_attr_access):
         cdef lua_State* L = self._state
         lock_runtime(self._runtime)
         try:
             self.push_lua_object()
             lua_type = lua.lua_type(L, -1)
-            if lua_type == lua.LUA_TFUNCTION:
+            if lua_type == lua.LUA_TFUNCTION or lua_type == lua.LUA_TTHREAD:
                 lua.lua_pop(L, 1)
-                raise TypeError("item/attribute access not supported on functions")
+                raise (AttributeError if is_attr_access else TypeError)(
+                    "item/attribute access not supported on functions")
             # table[nil] fails, so map None -> python.none for Lua tables
             py_to_lua(self._runtime, L, name, wrap_none=lua_type == lua.LUA_TTABLE)
             lua.lua_gettable(L, -2)

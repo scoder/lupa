@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import threading
+import operator
 import unittest
 import time
 import sys
@@ -946,6 +947,21 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
 
 
 class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_coroutine_object(self):
+        f = self.lua.eval("function(N) coroutine.yield(N) end")
+        gen = f.coroutine(5)
+        self.assertRaises(AttributeError, getattr, gen, '__setitem__')
+        self.assertRaises(AttributeError, setattr, gen, 'send', 5)
+        self.assertRaises(AttributeError, setattr, gen, 'no_such_attribute', 5)
+        self.assertRaises(AttributeError, getattr, gen, 'no_such_attribute')
+        self.assertRaises(AttributeError, gen.__getattr__, 'no_such_attribute')
+
+        self.assertRaises(lupa.LuaError, gen.__call__)
+        self.assertTrue(hasattr(gen.send, '__call__'))
+
+        self.assertRaises(TypeError, operator.itemgetter(1), gen)
+        self.assertRaises(TypeError, gen.__getitem__, 1)
+
     def test_coroutine_iter(self):
         lua_code = '''\
             function(N)

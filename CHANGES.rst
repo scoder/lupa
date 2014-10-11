@@ -1,6 +1,16 @@
 Lupa change log
 ===============
 
+1.0.1 (2014-10-11)
+------------------
+
+* fix a crash when requesting attributes of wrapped Lua coroutine objects
+
+* looking up attributes on Lua objects that do not support it now always
+  raises an AttributeError instead of sometimes raising a TypeError depending
+  on the attribute name
+
+
 1.0 (2014-09-28)
 ----------------
 
