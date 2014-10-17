@@ -38,12 +38,11 @@ class TestLuaRuntimeRefcounting(unittest.TestCase):
         self.assertEqual(1, lua_table[1])
         del lua_table
 
-    def test_refcycles(self):
+    def test_pyfunc_refcycle(self):
         def make_refcycle(runtime):
             def use_runtime():
                 return runtime.eval('1+1')
             runtime.globals()['use_runtime'] = use_runtime
-            runtime.globals()['some_leaky_data'] = list(range(1000))
 
         gc.collect()
         old_count = len(gc.get_objects())
@@ -52,6 +51,24 @@ class TestLuaRuntimeRefcounting(unittest.TestCase):
             make_refcycle(lua)
             self.assertEqual(2, lua.eval('use_runtime()'))
             del lua, i
+        gc.collect()
+        new_count = len(gc.get_objects())
+        self.assertEqual(old_count, new_count)
+
+    def test_attrgetter_refcycle(self):
+        def create_runtime():
+            def get_attr(obj, name):
+                lua.eval('1+1')  # create ref-cycle with runtime
+                return 23
+
+            lua = lupa.LuaRuntime(attribute_handlers=(get_attr, None))
+            assert lua.eval('python.eval.huhu') == 23
+
+        gc.collect()
+        old_count = len(gc.get_objects())
+        for i in range(1000):
+            create_runtime()
+            del i
         gc.collect()
         new_count = len(gc.get_objects())
         self.assertEqual(old_count, new_count)
