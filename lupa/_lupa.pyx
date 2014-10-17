@@ -67,6 +67,7 @@ class LuaSyntaxError(LuaError):
     pass
 
 
+@cython.no_gc_clear
 cdef class LuaRuntime:
     """The main entry point to the Lua runtime.
 
