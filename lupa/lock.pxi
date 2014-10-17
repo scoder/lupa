@@ -59,6 +59,11 @@ cdef inline bint lock_lock(FastRLock lock, long current_thread, bint blocking) n
     # Note that this function *must* hold the GIL when being called.
     # We just use 'nogil' in the signature to make sure that no Python
     # code execution slips in that might free the GIL
+    if lock is None:
+        # This function can sometimes receive a lock that is already
+        # deallocated (e.g. when called from __dealloc__);
+        # return an error in this case.
+        return 0
 
     if lock._count:
         # locked! - by myself?
