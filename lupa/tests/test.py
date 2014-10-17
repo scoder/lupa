@@ -31,32 +31,39 @@ class SetupLuaRuntimeMixin(object):
 
 
 class TestLuaRuntimeRefcounting(unittest.TestCase):
-    def test_runtime_cleanup(self):
-        lua = lupa.LuaRuntime()
-        lua_table = lua.eval('{1,2,3,4}')
-        del lua
-        self.assertEqual(1, lua_table[1])
-        del lua_table
-
-    def test_pyfunc_refcycle(self):
-        def make_refcycle(runtime):
-            def use_runtime():
-                return runtime.eval('1+1')
-            runtime.globals()['use_runtime'] = use_runtime
-
+    def _run_gc_test(self, run_test):
         gc.collect()
         old_count = len(gc.get_objects())
-        for i in range(1000):
-            lua = lupa.LuaRuntime()
-            make_refcycle(lua)
-            self.assertEqual(2, lua.eval('use_runtime()'))
-            del lua, i
+        i = None
+        for i in range(100):
+            run_test()
+        del i
         gc.collect()
         new_count = len(gc.get_objects())
         self.assertEqual(old_count, new_count)
 
+    def test_runtime_cleanup(self):
+        def run_test():
+            lua = lupa.LuaRuntime()
+            lua_table = lua.eval('{1,2,3,4}')
+            del lua
+            self.assertEqual(1, lua_table[1])
+
+        self._run_gc_test(run_test)
+
+    def test_pyfunc_refcycle(self):
+        def make_refcycle():
+            def use_runtime():
+                return lua.eval('1+1')
+
+            lua = lupa.LuaRuntime()
+            lua.globals()['use_runtime'] = use_runtime
+            self.assertEqual(2, lua.eval('use_runtime()'))
+
+        self._run_gc_test(make_refcycle)
+
     def test_attrgetter_refcycle(self):
-        def create_runtime():
+        def make_refcycle():
             def get_attr(obj, name):
                 lua.eval('1+1')  # create ref-cycle with runtime
                 return 23
@@ -64,14 +71,7 @@ class TestLuaRuntimeRefcounting(unittest.TestCase):
             lua = lupa.LuaRuntime(attribute_handlers=(get_attr, None))
             assert lua.eval('python.eval.huhu') == 23
 
-        gc.collect()
-        old_count = len(gc.get_objects())
-        for i in range(1000):
-            create_runtime()
-            del i
-        gc.collect()
-        new_count = len(gc.get_objects())
-        self.assertEqual(old_count, new_count)
+        self._run_gc_test(make_refcycle)
 
 
 class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
