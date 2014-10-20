@@ -164,13 +164,10 @@ def find_lua_build(no_luajit=False):
             print("Did not find %s using pkg-config: %s" % (
                 package_name, sys.exc_info()[1]))
 
-    error = ("Neither LuaJIT2 nor Lua 5.1 were found, please install "
-             "the library and its development packages, "
-             "or put a local build into the lupa main directory")
-    if no_luajit:
-        print(error)
-    else:
-        raise RuntimeError(error + " (or pass '--no-luajit' option)")
+    error = ("None of LuaJIT2, Lua 5.1 or Lua 5.2 were found. Please install "
+             "Lua and its development packages, "
+             "or put a local build into the lupa main directory.")
+    print(error)
     return {}
 
 
