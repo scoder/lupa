@@ -380,6 +380,7 @@ cdef class _LuaObject:
         return True
 
     def __iter__(self):
+        # if not provided, iteration will try item access and call into Lua
         raise TypeError("iteration is only supported for tables")
 
     def __repr__(self):
