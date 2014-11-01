@@ -1,8 +1,18 @@
 language: python
+python: 2.7
 
-before_install:
-  - pip install tox
-  - sudo apt-get install luajit libluajit-5.1-dev
-  - sudo apt-get install python2.5-dev python2.6-dev python2.7-dev python3.1-dev python3.2-dev python3.3-dev
+env:
+- TOXENV=py26 LUA=libluajit-5.1-dev
+- TOXENV=py27 LUA=libluajit-5.1-dev
+- TOXENV=py33 LUA=libluajit-5.1-dev
+- TOXENV=py34 LUA=libluajit-5.1-dev
+- TOXENV=py26 LUA=lua5.2-dev
+- TOXENV=py27 LUA=lua5.2-dev
+- TOXENV=py33 LUA=lua5.2-dev
+- TOXENV=py34 LUA=lua5.2-dev
+
+install:
+- sudo apt-get install $LUA
+- pip install -U tox
 
 script: tox
