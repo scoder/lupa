@@ -18,6 +18,7 @@ cimport cpython.long
 from cpython.ref cimport PyObject
 from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
+from cpython.mapping cimport PyMapping_Check
 from cpython.version cimport PY_VERSION_HEX, PY_MAJOR_VERSION
 
 from libc.stdint cimport uintptr_t
@@ -93,7 +94,7 @@ cdef class LuaRuntime:
       raise an ``AttributeError``.  Note that Lua does not guarantee
       that the names will be strings.
 
-    * ``attribute_handlers``: like ``attribute_filter`` above, but 
+    * ``attribute_handlers``: like ``attribute_filter`` above, but
       handles the getting/setting itself rather than giving hints
       to the LuaRuntime.  This must be a 2-tuple, ``(getter, setter)``
       where ``getter`` has the signature ``func(obj, attr_name)``
@@ -248,20 +249,41 @@ cdef class LuaRuntime:
             unlock_runtime(self)
 
     def table(self, *items, **kwargs):
-        """Creates a new table with the provided items.  Positional
+        """Create a new table with the provided items.  Positional
         arguments are placed in the table in order, keyword arguments
         are set as key-value pairs.
         """
+        return self.table_from(items, kwargs)
+
+    def table_from(self, *args, **kwargs):
+        """Create a new table from Python mapping or iterable.
+
+        table_from() accepts either a dict or an iterable with items.
+        Items from dicts are set as key-value pairs; items from iterables
+        are placed in the table in order.
+
+        If keyword arguments are specified, they are set as key-value pairs.
+
+        Nested dicts / iterables are not supported.
+        """
         assert self._state is not NULL
         cdef lua_State *L = self._state
-        cdef int i
+        cdef int i = 1
         lock_runtime(self)
         try:
-            lua.lua_createtable(L, len(items), len(kwargs))
+            lua.lua_newtable(L)
             # FIXME: how to check for failure?
-            for i, arg in enumerate(items):
-                py_to_lua(self, L, arg)
-                lua.lua_rawseti(L, -2, i+1)
+            for obj in args:
+                if isinstance(obj, dict):
+                    for key, value in obj.iteritems():
+                        py_to_lua(self, L, key)
+                        py_to_lua(self, L, value)
+                        lua.lua_rawset(L, -3)
+                else:
+                    for arg in obj:
+                        py_to_lua(self, L, arg)
+                        lua.lua_rawseti(L, -2, i)
+                        i += 1
             for key, value in kwargs.iteritems():
                 py_to_lua(self, L, key)
                 py_to_lua(self, L, value)
