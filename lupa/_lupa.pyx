@@ -18,7 +18,6 @@ cimport cpython.long
 from cpython.ref cimport PyObject
 from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
-from cpython.mapping cimport PyMapping_Check
 from cpython.version cimport PY_VERSION_HEX, PY_MAJOR_VERSION
 
 from libc.stdint cimport uintptr_t
