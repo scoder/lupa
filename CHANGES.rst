@@ -67,7 +67,7 @@ Lupa change log
 
 
 0.21 (2014-02-12)
-------------------
+-----------------
 
 * some garbage collection issues were cleaned up using new Cython features
 
@@ -92,7 +92,7 @@ Lupa change log
 
 
 0.20 (2011-05-22)
-------------------
+-----------------
 
 * fix "deallocating None" crash while iterating over Lua tables in
   Python code
@@ -104,7 +104,7 @@ Lupa change log
 
 
 0.19 (2011-03-06)
-------------------
+-----------------
 
 * fix serious resource leak when creating multiple LuaRuntime instances
 
@@ -112,7 +112,7 @@ Lupa change log
 
 
 0.18 (2010-11-06)
-------------------
+-----------------
 
 * fix iteration by returning ``Py_None`` object for ``None`` instead
   of ``nil``, which would terminate the iteration
@@ -130,7 +130,7 @@ Lupa change log
 
 
 0.17 (2010-11-05)
-------------------
+-----------------
 
 * new helper function ``python.enumerate()`` in Lua that returns a Lua
   iterator for a Python object and adds the 0-based index to each
@@ -149,7 +149,7 @@ Lupa change log
 
 
 0.16 (2010-09-03)
-------------------
+-----------------
 
 * dropped ``python.as_function()`` helper function for Lua as all
   Python objects are callable from Lua now (potentially raising a
@@ -163,26 +163,26 @@ Lupa change log
 
 
 0.15 (2010-09-02)
-------------------
+-----------------
 
 * support for loading binary Lua modules on systems that support it
 
 
 0.14 (2010-08-31)
-------------------
+-----------------
 
 * relicensed to the MIT license used by LuaJIT2 to simplify licensing
   considerations
 
 
 0.13.1 (2010-08-30)
---------------------
+-------------------
 
 * fix Cython generated C file using Cython 0.13
 
 
 0.13 (2010-08-29)
-------------------
+-----------------
 
 * fixed undefined behaviour on ``str(lua_object)`` when the object's
   ``__tostring()`` meta method fails
@@ -207,7 +207,7 @@ Lupa change log
 
 
 0.12 (2010-08-16)
-------------------
+-----------------
 
 * fix Lua stack leak during table iteration
 
@@ -215,7 +215,7 @@ Lupa change log
 
 
 0.11 (2010-08-07)
-------------------
+-----------------
 
 * error reporting on Lua syntax errors failed to clean up the stack so
   that errors could leak into the next Lua run
@@ -224,7 +224,7 @@ Lupa change log
 
 
 0.10 (2010-07-27)
-------------------
+-----------------
 
 * much faster locking of the LuaRuntime, especially in the single
   threaded case (see
@@ -235,7 +235,7 @@ Lupa change log
 
 
 0.9 (2010-07-23)
------------------
+----------------
 
 * fixed Python special double-underscore method access on LuaObject
   instances
@@ -246,7 +246,7 @@ Lupa change log
 
 
 0.8 (2010-07-21)
------------------
+----------------
 
 * support for returning multiple values from Lua evaluation
 
@@ -259,7 +259,7 @@ Lupa change log
 
 
 0.7 (2010-07-18)
------------------
+----------------
 
 * ``LuaRuntime.require()`` and ``LuaRuntime.globals()`` methods
 
@@ -276,7 +276,7 @@ Lupa change log
 
 
 0.6 (2010-07-18)
------------------
+----------------
 
 * Python iteration support for Lua objects (e.g. tables)
 
@@ -286,14 +286,14 @@ Lupa change log
 
 
 0.5 (2010-07-14)
------------------
+----------------
 
 * explicit encoding options per LuaRuntime instance to decode/encode
   strings and Lua code
 
 
 0.4 (2010-07-14)
------------------
+----------------
 
 * attribute read access on Lua objects, e.g. to read Lua table values
   from Python
@@ -306,7 +306,7 @@ Lupa change log
 
 
 0.3 (2010-07-13)
------------------
+----------------
 
 * fix several threading issues
 
@@ -314,12 +314,12 @@ Lupa change log
 
 
 0.2 (2010-07-13)
------------------
+----------------
 
 * propagate Python exceptions through Lua calls
 
 
 0.1 (2010-07-12)
------------------
+----------------
 
 * first public release

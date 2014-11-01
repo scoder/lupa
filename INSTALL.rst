@@ -1,5 +1,5 @@
 Installing lupa
-================
+===============
 
 Building with LuaJIT2
 ---------------------
