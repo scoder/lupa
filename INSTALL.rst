@@ -1,5 +1,5 @@
 Installing lupa
-================
+===============
 
 Building with LuaJIT2
 ---------------------
@@ -89,3 +89,43 @@ LuaJIT2 nor Lua are found automatically.
 For further information, read this mailing list post:
 
 http://article.gmane.org/gmane.comp.python.lupa.devel/31
+
+
+Installing lupa from packages
+=============================
+
+Debian/Ubuntu + Lua 5.2
+-----------------------
+
+#) Install Lua 5.2 development package::
+
+     $ apt-get install liblua5.2-dev
+
+#) Install lupa::
+
+     $ pip install lupa
+
+Debian/Ubuntu + LuaJIT2
+-----------------------
+
+#) Install LuaJIT2 development package::
+
+     $ apt-get install libluajit-5.1-dev
+
+#) Install lupa::
+
+     $ pip install lupa
+
+Depending on OS version, you might get an older LuaJIT2 version.
+
+OS X + Lua 5.2 + Homebrew
+-------------------------
+
+#) Install Lua::
+
+     $ brew install lua
+
+#) Install lupa::
+
+     $ pip install lupa
+

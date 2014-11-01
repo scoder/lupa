@@ -1,5 +1,5 @@
 Lupa
-=====
+====
 
 Lupa integrates the LuaJIT2_ runtime into CPython.  It is a partial
 rewrite of LunaticPython_ in Cython_ with some additional features
@@ -17,7 +17,7 @@ For questions not answered here, please contact the `Lupa mailing list`_.
 
 
 Major features
----------------
+--------------
 
 * separate Lua runtime states through a ``LuaRuntime`` class
 
@@ -41,7 +41,7 @@ Major features
 
 
 Why the name?
---------------
+-------------
 
 In Latin, "lupa" is a female wolf, as elegant and wild as it sounds.
 If you don't like this kind of straight forward allegory to an
@@ -51,7 +51,7 @@ amalgamation of the phonetic sounds that start the words "Lua" and
 
 
 Why use it?
-------------
+-----------
 
 It complements Python very well.  Lua is a language as dynamic as
 Python, but LuaJIT compiles it to very fast machine code, sometimes
@@ -78,7 +78,7 @@ between simplicity and speed.
 
 
 Examples
----------
+--------
 
 ..
       ## doctest helpers:
@@ -141,7 +141,7 @@ later version of Lupa, it is best to always pass this flag explicitly.
 
 
 Python objects in Lua
-----------------------
+---------------------
 
 Python objects are either converted when passed into Lua (e.g.
 numbers and strings) or passed as wrapped object references.
@@ -226,7 +226,7 @@ indexing in Lua::
 
 
 Iteration in Lua
------------------
+----------------
 
 Iteration over Python objects from Lua's for-loop is fully supported.
 However, Python iterables need to be converted using one of the
@@ -462,7 +462,7 @@ as used by the standard library modules::
 
 
 Lua Coroutines
----------------
+--------------
 
 The next is an example of Lua coroutines.  A wrapped Lua coroutine
 behaves exactly like a Python coroutine.  It needs to get created at
@@ -563,7 +563,7 @@ Python space::
 
 
 Threading
-----------
+---------
 
 The following example calculates a mandelbrot image in parallel
 threads and displays the result in PIL. It is based on a `benchmark
@@ -640,7 +640,7 @@ shared memory setup.
 
 
 Restricting Lua access to Python objects
------------------------------------------
+----------------------------------------
 
 ..
         >>> try: unicode = unicode
@@ -715,7 +715,7 @@ setter function implementations for a ``LuaRuntime``::
 
 
 Importing Lua binary modules
------------------------------
+----------------------------
 
 **This will usually work as is**, but here are the details, in case
 anything goes wrong for you.
