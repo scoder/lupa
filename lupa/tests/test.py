@@ -443,6 +443,21 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
         self.assertEqual(0, len(table))
 
+    def test_table_from_int_keys(self):
+        table = self.lua.table_from({1: 5, 2: 10, "foo": "bar"})
+        self.assertEqual(5, table[1])
+        self.assertEqual(10, table[2])
+        self.assertEqual("bar", table["foo"])
+
+        self.assertEqual(2, len(table))
+
+    # def test_table_from_obj_keys(self):
+    #     key = object()
+    #     table = self.lua.table_from({key: "foo"})
+    #     self.assertEqual("foo", table[key])
+    #
+    #     self.assertEqual(0, len(table))
+
     def test_table_from_list(self):
         table = self.lua.table_from([1,2,5,6])
         self.assertEqual(1, table[1])
