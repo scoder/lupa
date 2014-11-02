@@ -435,6 +435,7 @@ cdef class _LuaObject:
             self.push_lua_object()
             return call_lua(self._runtime, L, args)
         finally:
+            lua.lua_settop(L, 0)
             unlock_runtime(self._runtime)
 
     def __len__(self):
@@ -1142,29 +1143,24 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code):
                 runtime, L, u"error loading code: %s", -1))
         return execute_lua_call(runtime, L, 0)
     finally:
-        # resetting the stack is required in case of a syntax error
-        # above, so we repeat it here even if execute_lua_call() also
-        # does it
         lua.lua_settop(L, old_top)
         unlock_runtime(runtime)
 
 cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
     # does not lock the runtime!
+    # does not clean up the stack!
     push_lua_arguments(runtime, L, args)
     return execute_lua_call(runtime, L, len(args))
 
 cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
     cdef int result_status
-    try:
-        # call into Lua
-        with nogil:
-            result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
-        runtime.reraise_on_exception()
-        if result_status:
-            raise_lua_error(runtime, L, result_status)
-        return unpack_lua_results(runtime, L)
-    finally:
-        lua.lua_settop(L, 0)  # FIXME
+    # call into Lua
+    with nogil:
+        result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
+    runtime.reraise_on_exception()
+    if result_status:
+        raise_lua_error(runtime, L, result_status)
+    return unpack_lua_results(runtime, L)
 
 cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L,
                             tuple args, bint first_may_be_nil=True) except -1:
