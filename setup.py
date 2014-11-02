@@ -253,7 +253,6 @@ setup(
     maintainer="Lupa-dev mailing list",
     maintainer_email="lupa-dev@freelists.org",
     url="https://github.com/scoder/lupa",
-    download_url="http://pypi.python.org/packages/source/l/lupa/lupa-%s.tar.gz" % VERSION,
 
     description="Python wrapper around Lua and LuaJIT",
 
