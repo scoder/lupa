@@ -435,6 +435,114 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
         self.assertEqual(6, len(table))
 
+    def test_table_from_dict(self):
+        table = self.lua.table_from({"foo": 1, "bar": 20, "baz": "spam"})
+        self.assertEqual(     1, table['foo'])
+        self.assertEqual(    20, table['bar'])
+        self.assertEqual("spam", table['baz'])
+
+        self.assertEqual(0, len(table))
+
+    def test_table_from_int_keys(self):
+        table = self.lua.table_from({1: 5, 2: 10, "foo": "bar"})
+        self.assertEqual(5, table[1])
+        self.assertEqual(10, table[2])
+        self.assertEqual("bar", table["foo"])
+
+        self.assertEqual(2, len(table))
+
+    # def test_table_from_obj_keys(self):
+    #     key = object()
+    #     table = self.lua.table_from({key: "foo"})
+    #     self.assertEqual("foo", table[key])
+    #
+    #     self.assertEqual(0, len(table))
+
+    def test_table_from_list(self):
+        table = self.lua.table_from([1,2,5,6])
+        self.assertEqual(1, table[1])
+        self.assertEqual(2, table[2])
+        self.assertEqual(5, table[3])
+        self.assertEqual(6, table[4])
+
+        self.assertEqual(4, len(table))
+
+    def test_table_from_iterable(self):
+        it = (x for x in range(3))
+        table = self.lua.table_from(it)
+        self.assertEqual(0, table[1])
+        self.assertEqual(1, table[2])
+        self.assertEqual(2, table[3])
+
+        self.assertEqual(3, len(table))
+
+    def test_table_from_multiple_dicts(self):
+        table = self.lua.table_from({"a": 1, "b": 2}, {"c": 3, "b": 4})
+        self.assertEqual(1, table["a"])
+        self.assertEqual(4, table["b"])
+        self.assertEqual(3, table["c"])
+
+        self.assertEqual(0, len(table))
+
+    def test_table_from_dicts_and_lists(self):
+        dct, lst = {"a": 1, "b": 2}, ["foo", "bar"]
+        for args in [[dct, lst], [lst, dct]]:
+            table = self.lua.table_from(*args)
+            self.assertEqual(1, table["a"])
+            self.assertEqual(2, table["b"])
+            self.assertEqual("foo", table[1])
+            self.assertEqual("bar", table[2])
+
+            self.assertEqual(2, len(table))
+
+    def test_table_from_multiple_lists(self):
+        table = self.lua.table_from(["foo", "bar"], ["egg", "spam"])
+        self.assertEqual("foo", table[1])
+        self.assertEqual("bar", table[2])
+        self.assertEqual("egg", table[3])
+        self.assertEqual("spam", table[4])
+
+        self.assertEqual(4, len(table))
+
+    def test_table_from_bad(self):
+        self.assertRaises(TypeError, self.lua.table_from, 5)
+        self.assertRaises(TypeError, self.lua.table_from, None)
+        self.assertRaises(TypeError, self.lua.table_from, {"a": 5}, 123)
+
+    # def test_table_from_nested(self):
+    #     table = self.lua.table_from({"obj": {"foo": "bar"}})
+    #     lua_type = self.lua.eval("type")
+    #     self.assertEqual(lua_type(table["obj"]), "table")
+
+    def test_table_from_table(self):
+        table1 = self.lua.eval("{3, 4, foo='bar'}")
+        table2 = self.lua.table_from(table1)
+
+        self.assertEqual(3, table2[1])
+        self.assertEqual(4, table2[2])
+        self.assertEqual("bar", table2["foo"])
+
+        # data should be copied
+        table2["foo"] = "spam"
+        self.assertEqual("spam", table2["foo"])
+        self.assertEqual("bar", table1["foo"])
+
+    def test_table_from_table_iter(self):
+        table1 = self.lua.eval("{3, 4, foo='bar'}")
+        self.assertRaises(NotImplementedError, self.lua.table_from, table1.keys())
+
+        table2 = self.lua.table_from(list(table1.keys()))
+
+        self.assertEqual(len(table2), 3)
+        self.assertEqual(list(table2.keys()), [1, 2, 3])
+        self.assertEqual(set(table2.values()), set([1, 2, "foo"]))
+
+    def test_table_contains(self):
+        table = self.lua.eval("{foo=5}")
+        self.assertTrue("foo" in table)
+        self.assertFalse("bar" in table)
+        self.assertFalse(5 in table)
+
     def test_getattr(self):
         stringlib = self.lua.eval('string')
         self.assertEqual('abc', stringlib.lower('ABC'))

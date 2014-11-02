@@ -28,6 +28,9 @@ cdef extern from *:
 cdef object exc_info
 from sys import exc_info
 
+cdef object Mapping
+from collections import Mapping
+
 __all__ = ['LuaRuntime', 'LuaError', 'LuaSyntaxError',
            'as_itemgetter', 'as_attrgetter', 'lua_type']
 
@@ -124,7 +127,7 @@ cdef class LuaRuntime:
       raise an ``AttributeError``.  Note that Lua does not guarantee
       that the names will be strings.
 
-    * ``attribute_handlers``: like ``attribute_filter`` above, but 
+    * ``attribute_handlers``: like ``attribute_filter`` above, but
       handles the getting/setting itself rather than giving hints
       to the LuaRuntime.  This must be a 2-tuple, ``(getter, setter)``
       where ``getter`` has the signature ``func(obj, attr_name)``
@@ -279,24 +282,63 @@ cdef class LuaRuntime:
             unlock_runtime(self)
 
     def table(self, *items, **kwargs):
-        """Creates a new table with the provided items.  Positional
+        """Create a new table with the provided items.  Positional
         arguments are placed in the table in order, keyword arguments
         are set as key-value pairs.
         """
+        return self.table_from(items, kwargs)
+
+    def table_from(self, *args):
+        """Create a new table from Python mapping or iterable.
+
+        table_from() accepts either a dict/mapping or an iterable with items.
+        Items from dicts are set as key-value pairs; items from iterables
+        are placed in the table in order.
+
+        Nested mappings / iterables are passed to Lua as userdata
+        (wrapped Python objects); they are not converted to Lua tables.
+        """
         assert self._state is not NULL
         cdef lua_State *L = self._state
-        cdef int i
+        cdef int i = 1
         lock_runtime(self)
         try:
-            lua.lua_createtable(L, len(items), len(kwargs))
+            lua.lua_newtable(L)
             # FIXME: how to check for failure?
-            for i, arg in enumerate(items):
-                py_to_lua(self, L, arg)
-                lua.lua_rawseti(L, -2, i+1)
-            for key, value in kwargs.iteritems():
-                py_to_lua(self, L, key)
-                py_to_lua(self, L, value)
-                lua.lua_rawset(L, -3)
+            for obj in args:
+                if isinstance(obj, dict):
+                    for key, value in obj.iteritems():
+                        py_to_lua(self, L, key)
+                        py_to_lua(self, L, value)
+                        lua.lua_rawset(L, -3)
+
+                elif isinstance(obj, _LuaTable):
+                    # Stack:                            # tbl
+                    (<_LuaObject>obj).push_lua_object() # tbl, obj
+                    lua.lua_pushnil(L)                  # tbl, obj, nil       // iterate over obj (-2)
+                    while lua.lua_next(L, -2):          # tbl, obj, k, v
+                        lua.lua_pushvalue(L, -2)        # tbl, obj, k, v, k   // copy key (because
+                        lua.lua_insert(L, -2)           # tbl, obj, k, k, v   // lua_next needs a key for iteration)
+                        lua.lua_settable(L, -5)         # tbl, obj, k         // tbl[k] = v
+                    lua.lua_pop(L, 1)                   # tbl                 // remove obj from stack
+
+                elif isinstance(obj, _LuaIter):
+                    raise NotImplementedError(
+                        "Please convert table items/keys/values to a list "
+                        "before passing them to LuaRuntime.table_from()"
+                    )
+
+                elif isinstance(obj, Mapping):
+                    for key in obj:
+                        value = obj[key]
+                        py_to_lua(self, L, key)
+                        py_to_lua(self, L, value)
+                        lua.lua_rawset(L, -3)
+                else:
+                    for arg in obj:
+                        py_to_lua(self, L, arg)
+                        lua.lua_rawseti(L, -2, i)
+                        i += 1
             return py_from_lua(self, L, -1)
         finally:
             lua.lua_settop(L, 0)
