@@ -1029,7 +1029,7 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
     if result == 0:
         return 0
     elif result == lua.LUA_ERRMEM:
-        cpython.exc.PyErr_NoMemory()
+        raise MemoryError()
     else:
         raise LuaError( build_lua_error_message(runtime, L, None, -1) )
 
