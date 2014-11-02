@@ -223,19 +223,13 @@ if cythonize is not None:
 
 
 def read_file(filename):
-    f = open(os.path.join(basedir, filename))
-    try:
+    with open(os.path.join(basedir, filename)) as f:
         return f.read()
-    finally:
-        f.close()
 
 
 def write_file(filename, content):
-    f = open(os.path.join(basedir, filename), 'w')
-    try:
+    with open(os.path.join(basedir, filename), 'w') as f:
         f.write(content)
-    finally:
-        f.close()
 
 
 long_description = '\n\n'.join([
