@@ -514,6 +514,25 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     #     lua_type = self.lua.eval("type")
     #     self.assertEqual(lua_type(table["obj"]), "table")
 
+    # def test_table_from_table(self):
+    #     table1 = self.lua.eval("{3, 4, foo='bar'}")
+    #     table2 = self.lua.table_from(table1)
+    #
+    #     self.assertEqual(3, table2[1])
+    #     self.assertEqual(4, table2[2])
+    #     self.assertEqual("bar", table2["foo"])
+    #
+    #     # data should be copied
+    #     table2["foo"] = "spam"
+    #     self.assertEqual("spam", table2["foo"])
+    #     self.assertEqual("bar", table1["foo"])
+
+    def test_table_contains(self):
+        table = self.lua.eval("{foo=5}")
+        self.assertTrue("foo" in table)
+        self.assertFalse("bar" in table)
+        self.assertFalse(5 in table)
+
     def test_getattr(self):
         stringlib = self.lua.eval('string')
         self.assertEqual('abc', stringlib.lower('ABC'))
