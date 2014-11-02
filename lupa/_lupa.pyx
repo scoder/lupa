@@ -29,7 +29,7 @@ cdef object exc_info
 from sys import exc_info
 
 __all__ = ['LuaRuntime', 'LuaError', 'LuaSyntaxError',
-           'as_itemgetter', 'as_attrgetter']
+           'as_itemgetter', 'as_attrgetter', 'lua_type']
 
 cdef object builtins
 try:
@@ -65,6 +65,29 @@ class LuaSyntaxError(LuaError):
     """Syntax error in Lua code.
     """
     pass
+
+
+def lua_type(obj):
+    """
+    Return the Lua type name of a wrapped object as string, as provided
+    by Lua's type() function.
+
+    For non-wrapper objects (i.e. normal Python objects), returns None.
+    """
+    if not isinstance(obj, _LuaObject):
+        return None
+    lua_object = <_LuaObject>obj
+    assert lua_object._runtime is not None
+    L = lua_object._state
+    lock_runtime(lua_object._runtime)
+    cdef const char* lua_type_name
+    try:
+        lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, lua_object._ref)
+        lua_type_name = lua.lua_typename(L, lua.lua_type(L, -1))
+        return lua_type_name.decode('ascii') if PY_MAJOR_VERSION >= 3 else lua_type_name
+    finally:
+        lua.lua_settop(L, 0)
+        unlock_runtime(lua_object._runtime)
 
 
 @cython.no_gc_clear

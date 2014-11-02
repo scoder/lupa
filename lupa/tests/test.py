@@ -650,6 +650,23 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         function = lua.eval('function(obj) return obj.a end')
         self.assertEqual(function(x), 1)
 
+    def test_lua_type(self):
+        x = self.lua.eval('{}')
+        self.assertEqual('table', lupa.lua_type(x))
+
+        x = self.lua.eval('function() return 1 end')
+        self.assertEqual('function', lupa.lua_type(x))
+
+        x = self.lua.eval('function() coroutine.yield(1) end')
+        self.assertEqual('function', lupa.lua_type(x))
+        self.assertEqual('thread', lupa.lua_type(x.coroutine()))
+
+        self.assertEqual(None, lupa.lua_type(1))
+        self.assertEqual(None, lupa.lua_type(1.1))
+        self.assertEqual(None, lupa.lua_type('abc'))
+        self.assertEqual(None, lupa.lua_type(lupa))
+        self.assertEqual(None, lupa.lua_type(lupa.lua_type))
+
 
 class TestAttributeHandlers(unittest.TestCase):
     def setUp(self):
