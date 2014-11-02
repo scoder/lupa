@@ -254,16 +254,15 @@ cdef class LuaRuntime:
         """
         return self.table_from(items, kwargs)
 
-    def table_from(self, *args, **kwargs):
+    def table_from(self, *args):
         """Create a new table from Python mapping or iterable.
 
-        table_from() accepts either a dict or an iterable with items.
+        table_from() accepts either a dict/mapping or an iterable with items.
         Items from dicts are set as key-value pairs; items from iterables
         are placed in the table in order.
 
-        If keyword arguments are specified, they are set as key-value pairs.
-
-        Nested dicts / iterables are not supported.
+        Nested mappings / iterables are passed to Lua as userdata
+        (wrapped Python objects); they are not converted to Lua tables.
         """
         assert self._state is not NULL
         cdef lua_State *L = self._state
@@ -283,10 +282,6 @@ cdef class LuaRuntime:
                         py_to_lua(self, L, arg)
                         lua.lua_rawseti(L, -2, i)
                         i += 1
-            for key, value in kwargs.iteritems():
-                py_to_lua(self, L, key)
-                py_to_lua(self, L, value)
-                lua.lua_rawset(L, -3)
             return py_from_lua(self, L, -1)
         finally:
             lua.lua_settop(L, 0)

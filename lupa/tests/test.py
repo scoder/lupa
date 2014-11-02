@@ -489,24 +489,6 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
         self.assertEqual(4, len(table))
 
-    def test_table_from_kwargs(self):
-        table = self.lua.table_from(foo=1, bar=20, baz="spam")
-        self.assertEqual(     1, table['foo'])
-        self.assertEqual(    20, table['bar'])
-        self.assertEqual("spam", table['baz'])
-
-        self.assertEqual(0, len(table))
-
-    def test_table_from_dict_list_kwargs(self):
-        table = self.lua.table_from({"a": 1, "b": 2}, ["foo", "bar"], c=3, b=5)
-        self.assertEqual(1, table["a"])
-        self.assertEqual(5, table["b"])
-        self.assertEqual(3, table["c"])
-        self.assertEqual("foo", table[1])
-        self.assertEqual("bar", table[2])
-
-        self.assertEqual(2, len(table))
-
     def test_table_from_bad(self):
         self.assertRaises(TypeError, self.lua.table_from, 5)
         self.assertRaises(TypeError, self.lua.table_from, None)
