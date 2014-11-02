@@ -242,9 +242,6 @@ if config.get('libfile'):
     # include lua51.dll in the lib folder if we are on windows
     extra_setup_args['package_data'] = {'lupa': [config['libfile']]}
 
-if sys.version_info >= (2, 6):
-    extra_setup_args['license'] = 'MIT style'
-
 
 # call distutils
 
@@ -261,6 +258,7 @@ setup(
     description="Python wrapper around Lua and LuaJIT",
 
     long_description=long_description,
+    license='MIT style',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
