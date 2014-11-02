@@ -83,8 +83,18 @@ def lua_type(obj):
     cdef const char* lua_type_name
     try:
         lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, lua_object._ref)
-        lua_type_name = lua.lua_typename(L, lua.lua_type(L, -1))
-        return lua_type_name.decode('ascii') if PY_MAJOR_VERSION >= 3 else lua_type_name
+        ltype = lua.lua_type(L, -1)
+        if ltype == lua.LUA_TTABLE:
+            return 'table'
+        elif ltype == lua.LUA_TFUNCTION:
+            return 'function'
+        elif ltype == lua.LUA_TTHREAD:
+            return 'thread'
+        elif ltype in (lua.LUA_TUSERDATA, lua.LUA_TLIGHTUSERDATA):
+            return 'userdata'
+        else:
+            lua_type_name = lua.lua_typename(L, ltype)
+            return lua_type_name.decode('ascii') if PY_MAJOR_VERSION >= 3 else lua_type_name
     finally:
         lua.lua_settop(L, 0)
         unlock_runtime(lua_object._runtime)
