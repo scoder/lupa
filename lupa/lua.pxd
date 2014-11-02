@@ -177,7 +177,7 @@ cdef extern from "lua.h" nogil:
     # some useful macros
     # ===============================================================
 
-    void lua_pop(lua_State *L, int idx)  # lua_settop(L, -(n)-1)
+    void lua_pop(lua_State *L, int n)    # lua_settop(L, -(n)-1)
     void lua_newtable(lua_State *L)      # lua_createtable(L, 0, 0)
     void  lua_register(lua_State *L, char* n, lua_CFunction f) # (lua_pushcfunction(L, (f)), lua_setglobal(L, (n)))
     void lua_pushcfunction(lua_State *L, lua_CFunction fn) # lua_pushcclosure(L, (f), 0)
