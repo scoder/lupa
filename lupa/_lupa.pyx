@@ -1170,9 +1170,10 @@ cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L,
                             tuple args, bint first_may_be_nil=True) except -1:
     cdef int i
     if args:
+        old_top = lua.lua_gettop(L)
         for i, arg in enumerate(args):
             if not py_to_lua(runtime, L, arg, wrap_none=not first_may_be_nil):
-                lua.lua_settop(L, 0)  # FIXME
+                lua.lua_settop(L, old_top)
                 raise TypeError("failed to convert argument at index %d" % i)
             first_may_be_nil = True
     return 0
@@ -1532,12 +1533,13 @@ cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with 
 cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags,
                           lua.lua_Number initial_value):
     # Lua needs three values: iterator C function + state + control variable (last iter) value
+    old_top = lua.lua_gettop(L)
     lua.lua_pushcfunction(L, <lua.lua_CFunction>py_iter_next)
     # push the wrapped iterator object as for-loop state object
     if runtime._unpack_returned_tuples:
         type_flags |= OBJ_UNPACK_TUPLE
     if py_to_lua_custom(runtime, L, iterator, type_flags) < 1:
-        lua.lua_settop(L, 0)  # FIXME
+        lua.lua_settop(L, old_top)
         return -1
     # push either enumerator index or nil as control variable value
     if type_flags & OBJ_ENUMERATOR:
