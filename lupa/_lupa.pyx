@@ -1,4 +1,4 @@
-# cython: embedsignature=True
+# cython: embedsignature=True, binding=True
 
 """
 A fast Python wrapper around Lua and LuaJIT2.
