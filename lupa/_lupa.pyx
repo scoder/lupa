@@ -275,7 +275,12 @@ cdef class LuaRuntime:
             lua.lua_newtable(L)
             # FIXME: how to check for failure?
             for obj in args:
-                if isinstance(obj, Mapping):
+                if isinstance(obj, dict):
+                    for key, value in obj.iteritems():
+                        py_to_lua(self, L, key)
+                        py_to_lua(self, L, value)
+                        lua.lua_rawset(L, -3)
+                elif isinstance(obj, Mapping):
                     for key in obj:
                         value = obj[key]
                         py_to_lua(self, L, key)
