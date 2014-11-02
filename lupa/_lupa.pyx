@@ -28,6 +28,9 @@ cdef extern from *:
 cdef object exc_info
 from sys import exc_info
 
+cdef object Mapping
+from collections import Mapping
+
 __all__ = ['LuaRuntime', 'LuaError', 'LuaSyntaxError',
            'as_itemgetter', 'as_attrgetter']
 
@@ -272,8 +275,9 @@ cdef class LuaRuntime:
             lua.lua_newtable(L)
             # FIXME: how to check for failure?
             for obj in args:
-                if isinstance(obj, dict):
-                    for key, value in obj.iteritems():
+                if isinstance(obj, Mapping):
+                    for key in obj:
+                        value = obj[key]
                         py_to_lua(self, L, key)
                         py_to_lua(self, L, value)
                         lua.lua_rawset(L, -3)
