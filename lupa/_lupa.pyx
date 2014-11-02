@@ -58,13 +58,11 @@ include "lock.pxi"
 class LuaError(Exception):
     """Base class for errors in the Lua runtime.
     """
-    pass
 
 
 class LuaSyntaxError(LuaError):
     """Syntax error in Lua code.
     """
-    pass
 
 
 def lua_type(obj):
