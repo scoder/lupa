@@ -664,6 +664,8 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(None, lupa.lua_type(1))
         self.assertEqual(None, lupa.lua_type(1.1))
         self.assertEqual(None, lupa.lua_type('abc'))
+        self.assertEqual(None, lupa.lua_type({}))
+        self.assertEqual(None, lupa.lua_type([]))
         self.assertEqual(None, lupa.lua_type(lupa))
         self.assertEqual(None, lupa.lua_type(lupa.lua_type))
 

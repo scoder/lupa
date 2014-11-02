@@ -109,6 +109,25 @@ Examples
       >>> lua.eval('python.builtins.str(4)') == '4'
       True
 
+The function ``lua_type(obj)`` can be used to find out the type of a
+wrapped Lua object in Python code, as provided by Lua's ``type()``
+function::
+
+      >>> lupa.lua_type(lua_func)
+      'function'
+      >>> lupa.lua_type(lua.eval('{}'))
+      'table'
+
+To help in distinguishing between wrapped Lua objects and normal
+Python objects, it returns ``None`` for the latter::
+
+      >>> lupa.lua_type(123) is None
+      True
+      >>> lupa.lua_type('abc') is None
+      True
+      >>> lupa.lua_type({}) is None
+      True
+
 Note the flag ``unpack_returned_tuples=True`` that is passed to create
 the Lua runtime.  It is new in Lupa 0.21 and changes the behaviour of
 tuples that get returned by Python functions.  With this flag, they
@@ -148,20 +167,20 @@ numbers and strings) or passed as wrapped object references.
 
 ::
 
-      >>> lua_type = lua.globals().type     # Lua's type() function
-      >>> lua_type(1) == 'number'
+      >>> wrapped_type = lua.globals().type     # Lua's own type() function
+      >>> wrapped_type(1) == 'number'
       True
-      >>> lua_type('abc') == 'string'
+      >>> wrapped_type('abc') == 'string'
       True
 
 Wrapped Lua objects get unwrapped when they are passed back into Lua,
 and arbitrary Python objects get wrapped in different ways::
 
-      >>> lua_type(lua_type) == 'function'  # unwrapped Lua function
+      >>> wrapped_type(wrapped_type) == 'function'  # unwrapped Lua function
       True
-      >>> lua_type(eval) == 'userdata'      # wrapped Python function
+      >>> wrapped_type(len) == 'userdata'       # wrapped Python function
       True
-      >>> lua_type([]) == 'userdata'        # wrapped Python object
+      >>> wrapped_type([]) == 'userdata'        # wrapped Python object
       True
 
 Lua supports two main protocols on objects: calling and indexing.  It
