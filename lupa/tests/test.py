@@ -529,13 +529,27 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_table_from_table_iter(self):
         table1 = self.lua.eval("{3, 4, foo='bar'}")
-        self.assertRaises(NotImplementedError, self.lua.table_from, table1.keys())
-
-        table2 = self.lua.table_from(list(table1.keys()))
+        table2 = self.lua.table_from(table1.keys())
 
         self.assertEqual(len(table2), 3)
         self.assertEqual(list(table2.keys()), [1, 2, 3])
         self.assertEqual(set(table2.values()), set([1, 2, "foo"]))
+
+    def test_table_from_table_iter_indirect(self):
+        table1 = self.lua.eval("{3, 4, foo='bar'}")
+        table2 = self.lua.table_from(k for k in table1.keys())
+
+        self.assertEqual(len(table2), 3)
+        self.assertEqual(list(table2.keys()), [1, 2, 3])
+        self.assertEqual(set(table2.values()), set([1, 2, "foo"]))
+
+    # FIXME: it segfaults
+    # def test_table_from_generator_calling_lua_functions(self):
+    #     func = self.lua.eval("function (obj) return obj end")
+    #     table = self.lua.table_from(func(obj) for obj in ["foo", "bar"])
+    #
+    #     self.assertEqual(len(table), 2)
+    #     self.assertEqual(set(table.values()), set(["foo", "bar"]))
 
     def test_table_contains(self):
         table = self.lua.eval("{foo=5}")
