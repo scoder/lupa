@@ -280,6 +280,23 @@ cdef class LuaRuntime:
                         py_to_lua(self, L, key)
                         py_to_lua(self, L, value)
                         lua.lua_rawset(L, -3)
+
+                elif isinstance(obj, _LuaTable):
+                    # Stack:                            # tbl
+                    (<_LuaObject>obj).push_lua_object() # tbl, obj
+                    lua.lua_pushnil(L)                  # tbl, obj, nil       // iterate over obj (-2)
+                    while lua.lua_next(L, -2):          # tbl, obj, k, v
+                        lua.lua_pushvalue(L, -2)        # tbl, obj, k, v, k   // copy key (because
+                        lua.lua_insert(L, -2)           # tbl, obj, k, k, v   // lua_next needs a key for iteration)
+                        lua.lua_settable(L, -5)         # tbl, obj, k         // tbl[k] = v
+                    lua.lua_pop(L, 1)                   # tbl                 // remove obj from stack
+
+                elif isinstance(obj, _LuaIter):
+                    raise NotImplementedError(
+                        "Please convert table items/keys/values to a list "
+                        "before passing them to LuaRuntime.table_from()"
+                    )
+
                 elif isinstance(obj, Mapping):
                     for key in obj:
                         value = obj[key]

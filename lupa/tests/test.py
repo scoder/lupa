@@ -514,18 +514,28 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     #     lua_type = self.lua.eval("type")
     #     self.assertEqual(lua_type(table["obj"]), "table")
 
-    # def test_table_from_table(self):
-    #     table1 = self.lua.eval("{3, 4, foo='bar'}")
-    #     table2 = self.lua.table_from(table1)
-    #
-    #     self.assertEqual(3, table2[1])
-    #     self.assertEqual(4, table2[2])
-    #     self.assertEqual("bar", table2["foo"])
-    #
-    #     # data should be copied
-    #     table2["foo"] = "spam"
-    #     self.assertEqual("spam", table2["foo"])
-    #     self.assertEqual("bar", table1["foo"])
+    def test_table_from_table(self):
+        table1 = self.lua.eval("{3, 4, foo='bar'}")
+        table2 = self.lua.table_from(table1)
+
+        self.assertEqual(3, table2[1])
+        self.assertEqual(4, table2[2])
+        self.assertEqual("bar", table2["foo"])
+
+        # data should be copied
+        table2["foo"] = "spam"
+        self.assertEqual("spam", table2["foo"])
+        self.assertEqual("bar", table1["foo"])
+
+    def test_table_from_table_iter(self):
+        table1 = self.lua.eval("{3, 4, foo='bar'}")
+        self.assertRaises(NotImplementedError, self.lua.table_from, table1.keys())
+
+        table2 = self.lua.table_from(list(table1.keys()))
+
+        self.assertEqual(len(table2), 3)
+        self.assertEqual(list(table2.keys()), [1, 2, 3])
+        self.assertEqual(set(table2.values()), set([1, 2, "foo"]))
 
     def test_table_contains(self):
         table = self.lua.eval("{foo=5}")
