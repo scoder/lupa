@@ -650,6 +650,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         function = lua.eval('function(obj) return obj.a end')
         self.assertEqual(function(x), 1)
 
+
 class TestAttributeHandlers(unittest.TestCase):
     def setUp(self):
         self.lua = lupa.LuaRuntime()
@@ -825,7 +826,12 @@ class TestAttributeHandlers(unittest.TestCase):
 
 class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_explicit_python_function(self):
-        lua_func = self.lua.eval('function(func) t = {1, 5, 2, 4, 3}; table.sort(t, python.as_function(func)); return t end')
+        lua_func = self.lua.eval(
+            'function(func)'
+            ' t = {1, 5, 2, 4, 3};'
+            ' table.sort(t, python.as_function(func));'
+            ' return t end')
+
         def compare(a, b):
             return a < b
         self.assertEqual([1, 2, 3, 4, 5], list(lua_func(compare)))
@@ -838,6 +844,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_pyobject_wrapping_callable(self):
         lua_type = self.lua.eval('type')
         lua_get_call = self.lua.eval('function(obj) return getmetatable(obj).__call end')
+
         class Callable(object):
             def __call__(self): pass
             def __getitem__(self, item): pass
@@ -848,6 +855,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_pyobject_wrapping_getitem(self):
         lua_type = self.lua.eval('type')
         lua_get_index = self.lua.eval('function(obj) return getmetatable(obj).__index end')
+
         class GetItem(object):
             def __getitem__(self, item): pass
 
@@ -857,6 +865,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_pyobject_wrapping_getattr(self):
         lua_type = self.lua.eval('type')
         lua_get_index = self.lua.eval('function(obj) return getmetatable(obj).__index end')
+
         class GetAttr(object):
             pass
 
