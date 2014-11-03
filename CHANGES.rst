@@ -5,7 +5,10 @@ Latest changes
 --------------
 
 * new module function ``lupa.lua_type()`` that returns the Lua type of
-  a wrapped object as string, or ``None`` for normal Python objects.
+  a wrapped object as string, or ``None`` for normal Python objects
+
+* new helper method ``LuaRuntime.table_from(...)`` that creates a Lua
+  table from one or more Python mappings and/or sequences
 
 
 1.0.1 (2014-10-11)
