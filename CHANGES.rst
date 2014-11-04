@@ -10,7 +10,9 @@ Latest changes
 * new helper method ``LuaRuntime.table_from(...)`` that creates a Lua
   table from one or more Python mappings and/or sequences
 
-* fix a hang on shutdown (LuaRuntime deallocation issue)
+* fix a hang on shutdown where the LuaRuntime failed to deallocate due
+  to reference cycles
+
 
 1.0.1 (2014-10-11)
 ------------------
