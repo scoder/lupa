@@ -429,7 +429,36 @@ for plain array tables.
       >>> sorted(mapping.items())
       [(-3, 3), (3, -3), (20, -20)]
 
-A lookup of nonexisting keys or indices returns None (actually ``nil``
+To simplify the table creation from Python, the ``LuaRuntime`` comes with
+a helper method that creates a Lua table from Python arguments::
+
+      >>> t = lua.table(1, 2, 3, 4)
+      >>> lupa.lua_type(t)
+      'table'
+      >>> list(t)
+      [1, 2, 3, 4]
+
+      >>> t = lua.table(1, 2, 3, 4, a=1, b=2)
+      >>> t[3]
+      3
+      >>> t['b']
+      2
+
+A second helper method, ``.table_from()``, is new in Lupa 0.22 and accepts
+any number of mappings and sequences/iterables as arguments.  It collects
+all values and key-value pairs and builds a single Lua table from them.
+Any keys that appear in multiple mappings get overwritten with their last
+value (going from left to right).
+
+::
+
+      >>> t = lua.table_from([1, 2, 3], {'a': 1, 'b': 2}, (4, 5), {'b': 42})
+      >>> t['b']
+      42
+      >>> t[5]
+      5
+
+A lookup of non-existing keys or indices returns None (actually ``nil``
 inside of Lua).  A lookup is therefore more similar to the ``.get()``
 method of Python dicts than to a mapping lookup in Python.
 
