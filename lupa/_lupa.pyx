@@ -12,9 +12,7 @@ cimport cython
 from lupa cimport lua
 from .lua cimport lua_State
 
-cimport cpython
 cimport cpython.ref
-cimport cpython.bytes
 cimport cpython.tuple
 cimport cpython.float
 cimport cpython.long
@@ -22,6 +20,7 @@ from cpython.ref cimport PyObject
 from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
 from cpython.version cimport PY_MAJOR_VERSION
+from cpython.bytes cimport PyBytes_FromFormat
 
 from libc.stdint cimport uintptr_t
 
@@ -556,10 +555,10 @@ cdef object lua_object_repr(lua_State* L, encoding):
     else:
         ptr = NULL
     if ptr:
-        py_bytes = cpython.bytes.PyBytes_FromFormat(
+        py_bytes = PyBytes_FromFormat(
             "<Lua %s at %p>", lua.lua_typename(L, lua_type), ptr)
     else:
-        py_bytes = cpython.bytes.PyBytes_FromFormat(
+        py_bytes = PyBytes_FromFormat(
             "<Lua %s>", lua.lua_typename(L, lua_type))
     try:
         return py_bytes.decode(encoding)
@@ -873,7 +872,7 @@ cdef class _LuaIter:
                 if lua.lua_isnil(L, -1):
                     lua.lua_pop(L, 1)
                     raise LuaError("lost reference")
-                raise TypeError(cpython.bytes.PyBytes_FromFormat(
+                raise TypeError(PyBytes_FromFormat(
                     "cannot iterate over non-table (found Lua %s)",
                     lua.lua_typename(L, lua.lua_type(L, -1))))
             if not self._refiter:
