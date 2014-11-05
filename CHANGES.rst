@@ -13,6 +13,9 @@ Latest changes
 * fix a hang on shutdown where the LuaRuntime failed to deallocate due
   to reference cycles
 
+* made Lupa play nicely with other Lua extensions that create userdata
+  objects
+
 
 1.0.1 (2014-10-11)
 ------------------

@@ -909,8 +909,8 @@ cdef class _LuaIter:
 # type conversions and protocol adaptations
 
 cdef int py_asfunc_call(lua_State *L) nogil:
-    if lua.lua_gettop(L) == 1 and lua.lua_islightuserdata(L, 1) \
-       and lua.lua_topointer(L, 1) == <void*>unpack_wrapped_pyfunction:
+    if (lua.lua_gettop(L) == 1 and lua.lua_islightuserdata(L, 1)
+            and lua.lua_topointer(L, 1) == <void*>unpack_wrapped_pyfunction):
         # special case: unwrap_lua_object() calls this to find out the Python object
         lua.lua_pushvalue(L, lua.lua_upvalueindex(1))
         return 1
@@ -924,7 +924,7 @@ cdef py_object* unpack_wrapped_pyfunction(lua_State* L, int n) nogil:
         lua.lua_pushvalue(L, n)
         lua.lua_pushlightuserdata(L, <void*>unpack_wrapped_pyfunction)
         if lua.lua_pcall(L, 1, 1, 0) == 0:
-            return <py_object*> lua.luaL_checkudata(L, -1, POBJECT) # doesn't return on error!
+            return unpack_userdata(L, -1)
     return NULL
 
 
@@ -953,6 +953,10 @@ def as_itemgetter(obj):
     return wrap
 
 cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
+    """
+    Convert a Lua object to a Python object by either mapping, wrapping
+    or unwrapping it.
+    """
     cdef size_t size = 0
     cdef const_char_ptr s
     cdef lua.lua_Number number
@@ -976,7 +980,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TBOOLEAN:
         return lua.lua_toboolean(L, n)
     elif lua_type == lua.LUA_TUSERDATA:
-        py_obj = <py_object*>lua.luaL_checkudata(L, n, POBJECT) # FIXME: doesn't return on error!
+        py_obj = unpack_userdata(L, n)
         if py_obj:
             return <object>py_obj.obj
     elif lua_type == lua.LUA_TTABLE:
@@ -989,6 +993,21 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
             return <object>py_obj.obj
         return new_lua_function(runtime, L, n)
     return new_lua_object(runtime, L, n)
+
+cdef py_object* unpack_userdata(lua_State *L, int n) nogil:
+    """
+    Like luaL_checkudata(), unpacks a userdata object and validates that
+    it's a wrapped Python object.  Returns NULL on failure.
+    """
+    p = lua.lua_touserdata(L, n)
+    if p and lua.lua_getmetatable(L, n):
+        # found userdata with metatable - the one we expect?
+        lua.luaL_getmetatable(L, POBJECT)
+        if lua.lua_rawequal(L, -1, -2):
+            lua.lua_pop(L, 2)
+            return <py_object*>p
+        lua.lua_pop(L, 2)
+    return NULL
 
 cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) except -1:
      if runtime._unpack_returned_tuples and isinstance(o, tuple):
@@ -1232,7 +1251,7 @@ cdef int decref_with_gil(py_object *py_obj) with gil:
 cdef int py_object_gc(lua_State* L) nogil:
     if not lua.lua_isuserdata(L, 1):
         return 0
-    cdef py_object* py_obj = <py_object*> lua.luaL_checkudata(L, 1, POBJECT) # doesn't return on error!
+    py_obj = unpack_userdata(L, 1)
     if py_obj is not NULL and py_obj.obj is not NULL:
         if decref_with_gil(py_obj):
             return lua.luaL_error(L, 'error while cleaning up a Python object')  # never returns!
@@ -1440,7 +1459,7 @@ cdef inline py_object* unpack_single_python_argument_or_jump(lua_State* L) nogil
 
 cdef py_object* unwrap_lua_object(lua_State* L, int n) nogil:
     if lua.lua_isuserdata(L, n):
-        return <py_object*> lua.luaL_checkudata(L, n, POBJECT) # doesn't return on error!
+        return unpack_userdata(L, n)
     else:
         return unpack_wrapped_pyfunction(L, n)
 
