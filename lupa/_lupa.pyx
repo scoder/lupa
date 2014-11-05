@@ -4,10 +4,13 @@
 A fast Python wrapper around Lua and LuaJIT2.
 """
 
+from __future__ import absolute_import
+
 cimport cython
 
-cimport lua
-from lua cimport lua_State
+
+from lupa cimport lua
+from .lua cimport lua_State
 
 cimport cpython
 cimport cpython.ref
