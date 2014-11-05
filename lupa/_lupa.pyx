@@ -872,9 +872,7 @@ cdef class _LuaIter:
                 if lua.lua_isnil(L, -1):
                     lua.lua_pop(L, 1)
                     raise LuaError("lost reference")
-                raise TypeError(PyBytes_FromFormat(
-                    "cannot iterate over non-table (found Lua %s)",
-                    lua.lua_typename(L, lua.lua_type(L, -1))))
+                raise TypeError("cannot iterate over non-table (found %r)" % self._obj)
             if not self._refiter:
                 # initial key
                 lua.lua_pushnil(L)
