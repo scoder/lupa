@@ -444,7 +444,7 @@ a helper method that creates a Lua table from Python arguments::
       >>> t['b']
       2
 
-A second helper method, ``.table_from()``, is new in Lupa 0.22 and accepts
+A second helper method, ``.table_from()``, is new in Lupa 1.1 and accepts
 any number of mappings and sequences/iterables as arguments.  It collects
 all values and key-value pairs and builds a single Lua table from them.
 Any keys that appear in multiple mappings get overwritten with their last
