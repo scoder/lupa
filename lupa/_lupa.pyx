@@ -393,9 +393,10 @@ def unpacks_lua_table(func):
     WARNING: avoid using this decorator for functions which
     first argument can be a Lua table.
 
-    WARNING: be careful with parameter default values and Lua ``nil``:
-    depending on context, passing ``nil`` could mean either
-    "omit a parameter" or "pass None".
+    WARNING: be careful with ``nil`` values: depending on context,
+    passing ``nil`` as a parameter could mean either "omit a parameter"
+    or "pass None"; it also depends on Lua version. It is possible to use
+    ``python.none`` instead of ``nil`` to pass None values robustly.
     """
     def wrapper(*args):
         args, kwargs = _fix_args_kwargs(args)

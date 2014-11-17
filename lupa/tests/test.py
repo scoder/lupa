@@ -2033,17 +2033,11 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_posargs_nil(self):
         self.assertResult(self.arg3, "(5, nil, 6)", "x=5, y=None, z=6")
 
-    def test_posargs_nil_last(self):
-        self.assertResult(self.arg3, "(5, nil, nil)", "x=5, y=None, z=None")
-
-    def test_posargs_kwargs_nil(self):
-        self.assertResult(self.arg3, "{5, nil, 6}", "x=5, y=None, z=6")
-
     def test_posargs_nil_first(self):
         self.assertResult(self.arg3, "(nil, nil, 6)", "x=None, y=None, z=6")
 
-    def test_posargs_kwargs_nil_first(self):
-        self.assertResult(self.arg3, "{nil, nil, 6}", "x=None, y=None, z=6")
+    def test_posargs_nil_last(self):
+        self.assertResult(self.arg3, "(5, nil, nil)", "x=5, y=None, z=None")
 
     def test_posargs_kwargs_python_none_last(self):
         self.assertResult(self.arg3, "{5, python.none, python.none}", "x=5, y=None, z=None")
@@ -2057,7 +2051,7 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_posargs_kwargs_python_none_all(self):
         self.assertResult(self.arg3, "{x=python.none, y=python.none}", "x=None, y=None, z=default")
 
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # The following examples don't work as a Python programmer would expect
     # them to:
 
@@ -2069,6 +2063,15 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
     #
     # def test_posargs_kwargs_nil_all(self):
     #     self.assertResult(self.arg3, "{x=nil, y=nil}", "x=None, y=None, z=default")
+
+    # -------------------------------------------------------------------------
+    # These tests pass in Lua 5.2 but fail in LuaJIT:
+
+    # def test_posargs_kwargs_nil(self):
+    #     self.assertResult(self.arg3, "{5, nil, 6}", "x=5, y=None, z=6")
+    #
+    # def test_posargs_kwargs_nil_first(self):
+    #     self.assertResult(self.arg3, "{nil, nil, 6}", "x=None, y=None, z=6")
 
 
 
