@@ -2024,17 +2024,52 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertResult(self.arg3, "{5, 6, 7}", "x=5, y=6, z=7")
         self.assertResult(self.arg3, "{z=7, 5, 6}", "x=5, y=6, z=7")
 
-    def test_posargs_kwargs_nil(self):
-        self.assertResult(self.arg3, "{5, nil, 6}", "x=5, y=None, z=6")
-        self.assertResult(self.arg3, "{nil, nil, 6}", "x=None, y=None, z=6")
-        # self.assertResult(self.arg3, "{nil, y=nil, z=6}", "x=None, y=None, z=6")
-        # self.assertResult(self.arg3, "{x=nil, y=nil}", "x=None, y=None, z=default")
-
     def test_posargs_kwargs_bad(self):
         self.assertIncorrect(self.arg2, "{5, y=6, z=7}")
 
         self.assertIncorrect(self.arg3, "{5, z=7}")
         self.assertIncorrect(self.arg3, "{5}")
+
+    def test_posargs_nil(self):
+        self.assertResult(self.arg3, "(5, nil, 6)", "x=5, y=None, z=6")
+
+    def test_posargs_nil_last(self):
+        self.assertResult(self.arg3, "(5, nil, nil)", "x=5, y=None, z=None")
+
+    def test_posargs_kwargs_nil(self):
+        self.assertResult(self.arg3, "{5, nil, 6}", "x=5, y=None, z=6")
+
+    def test_posargs_nil_first(self):
+        self.assertResult(self.arg3, "(nil, nil, 6)", "x=None, y=None, z=6")
+
+    def test_posargs_kwargs_nil_first(self):
+        self.assertResult(self.arg3, "{nil, nil, 6}", "x=None, y=None, z=6")
+
+    def test_posargs_kwargs_python_none_last(self):
+        self.assertResult(self.arg3, "{5, python.none, python.none}", "x=5, y=None, z=None")
+
+    def test_posargs_python_none_last(self):
+        self.assertResult(self.arg3, "(5, python.none, python.none)", "x=5, y=None, z=None")
+
+    def test_posargs_kwargs_python_none_some(self):
+        self.assertResult(self.arg3, "{python.none, y=python.none, z=6}", "x=None, y=None, z=6")
+
+    def test_posargs_kwargs_python_none_all(self):
+        self.assertResult(self.arg3, "{x=python.none, y=python.none}", "x=None, y=None, z=default")
+
+    # --------------------------------------------------------------------------
+    # The following examples don't work as a Python programmer would expect
+    # them to:
+
+    # def test_posargs_kwargs_nil_last(self):
+    #     self.assertResult(self.arg3, "{5, nil, nil}", "x=5, y=None, z=None")
+    #
+    # def test_posargs_kwargs_nil_some(self):
+    #     self.assertResult(self.arg3, "{nil, y=nil, z=6}", "x=None, y=None, z=6")
+    #
+    # def test_posargs_kwargs_nil_all(self):
+    #     self.assertResult(self.arg3, "{x=nil, y=nil}", "x=None, y=None, z=default")
+
 
 
 class MethodKwargsDecoratorTest(KwargsDecoratorTest):
