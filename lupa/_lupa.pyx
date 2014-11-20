@@ -8,7 +8,6 @@ from __future__ import absolute_import
 
 cimport cython
 
-import functools
 from lupa cimport lua
 from .lua cimport lua_State
 
@@ -32,6 +31,9 @@ from sys import exc_info
 
 cdef object Mapping
 from collections import Mapping
+
+cdef object wraps
+from functools import wraps
 
 
 __all__ = ['LuaRuntime', 'LuaError', 'LuaSyntaxError',
@@ -381,38 +383,43 @@ cdef class LuaRuntime:
 
 def unpacks_lua_table(func):
     """
-    A decorator to make decorated function receive kwargs
+    A decorator to make the decorated function receive kwargs
     when it is called from Lua with a single Lua table argument.
 
-    Python functions wrapped in this decorator support ``func(foo, bar)``,
-    ``func{foo=foo, bar=bar}`` and ``func{foo, bar=bar}`` syntax when called
-    from Lua code.
+    Python functions wrapped in this decorator can be called from Lua code
+    as ``func(foo, bar)``, ``func{foo=foo, bar=bar}`` and ``func{foo, bar=bar}``.
 
     See also: http://lua-users.org/wiki/NamedParameters
 
-    WARNING: avoid using this decorator for functions which
+    WARNING: avoid using this decorator for functions where the
     first argument can be a Lua table.
 
-    WARNING: be careful with ``nil`` values: depending on context,
-    passing ``nil`` as a parameter could mean either "omit a parameter"
-    or "pass None"; it also depends on Lua version. It is possible to use
-    ``python.none`` instead of ``nil`` to pass None values robustly.
+    WARNING: be careful with ``nil`` values.  Depending on the context,
+    passing ``nil`` as a parameter can mean either "omit a parameter"
+    or "pass None".  This even depends on the Lua version.  It is
+    possible to use ``python.none`` instead of ``nil`` to pass None values
+    robustly.
     """
+    @wraps(func)
     def wrapper(*args):
         args, kwargs = _fix_args_kwargs(args)
         return func(*args, **kwargs)
-    return functools.wraps(func)(wrapper)
+    return wrapper
 
 
 def unpacks_lua_table_method(meth):
-    """ This is :func:`unpacks_lua_table` for methods. """
+    """
+    This is :func:`unpacks_lua_table` for methods
+    (i.e. it knows about the 'self' argument).
+    """
+    @wraps(meth)
     def wrapper(self, *args):
         args, kwargs = _fix_args_kwargs(args)
         return meth(self, *args, **kwargs)
-    return functools.wraps(meth)(wrapper)
+    return wrapper
 
 
-cdef _fix_args_kwargs(args):
+cdef tuple _fix_args_kwargs(tuple args):
     """
     Extract named arguments from args passed to a Python function by Lua
     script. Arguments are processed only if a single argument is passed and
@@ -425,18 +432,18 @@ cdef _fix_args_kwargs(args):
     if not isinstance(arg, _LuaTable):
         return args, {}
 
-    cdef _LuaTable table = <_LuaTable>arg
+    table = <_LuaTable>arg
 
     # arguments with keys from 1 to #tbl are passed as positional
     new_args = [
         table._getitem(key, is_attr_access=False)
-        for key in range(1, table._len()+1)
+        for key in range(1, table._len() + 1)
     ]
 
     # arguments with non-integer keys are passed as named
     new_kwargs = {
-        key: value for key, value in table.items()
-        if not isinstance(key, int)
+        key: value for key, value in _LuaIter(table, ITEMS)
+        if not isinstance(key, (int, long))
     }
     return new_args, new_kwargs
 
