@@ -2016,6 +2016,9 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_posargs_kwargs(self):
         self.assertResult(self.arg2, "{5, y=6}", "x=5, y=6")
         self.assertResult(self.arg2, "{y=6, 5}", "x=5, y=6")
+        self.assertResult(self.arg2, "{5, [2]=6}", "x=5, y=6")
+        self.assertResult(self.arg2, "{[1]=5, [2]=6}", "x=5, y=6")
+        self.assertResult(self.arg2, "{[1]=5, y=6}", "x=5, y=6")
 
         self.assertResult(self.arg3, "{x=5, y=6, z=8}", "x=5, y=6, z=8")
         self.assertResult(self.arg3, "{5, y=6, z=8}", "x=5, y=6, z=8")
@@ -2026,6 +2029,8 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_posargs_kwargs_bad(self):
         self.assertIncorrect(self.arg2, "{5, y=6, z=7}")
+        self.assertIncorrect(self.arg2, "{5, [3]=6}")
+        self.assertIncorrect(self.arg2, "{x=5, [2]=6}")  # I guess it's ok to reject this
 
         self.assertIncorrect(self.arg3, "{5, z=7}")
         self.assertIncorrect(self.arg3, "{5}")
