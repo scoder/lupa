@@ -8,7 +8,7 @@ from __future__ import absolute_import
 
 cimport cython
 
-
+import functools
 from lupa cimport lua
 from .lua cimport lua_State
 
@@ -33,8 +33,10 @@ from sys import exc_info
 cdef object Mapping
 from collections import Mapping
 
+
 __all__ = ['LuaRuntime', 'LuaError', 'LuaSyntaxError',
-           'as_itemgetter', 'as_attrgetter', 'lua_type']
+           'as_itemgetter', 'as_attrgetter', 'lua_type',
+           'unpacks_lua_table', 'unpacks_lua_table_method']
 
 cdef object builtins
 try:
@@ -374,6 +376,72 @@ cdef class LuaRuntime:
 
 
 ################################################################################
+# decorators for calling Python functions with keyword (named) arguments
+# from Lua scripts
+
+def unpacks_lua_table(func):
+    """
+    A decorator to make decorated function receive kwargs
+    when it is called from Lua with a single Lua table argument.
+
+    Python functions wrapped in this decorator support ``func(foo, bar)``,
+    ``func{foo=foo, bar=bar}`` and ``func{foo, bar=bar}`` syntax when called
+    from Lua code.
+
+    See also: http://lua-users.org/wiki/NamedParameters
+
+    WARNING: avoid using this decorator for functions which
+    first argument can be a Lua table.
+
+    WARNING: be careful with ``nil`` values: depending on context,
+    passing ``nil`` as a parameter could mean either "omit a parameter"
+    or "pass None"; it also depends on Lua version. It is possible to use
+    ``python.none`` instead of ``nil`` to pass None values robustly.
+    """
+    def wrapper(*args):
+        args, kwargs = _fix_args_kwargs(args)
+        return func(*args, **kwargs)
+    return functools.wraps(func)(wrapper)
+
+
+def unpacks_lua_table_method(meth):
+    """ This is :func:`unpacks_lua_table` for methods. """
+    def wrapper(self, *args):
+        args, kwargs = _fix_args_kwargs(args)
+        return meth(self, *args, **kwargs)
+    return functools.wraps(meth)(wrapper)
+
+
+cdef _fix_args_kwargs(args):
+    """
+    Extract named arguments from args passed to a Python function by Lua
+    script. Arguments are processed only if a single argument is passed and
+    it is a table.
+    """
+    if len(args) != 1:
+        return args, {}
+
+    arg = args[0]
+    if not isinstance(arg, _LuaTable):
+        return args, {}
+
+    cdef _LuaTable table = <_LuaTable>arg
+
+    # arguments with keys from 1 to #tbl are passed as positional
+    new_args = [
+        table._getitem(key, is_attr_access=False)
+        for key in range(1, table._len()+1)
+    ]
+
+    # arguments with non-integer keys are passed as named
+    new_kwargs = {
+        key: value for key, value in table.items()
+        if not isinstance(key, int)
+    }
+    return new_args, new_kwargs
+
+
+################################################################################
 # fast, re-entrant runtime locking
 
 cdef inline int lock_runtime(LuaRuntime runtime) except -1:
@@ -435,6 +503,10 @@ cdef class _LuaObject:
             unlock_runtime(self._runtime)
 
     def __len__(self):
+        return self._len()
+
+    @cython.final
+    cdef size_t _len(self):
         assert self._runtime is not None
         cdef lua_State* L = self._state
         lock_runtime(self._runtime)
