@@ -509,6 +509,7 @@ as used by the standard library modules::
       >>> print( string.lower('A') )
       a
 
+
 Python Callables
 ----------------
 
@@ -533,14 +534,14 @@ Lua doesn't have a dedicated syntax for named arguments, so by default
 Python callables can only be called using positional arguments.
 
 A common pattern for implementing named arguments in Lua is passing them
-in a table as the first and the only function argument.  Check
-http://lua-users.org/wiki/NamedParameters for more info.  Lupa supports
+in a table as the first and only function argument.  See
+http://lua-users.org/wiki/NamedParameters for more details.  Lupa supports
 this pattern by providing two decorators: ``lupa.unpacks_lua_table``
-for Python functions and ``unpacks_lua_table_method`` for methods
+for Python functions and ``lupa.unpacks_lua_table_method`` for methods
 of Python objects.
 
-Python functions/methods wrapped in these decorators
-can be called from Lua code as ``func(foo, bar)``, ``func{foo=foo, bar=bar}``
+Python functions/methods wrapped in these decorators can be called from
+Lua code as ``func(foo, bar)``, ``func{foo=foo, bar=bar}``
 or ``func{foo, bar=bar}``.  Example::
 
       >>> @lupa.unpacks_lua_table
@@ -553,14 +554,24 @@ or ``func{foo, bar=bar}``.  Example::
       >>> lua_func(5, 6, add)
       11
 
+If you do not control the function implementation, you can also just
+manually wrap a callable object when passing it into Lupa::
+
+      >>> import operator
+      >>> wrapped_py_add = lupa.unpacks_lua_table(operator.add)
+
+      >>> lua_func = lua.eval('function(a, b, py_func) return py_func{a, b} end')
+      >>> lua_func(5, 6, wrapped_py_add)
+      11
+
 There are some limitations:
 
 1. Avoid using ``lupa.unpacks_lua_table`` and ``lupa.unpacks_lua_table_method``
-   decorators for functions where the first argument can be a Lua
-   table.  In this case ``py_func{foo=bar}`` (which is the same as
-   ``py_func({foo=bar})`` in Lua) becomes ambiguous: it could mean either
-   "call ``py_func`` with a named ``foo`` argument" or "call ``py_func``
-   with a positional ``{foo=bar}`` argument".
+   for functions where the first argument can be a Lua table.  In this case
+   ``py_func{foo=bar}`` (which is the same as ``py_func({foo=bar})`` in Lua)
+   becomes ambiguous: it could mean either "call ``py_func`` with a named
+   ``foo`` argument" or "call ``py_func`` with a positional ``{foo=bar}``
+   argument".
 
 2. One should be careful with passing ``nil`` values to callables wrapped in
    ``lupa.unpacks_lua_table`` or ``lupa.unpacks_lua_table_method`` decorators.
@@ -572,8 +583,9 @@ There are some limitations:
    ``func(a, b, c)`` syntax is used.
 
 Because of these limitations lupa doesn't enable named arguments for all
-Python callables automatically. Decorators allow to enable named arguments
+Python callables automatically.  Decorators allow to enable named arguments
 on a per-callable basis.
+
 
 Lua Coroutines
 --------------
