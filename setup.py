@@ -10,7 +10,7 @@ try:
 except ImportError:
     from distutils.core import setup, Extension
 
-VERSION = '1.0.1'
+VERSION = '1.1'
 
 extra_setup_args = {}
 

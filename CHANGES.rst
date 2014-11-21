@@ -1,8 +1,8 @@
 Lupa change log
 ===============
 
-Latest changes
---------------
+1.1 (2014-11-21)
+----------------
 
 * new module function ``lupa.lua_type()`` that returns the Lua type of
   a wrapped object as string, or ``None`` for normal Python objects
@@ -17,8 +17,8 @@ Latest changes
 * fix a hang on shutdown where the LuaRuntime failed to deallocate due
   to reference cycles
 
-* made Lupa play nicely with other Lua extensions that create userdata
-  objects
+* Lupa now plays more nicely with other Lua extensions that create
+  userdata objects
 
 
 1.0.1 (2014-10-11)
