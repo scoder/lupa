@@ -10,6 +10,10 @@ Latest changes
 * new helper method ``LuaRuntime.table_from(...)`` that creates a Lua
   table from one or more Python mappings and/or sequences
 
+* new ``lupa.unpacks_lua_table`` and ``lupa.unpacks_lua_table_method``
+  decorators to allow calling Python functions from Lua using named
+  arguments
+
 * fix a hang on shutdown where the LuaRuntime failed to deallocate due
   to reference cycles
 
