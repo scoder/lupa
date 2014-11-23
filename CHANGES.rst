@@ -1,6 +1,13 @@
 Lupa change log
 ===============
 
+Latest changes
+--------------
+
+* availability of ``python.builtins`` in Lua can be disabled via
+  ``LuaRuntime`` option.
+
+
 1.1 (2014-11-21)
 ----------------
 

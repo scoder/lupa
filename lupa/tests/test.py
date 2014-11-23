@@ -193,6 +193,10 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             import builtins
         self.assertEqual(builtins, function())
 
+    def test_pybuiltins_disabled(self):
+        lua = lupa.LuaRuntime(register_builtins=False)
+        self.assertEqual(True, lua.eval('python.builtins == nil'))
+
     def test_call_none(self):
         self.assertRaises(TypeError, self.lua.eval, 'python.none()')
 
@@ -224,6 +228,10 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         eval = self.lua.eval('function() return python.eval end')()
         self.assertEqual(2, eval('1+1'))
         self.assertEqual(2, self.lua.eval('python.eval("1+1")'))
+
+    def test_python_eval_disabled(self):
+        lua = lupa.LuaRuntime(register_eval=False)
+        self.assertEqual(True, lua.eval('python.eval == nil'))
 
     def test_len_table_array(self):
         table = self.lua.eval('{1,2,3,4,5}')

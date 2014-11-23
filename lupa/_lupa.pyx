@@ -132,7 +132,7 @@ cdef class LuaRuntime:
       Normally, it should return an attribute name that will then be
       used for the lookup.  If it wants to prevent access, it should
       raise an ``AttributeError``.  Note that Lua does not guarantee
-      that the names will be strings.
+      that the names will be strings.  (New in Lupa 0.20)
 
     * ``attribute_handlers``: like ``attribute_filter`` above, but
       handles the getting/setting itself rather than giving hints
@@ -141,19 +141,25 @@ cdef class LuaRuntime:
       and either returns the value for ``obj.attr_name`` or raises an
       ``AttributeError``  The function ``setter`` has the signature
       ``func(obj, attr_name, value)`` and may raise an ``AttributeError``.
-      The return value of the setter is unused.
+      The return value of the setter is unused.  (New in Lupa 1.0)
 
-    * ``register_eval``: should Python's ``eval()`` function be
-      available to Lua code?  Note that this does not remove it from
-      the builtins.  Use an ``attribute_filter`` function for that.
+    * ``register_eval``: should Python's ``eval()`` function be available
+      to Lua code as ``python.eval()``?  Note that this does not remove it
+      from the builtins.  Use an ``attribute_filter`` function for that.
       (default: True)
+
+    * ``register_builtins``: should Python's builtins be available to Lua
+      code as ``python.builtins.*``?  Note that this does not prevent access
+      to the globals available as special Python function attributes, for
+      example.  Use an ``attribute_filter`` function for that.
+      (default: True, new in Lupa 1.2)
 
     * ``unpack_returned_tuples``: should Python tuples be unpacked in Lua?
       If ``py_fun()`` returns ``(1, 2, 3)``, then does ``a, b, c = py_fun()``
       give ``a == 1 and b == 2 and c == 3`` or does it give
       ``a == (1,2,3), b == nil, c == nil``?  ``unpack_returned_tuples=True``
       gives the former.
-      (default: False)
+      (default: False, new in Lupa 0.21)
 
     Example usage::
 
@@ -182,8 +188,8 @@ cdef class LuaRuntime:
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
-                  bint register_eval=True,
-                  bint unpack_returned_tuples=False):
+                  bint register_eval=True, bint unpack_returned_tuples=False,
+                  bint register_builtins=True):
         cdef lua_State* L = lua.luaL_newstate()
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
@@ -214,7 +220,7 @@ cdef class LuaRuntime:
             self._attribute_getter, self._attribute_setter = getter, setter
 
         lua.luaL_openlibs(L)
-        self.init_python_lib(register_eval)
+        self.init_python_lib(register_eval, register_builtins)
         lua.lua_settop(L, 0)
         lua.lua_atpanic(L, <lua.lua_CFunction>1)
 
@@ -359,7 +365,7 @@ cdef class LuaRuntime:
         return 0
 
     @cython.final
-    cdef int init_python_lib(self, bint register_eval) except -1:
+    cdef int init_python_lib(self, bint register_eval, bint register_builtins) except -1:
         cdef lua_State *L = self._state
 
         # create 'python' lib and register our own object metatable
@@ -372,9 +378,10 @@ cdef class LuaRuntime:
         self.register_py_object(b'Py_None',  b'none', None)
         if register_eval:
             self.register_py_object(b'eval',     b'eval', eval)
-        self.register_py_object(b'builtins', b'builtins', builtins)
+        if register_builtins:
+            self.register_py_object(b'builtins', b'builtins', builtins)
 
-        return 0 # nothing left to return on the stack
+        return 0  # nothing left to return on the stack
 
 
 ################################################################################
