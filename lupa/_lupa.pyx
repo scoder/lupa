@@ -1498,7 +1498,7 @@ cdef int py_object_getindex(lua_State* L) nogil:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
     result = py_object_getindex_with_gil(L, py_obj)
     if result < 0:
-        return lua.luaL_error(L, 'error during Python str() call')  # never returns!
+        return lua.luaL_error(L, 'error reading Python attribute/item')  # never returns!
     return result
 
 
@@ -1520,7 +1520,7 @@ cdef int py_object_setindex(lua_State* L) nogil:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
     result = py_object_setindex_with_gil(L, py_obj)
     if result < 0:
-        return lua.luaL_error(L, 'error during Python str() call')  # never returns!
+        return lua.luaL_error(L, 'error writing Python attribute/item')  # never returns!
     return result
 
 # special methods for Lua wrapped Python objects
