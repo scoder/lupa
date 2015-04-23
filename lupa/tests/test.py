@@ -1371,48 +1371,96 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
             result.append(_next(gen))
         self.assertEqual([0,1,0,1,0,1], result)
 
+
+class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
+
+    def _enable_hook(self):
+        self.lua.execute('''
+            steps = 0
+            debug.sethook(function () steps = steps + 1 end, '', 1)
+        ''')
+
     def test_coroutine_yields_callback_debug_hook(self):
-        # yielding a callback should work without a debug hook
         self.lua.execute('''
             func = function()
                 coroutine.yield(function() return 123 end)
             end
         ''')
-        coro = self.lua.eval('func').coroutine()
-        cb = next(coro)
-        self.assertEqual(cb(), 123)
+        def _check():
+            coro = self.lua.eval('func').coroutine()
+            cb = next(coro)
+            self.assertEqual(cb(), 123)
 
-        # .. and it should keep working after a debug hook is added
-        self.lua.execute('''
-            steps = 0
-            debug.sethook(function () steps = steps + 1 end, '', 1)
-        ''')
-        coro = self.lua.eval('func').coroutine()
-        cb = next(coro)
-        self.assertEqual(cb(), 123)
+        # yielding a callback should work without a debug hook
+        _check()
+
+        # it should keep working after a debug hook is added
+        self._enable_hook()
+        _check()
 
     def test_coroutine_yields_callback_debug_hook_nowrap(self):
-        # yielding a callback should work without a debug hook
         resume = self.lua.eval("coroutine.resume")
         self.lua.execute('''
             func = function()
                 coroutine.yield(function() return 123 end)
             end
         ''')
-        coro = self.lua.eval('func').coroutine()
-        ok, cb = resume(coro)
-        self.assertEqual(ok, True)
-        self.assertEqual(cb(), 123)
+        def _check():
+            coro = self.lua.eval('func').coroutine()
+            ok, cb = resume(coro)
+            self.assertEqual(ok, True)
+            self.assertEqual(cb(), 123)
 
-        # .. and it should keep working after a debug hook is added
+        # yielding a callback should work without a debug hook
+        _check()
+
+        # it should keep working after a debug hook is added
+        self._enable_hook()
+        _check()
+
+    def test_coroutine_sets_callback_debug_hook(self):
         self.lua.execute('''
-            steps = 0
-            debug.sethook(function () steps = steps + 1 end, '', 1)
+            func = function(dct)
+                dct['cb'] = function() return 123 end
+                coroutine.yield()
+            end
         ''')
-        coro = self.lua.eval('func').coroutine()
-        ok, cb = resume(coro)
-        self.assertEqual(ok, True)
-        self.assertEqual(cb(), 123)
+        def _check():
+            dct = {}
+            coro = self.lua.eval('func').coroutine(dct)
+            next(coro)
+            cb = dct['cb']
+            self.assertEqual(cb(), 123)
+
+        # sending a callback should work without a debug hook
+        _check()
+
+        # enable debug hook and try again
+        self._enable_hook()
+        _check()
+
+    def test_coroutine_sets_callback_debug_hook_nowrap(self):
+        resume = self.lua.eval("coroutine.resume")
+        self.lua.execute('''
+            func = function(dct)
+                dct['cb'] = function() return 123 end
+                coroutine.yield()
+            end
+        ''')
+        def _check():
+            dct = {}
+            coro = self.lua.eval('func').coroutine()
+            resume(coro, dct)  # send initial value
+            resume(coro)
+            cb = dct['cb']
+            self.assertEqual(cb(), 123)
+
+        # sending a callback should work without a debug hook
+        _check()
+
+        # enable debug hook and try again
+        self._enable_hook()
+        _check()
 
 
 class TestLuaApplications(unittest.TestCase):
