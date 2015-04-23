@@ -150,7 +150,7 @@ cdef extern from "lua.h" nogil:
 
     # coroutine functions
     int  lua_yield (lua_State *L, int nresults)
-    int  lua_resume "__lupa_lua_resume" (lua_State *L, int narg)
+    int  lua_resume "__lupa_lua_resume" (lua_State *L, lua_State *from_, int narg)
     int  lua_status (lua_State *L)
 
     # garbage-collection function and options

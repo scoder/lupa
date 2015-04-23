@@ -1371,6 +1371,49 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
             result.append(_next(gen))
         self.assertEqual([0,1,0,1,0,1], result)
 
+    def test_coroutine_yields_callback_debug_hook(self):
+        # yielding a callback should work without a debug hook
+        self.lua.execute('''
+            func = function()
+                coroutine.yield(function() return 123 end)
+            end
+        ''')
+        coro = self.lua.eval('func').coroutine()
+        cb = next(coro)
+        self.assertEqual(cb(), 123)
+
+        # .. and it should keep working after a debug hook is added
+        self.lua.execute('''
+            steps = 0
+            debug.sethook(function () steps = steps + 1 end, '', 1)
+        ''')
+        coro = self.lua.eval('func').coroutine()
+        cb = next(coro)
+        self.assertEqual(cb(), 123)
+
+    def test_coroutine_yields_callback_debug_hook_nowrap(self):
+        # yielding a callback should work without a debug hook
+        resume = self.lua.eval("coroutine.resume")
+        self.lua.execute('''
+            func = function()
+                coroutine.yield(function() return 123 end)
+            end
+        ''')
+        coro = self.lua.eval('func').coroutine()
+        ok, cb = resume(coro)
+        self.assertEqual(ok, True)
+        self.assertEqual(cb(), 123)
+
+        # .. and it should keep working after a debug hook is added
+        self.lua.execute('''
+            steps = 0
+            debug.sethook(function () steps = steps + 1 end, '', 1)
+        ''')
+        coro = self.lua.eval('func').coroutine()
+        ok, cb = resume(coro)
+        self.assertEqual(ok, True)
+        self.assertEqual(cb(), 123)
+
 
 class TestLuaApplications(unittest.TestCase):
     def tearDown(self):
