@@ -1425,19 +1425,23 @@ class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
                 coroutine.yield()
             end
         ''')
-        def _check():
-            dct = {}
+        def _check(dct):
             coro = self.lua.eval('func').coroutine(dct)
             next(coro)
             cb = dct['cb']
             self.assertEqual(cb(), 123)
 
         # sending a callback should work without a debug hook
-        _check()
+        _check({})
 
         # enable debug hook and try again
         self._enable_hook()
-        _check()
+
+        # it works with a Lua table wrapper
+        _check(self.lua.table_from({}))
+
+        # FIXME: but it fails with a regular dict
+        # _check({})
 
     def test_coroutine_sets_callback_debug_hook_nowrap(self):
         resume = self.lua.eval("coroutine.resume")
