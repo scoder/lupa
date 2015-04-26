@@ -872,8 +872,10 @@ cdef _LuaObject new_lua_thread_or_function(LuaRuntime runtime, lua_State* L, int
 
 cdef object resume_lua_thread(_LuaThread thread, tuple args):
     cdef lua_State* co = thread._co_state
-    cdef int result, i, nargs = 0
+    cdef lua_State* L = thread._state
+    cdef int status, i, nargs = 0, nres = 0
     lock_runtime(thread._runtime)
+    old_top = lua.lua_gettop(L)
     try:
         if lua.lua_status(co) == 0 and lua.lua_gettop(co) == 0:
             # already terminated
@@ -882,18 +884,25 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
             nargs = len(args)
             push_lua_arguments(thread._runtime, co, args)
         with nogil:
-            result = lua.lua_resume(co, nargs)
-        if result != lua.LUA_YIELD:
-            if result == 0:
+            status = lua.lua_resume(co, L, nargs)
+        nres = lua.lua_gettop(co)
+        if status != lua.LUA_YIELD:
+            if status == 0:
                 # terminated
-                if lua.lua_gettop(co) == 0:
+                if nres == 0:
                     # no values left to return
                     raise StopIteration
             else:
-                raise_lua_error(thread._runtime, co, result)
-        return unpack_lua_results(thread._runtime, co)
+                raise_lua_error(thread._runtime, co, status)
+
+        # Move yielded values to the main state before unpacking.
+        # This is what Lua's internal auxresume function is doing;
+        # it affects wrapped Lua functions returned to Python.
+        lua.lua_xmove(co, L, nres)
+        return unpack_lua_results(thread._runtime, L)
     finally:
-        lua.lua_settop(co, 0)  # FIXME?
+        # FIXME: check that coroutine state is OK in case of errors?
+        lua.lua_settop(L, old_top)
         unlock_runtime(thread._runtime)
 
 
