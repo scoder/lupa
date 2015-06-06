@@ -125,6 +125,10 @@ OS X + Lua 5.2 + Homebrew
 
      $ brew install lua
 
+#) Install pkg-config::
+
+     $ brew install pkg-config
+
 #) Install lupa::
 
      $ pip install lupa
