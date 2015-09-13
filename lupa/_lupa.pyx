@@ -46,7 +46,7 @@ try:
 except ImportError:
     import builtins
 
-DEF POBJECT = "POBJECT" # as used by LunaticPython
+DEF POBJECT = b"POBJECT" # as used by LunaticPython
 
 
 cdef enum WrappedObjectFlags:
