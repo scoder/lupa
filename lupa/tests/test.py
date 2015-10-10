@@ -900,79 +900,79 @@ class TestAttributeHandlers(unittest.TestCase):
     def test_attribute_setter_dict_create(self):
         function = self.lua_handling.eval("function (obj) obj['x'] = 'new' end")
         function(self.d)
-        self.assertEquals(self.d.get('x'), 'new')
+        self.assertEqual(self.d.get('x'), 'new')
 
     def test_attribute_setter_forbidden_dict_create(self):
         self.d['forbid_new'] = True
         function = self.lua_handling.eval("function (obj) obj['x'] = 'new' end")
         function(self.d)
-        self.assertEquals(self.d.get('x'), None)
+        self.assertEqual(self.d.get('x'), None)
 
     def test_attribute_setter_dict_update(self):
         function = self.lua_handling.eval("function (obj) obj['a'] = 'new' end")
         function(self.d)
-        self.assertEquals(self.d['a'], 'new')
+        self.assertEqual(self.d['a'], 'new')
 
     def test_attribute_setter_forbidden_dict_update(self):
         self.d['forbid_new'] = True
         function = self.lua_handling.eval("function (obj) obj['a'] = 'new' end")
         function(self.d)
-        self.assertEquals(self.d['a'], 'new')
+        self.assertEqual(self.d['a'], 'new')
 
     def test_attribute_getter_forbid_double_underscores(self):
         function = self.lua_handling.eval('function(obj) return obj.__name__ end')
-        self.assertEquals(function(self.x), "forbidden")
+        self.assertEqual(function(self.x), "forbidden")
 
         function = self.lua.eval('function(obj) return obj.__class__ end')
-        self.assertEquals(function(self.x), self.X)
+        self.assertEqual(function(self.x), self.X)
         function = self.lua_handling.eval('function(obj) return obj.__class__ end')
-        self.assertEquals(function(self.x), "forbidden")
+        self.assertEqual(function(self.x), "forbidden")
 
         function = self.lua.eval('function(obj) return obj._X__a end')
-        self.assertEquals(function(self.x), 3)
+        self.assertEqual(function(self.x), 3)
         function = self.lua_handling.eval('function(obj) return obj._X__a end')
-        self.assertEquals(function(self.x), "forbidden")
+        self.assertEqual(function(self.x), "forbidden")
 
     def test_attribute_getter_mess_with_underscores(self):
         function = self.lua.eval('function(obj) return obj._a end')
-        self.assertEquals(function(self.x), 2)
+        self.assertEqual(function(self.x), 2)
         function = self.lua_handling.eval('function(obj) return obj._a end')
-        self.assertEquals(function(self.x), "forbidden")
+        self.assertEqual(function(self.x), "forbidden")
 
     def test_attribute_getter_replace_values(self):
         function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEquals(function(self.x), 0)
+        self.assertEqual(function(self.x), 0)
         function = self.lua_handling.eval('function(obj) return obj.a end')
-        self.assertEquals(function(self.x), 10)
+        self.assertEqual(function(self.x), 10)
 
         function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEquals(function(self.x), 0)
+        self.assertEqual(function(self.x), 0)
         function = self.lua_handling.eval('function(obj) return obj.a end')
-        self.assertEquals(function(self.x), 10)
+        self.assertEqual(function(self.x), 10)
 
     def test_attribute_getter_lenient_retrieval(self):
         function = self.lua.eval('function(obj) return obj.bad_attr end')
         self.assertRaises(AttributeError, function, self.y)
         function = self.lua_handling.eval('function(obj) return obj.bad_attr end')
-        self.assertEquals(function(self.y), None)
+        self.assertEqual(function(self.y), None)
 
     def test_attribute_getter_normal_dict_retrieval(self):
         function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEquals(function(self.d), "aval")
+        self.assertEqual(function(self.d), "aval")
         function = self.lua_handling.eval('function(obj) return obj.a end')
-        self.assertEquals(function(self.d), "aval")
+        self.assertEqual(function(self.d), "aval")
 
     def test_attribute_getter_modify_dict_retrival(self):
         function = self.lua.eval('function(obj) return obj.c end')
-        self.assertEquals(function(self.d), "cval")
+        self.assertEqual(function(self.d), "cval")
         function = self.lua_handling.eval('function(obj) return obj.c end')
-        self.assertEquals(function(self.d), "bval")
+        self.assertEqual(function(self.d), "bval")
 
     def test_attribute_getter_lenient_dict_retrival(self):
         function = self.lua.eval('function(obj) return obj.g end')
         self.assertRaises(KeyError, function, self.d)
         function = self.lua_handling.eval('function(obj) return obj.g end')
-        self.assertEquals(function(self.d), None)
+        self.assertEqual(function(self.d), None)
 
 
 class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
