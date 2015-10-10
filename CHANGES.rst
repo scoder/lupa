@@ -1,11 +1,16 @@
 Lupa change log
 ===============
 
-Latest changes
---------------
+1.2 (2015-10-10)
+----------------
+
+* callbacks returned from Lua coroutines were incorrectly mixing
+  coroutine state with global Lua state (patch by Mikhail Korobov)
 
 * availability of ``python.builtins`` in Lua can be disabled via
   ``LuaRuntime`` option.
+
+* built with Cython 0.23.4
 
 
 1.1 (2014-11-21)
