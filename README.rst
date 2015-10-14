@@ -90,7 +90,7 @@ Examples
       ...         l.sort()
       ...         return l
 
-::
+.. code:: python
 
       >>> import lupa
       >>> from lupa import LuaRuntime
@@ -112,7 +112,9 @@ Examples
 
 The function ``lua_type(obj)`` can be used to find out the type of a
 wrapped Lua object in Python code, as provided by Lua's ``type()``
-function::
+function:
+
+.. code:: python
 
       >>> lupa.lua_type(lua_func)
       'function'
@@ -120,7 +122,9 @@ function::
       'table'
 
 To help in distinguishing between wrapped Lua objects and normal
-Python objects, it returns ``None`` for the latter::
+Python objects, it returns ``None`` for the latter:
+
+.. code:: python
 
       >>> lupa.lua_type(123) is None
       True
@@ -132,7 +136,9 @@ Python objects, it returns ``None`` for the latter::
 Note the flag ``unpack_returned_tuples=True`` that is passed to create
 the Lua runtime.  It is new in Lupa 0.21 and changes the behaviour of
 tuples that get returned by Python functions.  With this flag, they
-explode into separate Lua values::
+explode into separate Lua values:
+
+.. code:: python
 
       >>> lua.execute('a,b,c = python.eval("(1,2)")')
       >>> g = lua.globals()
@@ -144,7 +150,9 @@ explode into separate Lua values::
       True
 
 When set to False, functions that return a tuple pass it through to the
-Lua code::
+Lua code:
+
+.. code:: python
 
       >>> non_explode_lua = lupa.LuaRuntime(unpack_returned_tuples=False)
       >>> non_explode_lua.execute('a,b,c = python.eval("(1,2)")')
@@ -166,7 +174,7 @@ Python objects in Lua
 Python objects are either converted when passed into Lua (e.g.
 numbers and strings) or passed as wrapped object references.
 
-::
+.. code:: python
 
       >>> wrapped_type = lua.globals().type     # Lua's own type() function
       >>> wrapped_type(1) == 'number'
@@ -175,7 +183,9 @@ numbers and strings) or passed as wrapped object references.
       True
 
 Wrapped Lua objects get unwrapped when they are passed back into Lua,
-and arbitrary Python objects get wrapped in different ways::
+and arbitrary Python objects get wrapped in different ways:
+
+.. code:: python
 
       >>> wrapped_type(wrapped_type) == 'function'  # unwrapped Lua function
       True
@@ -201,7 +211,9 @@ that happens to support item access.  To be explicit about the
 protocol that should be used, Lupa provides the helper functions
 ``as_attrgetter()`` and ``as_itemgetter()`` that restrict the view on
 an object to a certain protocol, both from Python and from inside
-Lua::
+Lua:
+
+.. code:: python
 
       >>> lua_func = lua.eval('function(obj) return obj["get"] end')
       >>> d = {'get' : 'value'}
@@ -227,7 +239,9 @@ Lua::
       True
 
 Note that unlike Lua function objects, callable Python objects support
-indexing in Lua::
+indexing in Lua:
+
+.. code:: python
 
       >>> def py_func(): pass
       >>> py_func.ATTR = 2
@@ -255,7 +269,9 @@ functions like ``pairs()`` in Lua.
 
 To iterate over a plain Python iterable, use the ``python.iter()``
 function.  For example, you can manually copy a Python list into a Lua
-table like this::
+table like this:
+
+.. code:: python
 
       >>> lua_copy = lua.eval('''
       ...     function(L)
@@ -275,7 +291,9 @@ table like this::
       1
 
 Python's ``enumerate()`` function is also supported, so the above
-could be simplified to::
+could be simplified to:
+
+.. code:: python
 
       >>> lua_copy = lua.eval('''
       ...     function(L)
@@ -295,7 +313,9 @@ could be simplified to::
 
 For iterators that return tuples, such as ``dict.iteritems()``, it is
 convenient to use the special ``python.iterex()`` function that
-automatically explodes the tuple items into separate Lua arguments::
+automatically explodes the tuple items into separate Lua arguments:
+
+.. code:: python
 
       >>> lua_copy = lua.eval('''
       ...     function(d)
@@ -323,7 +343,9 @@ None vs. nil
 
 While ``None`` in Python and ``nil`` in Lua differ in their semantics, they
 usually just mean the same thing: no value.  Lupa therefore tries to map one
-directly to the other whenever possible::
+directly to the other whenever possible:
+
+.. code:: python
 
       >>> lua.eval('nil') is None
       True
@@ -334,7 +356,9 @@ directly to the other whenever possible::
 The only place where this cannot work is during iteration, because Lua
 considers a ``nil`` value the termination marker of iterators.  Therefore,
 Lupa special cases ``None`` values here and replaces them by a constant
-``python.none`` instead of returning ``nil``::
+``python.none`` instead of returning ``nil``:
+
+.. code:: python
 
       >>> _ = lua.require("table")
       >>> func = lua.eval('''
@@ -358,7 +382,7 @@ other items for loop termination anymore.  And on ``enumerate()``
 iteration, the first value is known to be always a number and never None,
 so no replacement is needed.
 
-::
+.. code:: python
 
       >>> func = lua.eval('''
       ...     function(items)
@@ -394,7 +418,7 @@ as in Python.  For the same reason, negative indexing does not work.
 It is best to think of Lua tables as mappings rather than arrays, even
 for plain array tables.
 
-::
+.. code:: python
 
       >>> table = lua.eval('{10,20,30,40}')
       >>> table[1]
@@ -431,7 +455,9 @@ for plain array tables.
       [(-3, 3), (3, -3), (20, -20)]
 
 To simplify the table creation from Python, the ``LuaRuntime`` comes with
-a helper method that creates a Lua table from Python arguments::
+a helper method that creates a Lua table from Python arguments:
+
+.. code:: python
 
       >>> t = lua.table(1, 2, 3, 4)
       >>> lupa.lua_type(t)
@@ -451,7 +477,7 @@ all values and key-value pairs and builds a single Lua table from them.
 Any keys that appear in multiple mappings get overwritten with their last
 value (going from left to right).
 
-::
+.. code:: python
 
       >>> t = lua.table_from([1, 2, 3], {'a': 1, 'b': 2}, (4, 5), {'b': 42})
       >>> t['b']
@@ -463,7 +489,7 @@ A lookup of non-existing keys or indices returns None (actually ``nil``
 inside of Lua).  A lookup is therefore more similar to the ``.get()``
 method of Python dicts than to a mapping lookup in Python.
 
-::
+.. code:: python
 
       >>> table[1000000] is None
       True
@@ -473,7 +499,9 @@ method of Python dicts than to a mapping lookup in Python.
       True
 
 Note that ``len()`` does the right thing for array tables but does not
-work on mappings::
+work on mappings:
+
+.. code:: python
 
       >>> len(table)
       4
@@ -494,7 +522,9 @@ Note that it is best not to rely on the behaviour of len() for
 mappings.  It might change in a later version of Lupa.
 
 Similar to the table interface provided by Lua, Lupa also supports
-attribute access to table members::
+attribute access to table members:
+
+.. code:: python
 
       >>> table = lua.eval('{ a=1, b=2 }')
       >>> table.a, table.b
@@ -503,7 +533,9 @@ attribute access to table members::
       True
 
 This enables access to Lua 'methods' that are associated with a table,
-as used by the standard library modules::
+as used by the standard library modules:
+
+.. code:: python
 
       >>> string = lua.eval('string')    # get the 'string' library table
       >>> print( string.lower('A') )
@@ -514,7 +546,9 @@ Python Callables
 ----------------
 
 As discussed earlier, Lupa allows Lua scripts to call Python functions
-and methods::
+and methods:
+
+.. code:: python
 
       >>> def add_one(num):
       ...     return num + 1
@@ -542,7 +576,9 @@ of Python objects.
 
 Python functions/methods wrapped in these decorators can be called from
 Lua code as ``func(foo, bar)``, ``func{foo=foo, bar=bar}``
-or ``func{foo, bar=bar}``.  Example::
+or ``func{foo, bar=bar}``.  Example:
+
+.. code:: python
 
       >>> @lupa.unpacks_lua_table
       ... def add(a, b):
@@ -555,7 +591,9 @@ or ``func{foo, bar=bar}``.  Example::
       11
 
 If you do not control the function implementation, you can also just
-manually wrap a callable object when passing it into Lupa::
+manually wrap a callable object when passing it into Lupa:
+
+.. code:: python
 
       >>> import operator
       >>> wrapped_py_add = lupa.unpacks_lua_table(operator.add)
@@ -597,7 +635,7 @@ function or by creating it in Lua code.  Then, values can be sent into
 it using the ``.send()`` method or it can be iterated over.  Note that
 the ``.throw()`` method is not supported, though.
 
-::
+.. code:: python
 
       >>> lua_code = '''\
       ...     function(N)
@@ -614,7 +652,9 @@ the ``.throw()`` method is not supported, though.
       [(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]
 
 An example where values are passed into the coroutine using its
-``.send()`` method::
+``.send()`` method:
+
+.. code:: python
 
       >>> lua_code = '''\
       ...     function()
@@ -641,7 +681,9 @@ An example where values are passed into the coroutine using its
       [(0, 0), (1, 2), (2, 4)]
 
 It also works to create coroutines in Lua and to pass them back into
-Python space::
+Python space:
+
+.. code:: python
 
       >>> lua_code = '''\
       ...   function f(N)
@@ -698,7 +740,7 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
 .. _`Computer Language Benchmarks Game`: http://shootout.alioth.debian.org/u64/benchmark.php?test=all&lang=luajit&lang2=python3
 .. _`benchmark implementation`: http://shootout.alioth.debian.org/u64/program.php?test=mandelbrot&lang=luajit&id=1
 
-::
+.. code:: python
 
     lua_code = '''\
         function(N, i, total)
@@ -774,7 +816,9 @@ Restricting Lua access to Python objects
 
 Lupa provides a simple mechanism to control access to Python objects.
 Each attribute access can be passed through a filter function as
-follows::
+follows:
+
+.. code:: python
 
         >>> def filter_attribute_access(obj, attr_name, is_setting):
         ...     if isinstance(attr_name, unicode):
@@ -803,7 +847,9 @@ provide to Lua code, and to only allow Python attribute access to the
 set of public attribute/method names of these objects.
 
 Since Lupa 1.0, you can alternatively provide dedicated getter and
-setter function implementations for a ``LuaRuntime``::
+setter function implementations for a ``LuaRuntime``:
+
+.. code:: python
 
         >>> def getter(obj, attr_name):
         ...     if attr_name == 'yes':
@@ -865,7 +911,9 @@ must represent the sum of your system's values for ``RTLD_NEW`` and
 need to call ``sys.setdlopenflags(258)``.
 
 Assuming that the Lua luaposix_ (``posix``) module is available, the
-following should work on a Linux system::
+following should work on a Linux system:
+
+.. code:: python
 
       >>> import sys
       >>> orig_dlflags = sys.getdlopenflags()
