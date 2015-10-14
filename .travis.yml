@@ -7,11 +7,13 @@ env:
 - TOXENV=py32 LUA=libluajit-5.1-dev
 - TOXENV=py33 LUA=libluajit-5.1-dev
 - TOXENV=py34 LUA=libluajit-5.1-dev
+- TOXENV=py35 LUA=libluajit-5.1-dev
 - TOXENV=py26 LUA=lua5.2-dev
 - TOXENV=py27 LUA=lua5.2-dev
 - TOXENV=py32 LUA=lua5.2-dev
 - TOXENV=py33 LUA=lua5.2-dev
 - TOXENV=py34 LUA=lua5.2-dev
+- TOXENV=py35 LUA=lua5.2-dev
 
 install:
 - sudo apt-get install $LUA
