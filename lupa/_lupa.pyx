@@ -47,7 +47,7 @@ except ImportError:
     import builtins
 
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
-
+cdef int PY2 = PY_MAJOR_VERSION == 2
 
 cdef enum WrappedObjectFlags:
     # flags that determine the behaviour of a wrapped object:
@@ -102,7 +102,7 @@ def lua_type(obj):
             return 'userdata'
         else:
             lua_type_name = lua.lua_typename(L, ltype)
-            return lua_type_name.decode('ascii') if PY_MAJOR_VERSION >= 3 else lua_type_name
+            return lua_type_name if PY2 else lua_type_name.decode('ascii')
     finally:
         lua.lua_settop(L, old_top)
         unlock_runtime(lua_object._runtime)
@@ -440,6 +440,7 @@ cdef tuple _fix_args_kwargs(tuple args):
         return args, {}
 
     table = <_LuaTable>arg
+    encoding = table._runtime._source_encoding
 
     # arguments with keys from 1 to #tbl are passed as positional
     new_args = [
@@ -449,7 +450,8 @@ cdef tuple _fix_args_kwargs(tuple args):
 
     # arguments with non-integer keys are passed as named
     new_kwargs = {
-        key: value for key, value in _LuaIter(table, ITEMS)
+        (<bytes>key).decode(encoding) if not PY2 and isinstance(key, bytes) else key: value
+        for key, value in _LuaIter(table, ITEMS)
         if not isinstance(key, (int, long))
     }
     return new_args, new_kwargs
@@ -1136,7 +1138,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
     elif isinstance(o, long):
         lua.lua_pushnumber(L, <lua.lua_Number>cpython.long.PyLong_AsDouble(o))
         pushed_values_count = 1
-    elif PY_MAJOR_VERSION < 3 and isinstance(o, int):
+    elif PY2 and isinstance(o, int):
         lua.lua_pushnumber(L, <lua.lua_Number><long>o)
         pushed_values_count = 1
     elif isinstance(o, bytes):
@@ -1474,6 +1476,8 @@ cdef int getattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, in
         return py_to_lua(runtime, L, value)
     if runtime._attribute_filter is not None:
         attr_name = runtime._attribute_filter(obj, attr_name, False)
+    if isinstance(attr_name, bytes):
+        attr_name = (<bytes>attr_name).decode(runtime._source_encoding)
     return py_to_lua(runtime, L, getattr(obj, attr_name))
 
 cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n, int value_n) except -1:
@@ -1485,6 +1489,8 @@ cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, in
     else:
         if runtime._attribute_filter is not None:
             attr_name = runtime._attribute_filter(obj, attr_name, True)
+        if isinstance(attr_name, bytes):
+            attr_name = (<bytes>attr_name).decode(runtime._source_encoding)
         setattr(obj, attr_name, attr_value)
     return 0
 
