@@ -1424,7 +1424,10 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
         runtime = <LuaRuntime?>py_obj.runtime
         s = str(<object>py_obj.obj)
         if isinstance(s, unicode):
-            s = (<unicode>s).encode(runtime._encoding or 'UTF-8')
+            if runtime._encoding is None:
+                s = (<unicode>s).encode('UTF-8')
+            else:
+                s = (<unicode>s).encode(runtime._encoding)
         else:
             assert isinstance(s, bytes)
         lua.lua_pushlstring(L, <bytes>s, len(<bytes>s))
