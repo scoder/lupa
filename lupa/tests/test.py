@@ -835,6 +835,29 @@ class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(123, t.ATTR)
 
 
+class TestStrNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
+    lua_runtime_kwargs = {'encoding': None}
+
+    def test_call_str(self):
+        self.assertEqual(b"test-None", self.lua.eval('"test-" .. tostring(python.none)'))
+
+    def test_call_str_py(self):
+        function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
+        self.assertEqual(b"test-nil", function(None))
+        self.assertEqual(b"test-1", function(1))
+
+    def test_call_str_class(self):
+        called = [False]
+        class test(object):
+            def __str__(self):
+                called[0] = True
+                return 'STR!!'
+
+        function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
+        self.assertEqual(b"test-STR!!", function(test()))
+        self.assertEqual(True, called[0])
+
+
 class TestAttributeHandlers(unittest.TestCase):
     def setUp(self):
         self.lua = lupa.LuaRuntime()
