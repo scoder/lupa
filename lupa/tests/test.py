@@ -23,9 +23,10 @@ unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
 
 
 class SetupLuaRuntimeMixin(object):
+    lua_runtime_kwargs = {}
 
     def setUp(self):
-        self.lua = lupa.LuaRuntime()
+        self.lua = lupa.LuaRuntime(**self.lua_runtime_kwargs)
 
     def tearDown(self):
         self.lua = None
@@ -800,6 +801,38 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(None, lupa.lua_type([]))
         self.assertEqual(None, lupa.lua_type(lupa))
         self.assertEqual(None, lupa.lua_type(lupa.lua_type))
+
+
+class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
+    lua_runtime_kwargs = {'encoding': None}
+
+    def test_pygetitem(self):
+        lua_func = self.lua.eval('function(x) return x.ATTR end')
+        self.assertEqual(123, lua_func({b'ATTR': 123}))
+
+    def test_pysetitem(self):
+        lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
+        d = {b'ATTR': 321}
+        self.assertEqual(321, d[b'ATTR'])
+        lua_func(d)
+        self.assertEqual(123, d[b'ATTR'])
+
+    def test_pygetattr(self):
+        lua_func = self.lua.eval('function(x) return x.ATTR end')
+        class test(object):
+            def __init__(self):
+                self.ATTR = 5
+        self.assertEqual(test().ATTR, lua_func(test()))
+
+    def test_pysetattr(self):
+        lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
+        class test(object):
+            def __init__(self):
+                self.ATTR = 5
+        t = test()
+        self.assertEqual(5, t.ATTR)
+        lua_func(t)
+        self.assertEqual(123, t.ATTR)
 
 
 class TestAttributeHandlers(unittest.TestCase):
@@ -2198,6 +2231,14 @@ class MethodKwargsDecoratorTest(KwargsDecoratorTest):
     def assertIncorrect(self, f, call_txt):
         lua_func = self.lua.eval("function (obj) return obj:meth%s end" % call_txt)
         self.assertRaises(TypeError, lua_func, f)
+
+
+class NoEncodingKwargsDecoratorTest(KwargsDecoratorTest):
+    lua_runtime_kwargs = {'encoding': None}
+
+
+class NoEncodingMethodKwargsDecoratorTest(MethodKwargsDecoratorTest):
+    lua_runtime_kwargs = {'encoding': None}
 
 
 ################################################################################
