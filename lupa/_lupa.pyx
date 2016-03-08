@@ -242,21 +242,21 @@ cdef class LuaRuntime:
         self._raised_exception = exc_info()
         return 0
 
-    def eval(self, lua_code):
+    def eval(self, lua_code, *args):
         """Evaluate a Lua expression passed in a string.
         """
         assert self._state is not NULL
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
-        return run_lua(self, b'return ' + lua_code)
+        return run_lua(self, b'return ' + lua_code, args)
 
-    def execute(self, lua_code):
+    def execute(self, lua_code, *args):
         """Execute a Lua program passed in a string.
         """
         assert self._state is not NULL
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
-        return run_lua(self, lua_code)
+        return run_lua(self, lua_code, args)
 
     def require(self, modulename):
         """Load a Lua library into the runtime.
@@ -1241,7 +1241,7 @@ cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_messa
 
 # calling into Lua
 
-cdef run_lua(LuaRuntime runtime, bytes lua_code):
+cdef run_lua(LuaRuntime runtime, bytes lua_code, tuple args):
     # locks the runtime
     cdef lua_State* L = runtime._state
     cdef bint result
@@ -1251,7 +1251,7 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code):
         if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
             raise LuaSyntaxError(build_lua_error_message(
                 runtime, L, u"error loading code: %s", -1))
-        return execute_lua_call(runtime, L, 0)
+        return call_lua(runtime, L, args)
     finally:
         lua.lua_settop(L, old_top)
         unlock_runtime(runtime)
