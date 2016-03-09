@@ -84,6 +84,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_eval_multi(self):
         self.assertEqual((1,2,3), self.lua.eval('1,2,3'))
 
+    def test_eval_args(self):
+        self.assertEqual(2, self.lua.eval('...', 2))
+
+    def test_eval_args_multi(self):
+        self.assertEqual((1, 2, 3), self.lua.eval('...', 1, 2, 3))
+
     def test_eval_error(self):
         self.assertRaises(lupa.LuaError, self.lua.eval, '<INVALIDCODE>')
 
@@ -116,6 +122,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_execute_tostring_function(self):
         self.assertEqual('function', self.lua.execute('f = function(i) return i+1 end; return tostring(f)')[:8])
+
+    def test_execute_args(self):
+        self.assertEqual(2, self.lua.execute('return ...', 2))
+
+    def test_execute_args_multi(self):
+        self.assertEqual((1, 2, 3), self.lua.execute('return ...', 1, 2, 3))
 
     def test_function(self):
         function = self.lua.eval('function() return 1+1 end')
