@@ -1,6 +1,20 @@
 Lupa change log
 ===============
 
+1.3 (2016-04-12)
+----------------
+
+* ``eval()`` and ``execute()`` accept optional positional arguments
+
+* calling ``str()`` on a Python object from Lua could fail if the
+  ``LuaRuntime`` is set up without auto-encoding
+
+* attribute/keyword names were not properly encoded if the ``LuaRuntime``
+  is set up without auto-encoding
+
+* built with Cython 0.24
+
+
 1.2 (2015-10-10)
 ----------------
 
