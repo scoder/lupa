@@ -23,9 +23,10 @@ unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
 
 
 class SetupLuaRuntimeMixin(object):
+    lua_runtime_kwargs = {}
 
     def setUp(self):
-        self.lua = lupa.LuaRuntime()
+        self.lua = lupa.LuaRuntime(**self.lua_runtime_kwargs)
 
     def tearDown(self):
         self.lua = None
@@ -83,6 +84,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_eval_multi(self):
         self.assertEqual((1,2,3), self.lua.eval('1,2,3'))
 
+    def test_eval_args(self):
+        self.assertEqual(2, self.lua.eval('...', 2))
+
+    def test_eval_args_multi(self):
+        self.assertEqual((1, 2, 3), self.lua.eval('...', 1, 2, 3))
+
     def test_eval_error(self):
         self.assertRaises(lupa.LuaError, self.lua.eval, '<INVALIDCODE>')
 
@@ -115,6 +122,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_execute_tostring_function(self):
         self.assertEqual('function', self.lua.execute('f = function(i) return i+1 end; return tostring(f)')[:8])
+
+    def test_execute_args(self):
+        self.assertEqual(2, self.lua.execute('return ...', 2))
+
+    def test_execute_args_multi(self):
+        self.assertEqual((1, 2, 3), self.lua.execute('return ...', 1, 2, 3))
 
     def test_function(self):
         function = self.lua.eval('function() return 1+1 end')
@@ -800,6 +813,61 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(None, lupa.lua_type([]))
         self.assertEqual(None, lupa.lua_type(lupa))
         self.assertEqual(None, lupa.lua_type(lupa.lua_type))
+
+
+class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
+    lua_runtime_kwargs = {'encoding': None}
+
+    def test_pygetitem(self):
+        lua_func = self.lua.eval('function(x) return x.ATTR end')
+        self.assertEqual(123, lua_func({b'ATTR': 123}))
+
+    def test_pysetitem(self):
+        lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
+        d = {b'ATTR': 321}
+        self.assertEqual(321, d[b'ATTR'])
+        lua_func(d)
+        self.assertEqual(123, d[b'ATTR'])
+
+    def test_pygetattr(self):
+        lua_func = self.lua.eval('function(x) return x.ATTR end')
+        class test(object):
+            def __init__(self):
+                self.ATTR = 5
+        self.assertEqual(test().ATTR, lua_func(test()))
+
+    def test_pysetattr(self):
+        lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
+        class test(object):
+            def __init__(self):
+                self.ATTR = 5
+        t = test()
+        self.assertEqual(5, t.ATTR)
+        lua_func(t)
+        self.assertEqual(123, t.ATTR)
+
+
+class TestStrNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
+    lua_runtime_kwargs = {'encoding': None}
+
+    def test_call_str(self):
+        self.assertEqual(b"test-None", self.lua.eval('"test-" .. tostring(python.none)'))
+
+    def test_call_str_py(self):
+        function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
+        self.assertEqual(b"test-nil", function(None))
+        self.assertEqual(b"test-1", function(1))
+
+    def test_call_str_class(self):
+        called = [False]
+        class test(object):
+            def __str__(self):
+                called[0] = True
+                return 'STR!!'
+
+        function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
+        self.assertEqual(b"test-STR!!", function(test()))
+        self.assertEqual(True, called[0])
 
 
 class TestAttributeHandlers(unittest.TestCase):
@@ -2198,6 +2266,14 @@ class MethodKwargsDecoratorTest(KwargsDecoratorTest):
     def assertIncorrect(self, f, call_txt):
         lua_func = self.lua.eval("function (obj) return obj:meth%s end" % call_txt)
         self.assertRaises(TypeError, lua_func, f)
+
+
+class NoEncodingKwargsDecoratorTest(KwargsDecoratorTest):
+    lua_runtime_kwargs = {'encoding': None}
+
+
+class NoEncodingMethodKwargsDecoratorTest(MethodKwargsDecoratorTest):
+    lua_runtime_kwargs = {'encoding': None}
 
 
 ################################################################################
