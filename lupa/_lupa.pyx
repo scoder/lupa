@@ -5,6 +5,8 @@ A fast Python wrapper around Lua and LuaJIT2.
 """
 
 from __future__ import absolute_import
+import warnings
+import traceback
 
 cimport cython
 
@@ -235,6 +237,19 @@ cdef class LuaRuntime:
             exception = self._raised_exception
             self._raised_exception = None
             raise exception[0], exception[1], exception[2]
+        return 0
+
+    @cython.final
+    cdef int warning_on_exception(self) except -1:
+        if self._raised_exception is not None:
+            warnings.warn(
+                u'Python exception occured\n%s' % (
+                    u''.join(traceback.format_exception(
+                        *self._raised_exception,
+                    )),
+                ),
+                RuntimeWarning,
+            )
         return 0
 
     @cython.final
@@ -1275,6 +1290,7 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
         for python_error in python_errors:
             if lua.lua_tostring(L, -1).endswith(python_error):
                 runtime.reraise_on_exception()
+            runtime.warning_on_exception()
         raise_lua_error(runtime, L, result_status)
     return unpack_lua_results(runtime, L)
 
