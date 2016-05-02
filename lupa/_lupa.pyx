@@ -1267,8 +1267,14 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
     # call into Lua
     with nogil:
         result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
-    #runtime.reraise_on_exception()
     if result_status:
+        python_errors = (
+            'error reading Python attribute/item',
+            'error during Python call',
+        )
+        for python_error in python_errors:
+            if lua.lua_tostring(L, -1).endswith(python_error):
+                runtime.reraise_on_exception()
         raise_lua_error(runtime, L, result_status)
     return unpack_lua_results(runtime, L)
 
