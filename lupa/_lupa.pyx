@@ -5,8 +5,6 @@ A fast Python wrapper around Lua and LuaJIT2.
 """
 
 from __future__ import absolute_import
-import warnings
-import traceback
 
 cimport cython
 
