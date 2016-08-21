@@ -1266,19 +1266,16 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
 
 cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
     cdef int result_status
+    cdef object result
     # call into Lua
     with nogil:
         result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
+    results = unpack_lua_results(runtime, L)
     if result_status:
-        python_errors = (
-            'error reading Python attribute/item',
-            'error during Python call',
-        )
-        for python_error in python_errors:
-            if lua.lua_tostring(L, -1).endswith(python_error):
-                runtime.reraise_on_exception()
+        if isinstance(results, BaseException):
+            runtime.reraise_on_exception()
         raise_lua_error(runtime, L, result_status)
-    return unpack_lua_results(runtime, L)
+    return results
 
 cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L,
                             tuple args, bint first_may_be_nil=True) except -1:
@@ -1407,12 +1404,13 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
     cdef LuaRuntime runtime = None
+    runtime = <LuaRuntime?>py_obj.runtime
     try:
-        runtime = <LuaRuntime?>py_obj.runtime
         return call_python(runtime, L, py_obj)
     except:
-        try: runtime.store_raised_exception()
-        finally: return -1
+        runtime.store_raised_exception()
+        py_to_lua(runtime, L, runtime._raised_exception[1])
+        return -1
 
 cdef int py_object_call(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
@@ -1421,7 +1419,7 @@ cdef int py_object_call(lua_State* L) nogil:
 
     result = py_call_with_gil(L, py_obj)
     if result < 0:
-        return lua.luaL_error(L, 'error during Python call')  # never returns!
+        return lua.lua_error(L)  # never returns!
     return result
 
 # str() support for Python objects
@@ -1515,8 +1513,9 @@ cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         else:
             return getattr_for_lua(runtime, L, py_obj, 2)
     except:
-        try: runtime.store_raised_exception()
-        finally: return -1
+        runtime.store_raised_exception()
+        py_to_lua(runtime, L, runtime._raised_exception[1])
+        return -1
 
 cdef int py_object_getindex(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
@@ -1524,7 +1523,7 @@ cdef int py_object_getindex(lua_State* L) nogil:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
     result = py_object_getindex_with_gil(L, py_obj)
     if result < 0:
-        return lua.luaL_error(L, 'error reading Python attribute/item')  # never returns!
+        return lua.lua_error(L)  # never returns!
     return result
 
 

@@ -755,12 +755,15 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertRaises(ValueError, function, test)
 
     def test_reraise_pcall(self):
+        exception = Exception('test')
+        def py_function():
+            raise exception
         function = self.lua.eval(
             'function(p) local r, err = pcall(p); return r, err end'
         )
         self.assertEqual(
-            function(lambda: 5/0),
-            (False, "error during Python call")
+            function(py_function),
+            (False, exception)
         )
 
     def test_lua_error_after_intercepted_python_exception(self):
