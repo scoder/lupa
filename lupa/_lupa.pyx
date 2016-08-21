@@ -1536,8 +1536,9 @@ cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         else:
             return setattr_for_lua(runtime, L, py_obj, 2, 3)
     except:
-        try: runtime.store_raised_exception()
-        finally: return -1
+        runtime.store_raised_exception()
+        py_to_lua(runtime, L, runtime._raised_exception[1])
+        return -1
 
 cdef int py_object_setindex(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
@@ -1545,7 +1546,7 @@ cdef int py_object_setindex(lua_State* L) nogil:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
     result = py_object_setindex_with_gil(L, py_obj)
     if result < 0:
-        return lua.luaL_error(L, 'error writing Python attribute/item')  # never returns!
+        return lua.lua_error(L)  # never returns!
     return result
 
 # special methods for Lua wrapped Python objects
