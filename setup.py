@@ -1,7 +1,9 @@
+from __future__ import absolute_import
 
 import sys
 import shutil
 import os
+import os.path
 
 from glob import iglob
 
@@ -140,7 +142,7 @@ def find_lua_build(no_luajit=False):
                 # include it in the install directory
                 return dict(extra_objects=[libfile],
                             include_dirs=[filepath],
-                            libfile=os.path.basename(libfile))
+                            libfile=libfile)
     print("No local build of LuaJIT2 found in lupa directory")
 
     # try to find installed LuaJIT2 or Lua
@@ -241,10 +243,9 @@ write_file(os.path.join('lupa', 'version.py'), "__version__ = '%s'\n" % VERSION)
 
 if config.get('libfile'):
     # include lua51.dll in the lib folder if we are on windows
-    libfile = config.get('libfile')
-    dllfile = libfile.rsplit(".", 1)[0] + ".dll"
-    shutil.copy(os.path.join(config['include_dirs'][0], dllfile), 'lupa/')
-    extra_setup_args['package_data'] = {'lupa': [dllfile]}
+    dllfile = os.path.splitext(config['libfile'])[0] + ".dll"
+    shutil.copy(dllfile, os.path.join(basedir, 'lupa'))
+    extra_setup_args['package_data'] = {'lupa': [os.path.basename(dllfile)]}
 
 
 # call distutils
