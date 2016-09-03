@@ -1,5 +1,6 @@
 
 import sys
+import shutil
 import os
 
 from glob import iglob
@@ -240,7 +241,10 @@ write_file(os.path.join('lupa', 'version.py'), "__version__ = '%s'\n" % VERSION)
 
 if config.get('libfile'):
     # include lua51.dll in the lib folder if we are on windows
-    extra_setup_args['package_data'] = {'lupa': [config['libfile']]}
+    libfile = config.get('libfile')
+    dllfile = libfile.rsplit(".", 1)[0] + ".dll"
+    shutil.copy(os.path.join(config['include_dirs'][0], dllfile), 'lupa/')
+    extra_setup_args['package_data'] = {'lupa': [dllfile]}
 
 
 # call distutils
