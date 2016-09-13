@@ -238,8 +238,13 @@ cdef class LuaRuntime:
         return 0
 
     @cython.final
-    cdef int store_raised_exception(self) except -1:
-        self._raised_exception = exc_info()
+    cdef int store_raised_exception(self, lua_State* L, bytes lua_error_msg) except -1:
+        try:
+            self._raised_exception = exc_info()
+            py_to_lua(self, L, self._raised_exception[1])
+        except:
+            lua.lua_pushlstring(L, lua_error_msg, len(lua_error_msg))
+            raise
         return 0
 
     def eval(self, lua_code, *args):
@@ -1328,7 +1333,7 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 
 # ref-counting support for Python objects
 
-cdef int decref_with_gil(py_object *py_obj) with gil:
+cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
     # originally, we just used:
     #cpython.ref.Py_XDECREF(py_obj.obj)
     # now, we keep Python object references in Lua visible to Python in a dict of lists:
@@ -1345,7 +1350,7 @@ cdef int decref_with_gil(py_object *py_obj) with gil:
             refs.pop()  # any, really
         return 0
     except:
-        try: runtime.store_raised_exception()
+        try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
         finally: return -1
 
 cdef int py_object_gc(lua_State* L) nogil:
@@ -1353,8 +1358,8 @@ cdef int py_object_gc(lua_State* L) nogil:
         return 0
     py_obj = unpack_userdata(L, 1)
     if py_obj is not NULL and py_obj.obj is not NULL:
-        if decref_with_gil(py_obj):
-            return lua.luaL_error(L, 'error while cleaning up a Python object')  # never returns!
+        if decref_with_gil(py_obj, L):
+            return lua.lua_error(L)  # never returns!
     return 0
 
 # calling Python objects
@@ -1402,12 +1407,11 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
     cdef LuaRuntime runtime = None
-    runtime = <LuaRuntime?>py_obj.runtime
     try:
+        runtime = <LuaRuntime?>py_obj.runtime
         return call_python(runtime, L, py_obj)
     except:
-        runtime.store_raised_exception()
-        py_to_lua(runtime, L, runtime._raised_exception[1])
+        runtime.store_raised_exception(L, b'error during Python call')
         return -1
 
 cdef int py_object_call(lua_State* L) nogil:
@@ -1437,7 +1441,7 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
         lua.lua_pushlstring(L, <bytes>s, len(<bytes>s))
         return 1 # returning 1 value
     except:
-        try: runtime.store_raised_exception()
+        try: runtime.store_raised_exception(L, b'error during Python str() call')
         finally: return -1
 
 cdef int py_object_str(lua_State* L) nogil:
@@ -1446,7 +1450,7 @@ cdef int py_object_str(lua_State* L) nogil:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
     result = py_str_with_gil(L, py_obj)
     if result < 0:
-        return lua.luaL_error(L, 'error during Python str() call')  # never returns!
+        return lua.lua_error(L)  # never returns!
     return result
 
 # item access for Python objects
@@ -1511,8 +1515,7 @@ cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         else:
             return getattr_for_lua(runtime, L, py_obj, 2)
     except:
-        runtime.store_raised_exception()
-        py_to_lua(runtime, L, runtime._raised_exception[1])
+        runtime.store_raised_exception(L, b'error reading Python attribute/item')
         return -1
 
 cdef int py_object_getindex(lua_State* L) nogil:
@@ -1534,8 +1537,7 @@ cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         else:
             return setattr_for_lua(runtime, L, py_obj, 2, 3)
     except:
-        runtime.store_raised_exception()
-        py_to_lua(runtime, L, runtime._raised_exception[1])
+        runtime.store_raised_exception(L, b'error writing Python attribute/item')
         return -1
 
 cdef int py_object_setindex(lua_State* L) nogil:
@@ -1579,14 +1581,14 @@ cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int t
         runtime = <LuaRuntime?>py_obj.runtime
         return py_to_lua_custom(runtime, L, <object>py_obj.obj, type_flags)
     except:
-        try: runtime.store_raised_exception()
+        try: runtime.store_raised_exception(L, b'error during type adaptation')
         finally: return -1
 
 cdef int py_wrap_object_protocol(lua_State* L, int type_flags) nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
     result = py_wrap_object_protocol_with_gil(L, py_obj, type_flags)
     if result < 0:
-        return lua.luaL_error(L, 'error during type adaptation')  # never returns!
+        return lua.lua_error(L)  # never returns!
     return result
 
 cdef int py_as_attrgetter(lua_State* L) nogil:
@@ -1606,14 +1608,14 @@ cdef int py_iter(lua_State* L) nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
     result = py_iter_with_gil(L, py_obj, 0)
     if result < 0:
-        return lua.luaL_error(L, 'error creating an iterator')  # never returns!
+        return lua.lua_error(L)  # never returns!
     return result
 
 cdef int py_iterex(lua_State* L) nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
     result = py_iter_with_gil(L, py_obj, OBJ_UNPACK_TUPLE)
     if result < 0:
-        return lua.luaL_error(L, 'error creating an iterator')  # never returns!
+        return lua.lua_error(L)  # never returns!
     return result
 
 cdef int py_enumerate(lua_State* L) nogil:
@@ -1625,7 +1627,7 @@ cdef int py_enumerate(lua_State* L) nogil:
     cdef double start = lua.lua_tonumber(L, -1) if lua.lua_gettop(L) == 2 else 0.0
     result = py_enumerate_with_gil(L, py_obj, start)
     if result < 0:
-        return lua.luaL_error(L, 'error creating an iterator with enumerate()')  # never returns!
+        return lua.lua_error(L)  # never returns!
     return result
 
 
@@ -1636,7 +1638,7 @@ cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj, double start) wi
         obj = iter(<object>py_obj.obj)
         return py_push_iterator(runtime, L, obj, OBJ_ENUMERATOR, start - 1.0)
     except:
-        try: runtime.store_raised_exception()
+        try: runtime.store_raised_exception(L, b'error creating an iterator with enumerate()')
         finally: return -1
 
 cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
@@ -1646,7 +1648,7 @@ cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with 
         obj = iter(<object>py_obj.obj)
         return py_push_iterator(runtime, L, obj, type_flags, 0.0)
     except:
-        try: runtime.store_raised_exception()
+        try: runtime.store_raised_exception(L, b'error creating an iterator')
         finally: return -1
 
 cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags,
@@ -1674,7 +1676,7 @@ cdef int py_iter_next(lua_State* L) nogil:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
     result = py_iter_next_with_gil(L, py_obj)
     if result < 0:
-        return lua.luaL_error(L, 'error while calling next(iterator)')  # never returns!
+        return lua.lua_error(L)  # never returns!
     return result
 
 cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
@@ -1705,7 +1707,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             result += 1
         return result
     except:
-        try: runtime.store_raised_exception()
+        try: runtime.store_raised_exception(L, b'error while calling next(iterator)')
         finally: return -1
 
 # 'python' module functions in Lua
