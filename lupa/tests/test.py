@@ -814,6 +814,33 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(None, lupa.lua_type(lupa))
         self.assertEqual(None, lupa.lua_type(lupa.lua_type))
 
+    def test_call_from_coroutine(self):
+        lua = self.lua
+        def f(*args, **kwargs):
+            return lua.eval('tostring(...)', args)
+
+        create_thread = lua.eval('''
+        function(func)
+           local thread = coroutine.create(function()
+               coroutine.yield(func());
+           end);
+           return thread;
+        end''')
+        t = create_thread(f)()
+        self.assertEqual(lua.eval('coroutine.resume(...)', t), (True, u'()'))
+
+    def test_call_from_coroutine2(self):
+        lua = self.lua
+        def f(*args, **kwargs):
+            return lua.eval('tostring(...)', args)
+
+        t = lua.eval('''
+           function(f)
+             coroutine.yield(f());
+           end
+        ''').coroutine(f)
+        self.assertEqual(lua.eval('coroutine.resume(...)', t, f), (True, u'()'))
+
 
 class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
     lua_runtime_kwargs = {'encoding': None}
