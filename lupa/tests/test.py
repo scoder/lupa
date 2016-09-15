@@ -827,7 +827,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
            return thread;
         end''')
         t = create_thread(f)()
-        self.assertEqual(lua.eval('coroutine.resume(...)', t), (True, u'()'))
+        self.assertEqual(lua.eval('coroutine.resume(...)', t), (True, b'()'))
 
     def test_call_from_coroutine2(self):
         lua = self.lua
@@ -839,7 +839,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
              coroutine.yield(f());
            end
         ''').coroutine(f)
-        self.assertEqual(lua.eval('coroutine.resume(...)', t, f), (True, u'()'))
+        self.assertEqual(lua.eval('coroutine.resume(...)', t, f), (True, b'()'))
 
 
 class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
