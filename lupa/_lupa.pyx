@@ -1399,13 +1399,11 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
     cdef LuaRuntime runtime = None
-    cdef lua_State* stored_state
-    updated_state = False
+    cdef lua_State* stored_state = NULL
 
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         if runtime._state is not L:
-            updated_state = True
             stored_state = runtime._state
             runtime._state = L
         return call_python(runtime, L, py_obj)
@@ -1413,7 +1411,7 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
         try: runtime.store_raised_exception()
         finally: return -1
     finally:
-        if updated_state:
+        if stored_state is not NULL:
             runtime._state = stored_state
 
 cdef int py_object_call(lua_State* L) nogil:
