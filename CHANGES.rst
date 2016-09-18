@@ -1,16 +1,29 @@
 Lupa change log
 ===============
 
+1.4 (2016-??-??)
+----------------
+
+* GH#82: Lua coroutines were using the wrong runtime state
+  (patch by Sergey Dobrov)
+
+* GH#81: copy locally provided Lua DLL into installed package on Windows
+  (patch by Gareth Coles)
+
+* built with Cython 0.24.1
+
+
 1.3 (2016-04-12)
 ----------------
 
-* ``eval()`` and ``execute()`` accept optional positional arguments
+* GH#70: ``eval()`` and ``execute()`` accept optional positional arguments
+  (patch by John Vandenberg)
 
-* calling ``str()`` on a Python object from Lua could fail if the
-  ``LuaRuntime`` is set up without auto-encoding
+* GH#65: calling ``str()`` on a Python object from Lua could fail if the
+  ``LuaRuntime`` is set up without auto-encoding (patch by Mikhail Korobov)
 
-* attribute/keyword names were not properly encoded if the ``LuaRuntime``
-  is set up without auto-encoding
+* GH#63: attribute/keyword names were not properly encoded if the
+  ``LuaRuntime`` is set up without auto-encoding (patch by Mikhail Korobov)
 
 * built with Cython 0.24
 
