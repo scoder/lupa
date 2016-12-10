@@ -1,7 +1,7 @@
 Lupa change log
 ===============
 
-1.4 (2016-??-??)
+1.4 (2016-12-10)
 ----------------
 
 * GH#82: Lua coroutines were using the wrong runtime state
@@ -10,7 +10,7 @@ Lupa change log
 * GH#81: copy locally provided Lua DLL into installed package on Windows
   (patch by Gareth Coles)
 
-* built with Cython 0.24.1
+* built with Cython 0.25.2
 
 
 1.3 (2016-04-12)
