@@ -1265,8 +1265,22 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
 cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
     cdef int result_status
     # call into Lua
+    cdef int errfunc = 0
     with nogil:
-        result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, 0)
+        lua.lua_getglobal(L, "debug")
+        if not lua.lua_istable(L, -1):
+            lua.lua_pop(L, 1)
+        else:
+            lua.lua_getfield(L, -1, "traceback")
+            if not lua.lua_isfunction(L, -1):
+                lua.lua_pop(L, 2)
+            else:
+                lua.lua_replace(L, -2)
+                lua.lua_insert(L, 1)
+                errfunc = 1
+        result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, errfunc)
+        if errfunc:
+            lua.lua_remove(L, 1)
     runtime.reraise_on_exception()
     if result_status:
         raise_lua_error(runtime, L, result_status)
