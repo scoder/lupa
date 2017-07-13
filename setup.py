@@ -47,7 +47,8 @@ ext_modules = [
     Extension(
         'lupa._lupa',
         sources = ['lupa/_lupa'+source_extension] + ['third-party/lua/lapi.c', 'third-party/lua/lcode.c', 'third-party/lua/lctype.c', 'third-party/lua/ldebug.c', 'third-party/lua/ldo.c', 'third-party/lua/ldump.c', 'third-party/lua/lfunc.c', 'third-party/lua/lgc.c', 'third-party/lua/llex.c', 'third-party/lua/lmem.c', 'third-party/lua/lobject.c', 'third-party/lua/lopcodes.c', 'third-party/lua/lparser.c', 'third-party/lua/lstate.c', 'third-party/lua/lstring.c', 'third-party/lua/ltable.c', 'third-party/lua/ltm.c', 'third-party/lua/lundump.c', 'third-party/lua/lvm.c', 'third-party/lua/lzio.c', 'third-party/lua/ltests.c', 'third-party/lua/lauxlib.c', 'third-party/lua/lbaselib.c', 'third-party/lua/ldblib.c', 'third-party/lua/liolib.c', 'third-party/lua/lmathlib.c', 'third-party/lua/loslib.c', 'third-party/lua/ltablib.c', 'third-party/lua/lstrlib.c', 'third-party/lua/lutf8lib.c', 'third-party/lua/lbitlib.c', 'third-party/lua/loadlib.c', 'third-party/lua/lcorolib.c', 'third-party/lua/linit.c'],
-        include_dirs = ['third-party/lua']
+        include_dirs = ['third-party/lua'],
+        define_macros = [('LUA_COMPAT_MODULE', None)]
     )]
 
 if cythonize is not None:
