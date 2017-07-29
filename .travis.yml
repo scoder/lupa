@@ -7,16 +7,6 @@ python:
   - 2.7
   - 2.6
 
-addons:
-  apt:
-    packages:
-      - libluajit-5.1-dev
-      - liblua5.2-dev
-
-env:
-  - LUA=luajit-5.1
-  - LUA=lua5.2
-
 cache: pip
 
 # requirements.txt are automatically installed during 'install' phase.
@@ -24,7 +14,5 @@ cache: pip
 before_script:
   # virtualenv<14.0.0 is needed for Python 3.2 support
   - pip install -U tox-travis "virtualenv<14.0.0"
-
-  - if [[ "$LUA" == "lua5.2" ]]; then export SETUP_OPTIONS="--no-luajit" ; fi
 
 script: tox
