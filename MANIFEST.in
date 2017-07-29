@@ -1,3 +1,4 @@
 include MANIFEST.in
 include CHANGES.rst INSTALL.rst LICENSE.txt README.rst
 recursive-include lupa *.py *.pyx *.pxd *.pxi *.c *.h
+recursive-include third-party/lua *.c *.h
