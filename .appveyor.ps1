@@ -29,7 +29,7 @@ if($pyversion.Contains('MSC v.1500')){
 $vcvarsall = "$comntools\..\..\VC\vcvarsall.bat"
 
 # clean
-Remove-Item -Recurse $luadir, 'build', 'lupa.egg-info', 'backup' -ErrorAction SilentlyContinue
+Remove-Item -Recurse $luadir, 'build', 'lupa.egg-info', 'backup', 'lupa\_lupa.c' -ErrorAction SilentlyContinue
 if($args[0] -eq 'clean'){
     Exit
 }elseif($args[0] -eq 'distclean'){
