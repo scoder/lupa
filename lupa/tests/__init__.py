@@ -13,7 +13,7 @@ def suite():
     tests = []
     for filename in os.listdir(test_dir):
         if filename.endswith('.py') and not filename.startswith('_'):
-            tests.append('lupa.tests.'  + filename[:-3])
+            tests.append(('' if os.path.samefile(test_dir, os.getcwd()) else 'lupa.tests.') + filename[:-3])
 
     suite = unittest.defaultTestLoader.loadTestsFromNames(tests)
     suite.addTest(doctest.DocTestSuite(lupa._lupa))

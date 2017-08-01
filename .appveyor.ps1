@@ -53,7 +53,7 @@ if(Test-Path 'backup'){
 
 # test lupa
 Set-Location 'lupa\tests'
-python test.py
+python __init__.py
 $testexitcode = $lastexitcode
 Set-Location (Join-Path '..' '..')
 Exit $testexitcode
