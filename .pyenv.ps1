@@ -17,7 +17,7 @@ $env:Path.Split(';') | ForEach-Object{
         $safe_paths += $_
     }
 }
-$env:Path = ((@($args[0], (Join-Path $args[0] 'Scripts')) + $safe_paths) -join ';')
+$env:Path = ((@($args[0], ($args[0] + '\Scripts')) + $safe_paths) -join ';')
 & $args[1]
 $exitcode = $LASTEXITCODE
 $env:Path = $origin_path

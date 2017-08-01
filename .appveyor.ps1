@@ -9,7 +9,7 @@ if($pyversion.Contains('32 bit')){
 }else{
     $arch = 'x64'
 }
-$vcvarsall = (Join-Path $env:VS140COMNTOOLS '..' '..' 'VC' 'vcvarsall.bat')
+$vcvarsall = "$env:VS140COMNTOOLS\..\..\VC\vcvarsall.bat"
 
 # clean
 Remove-Item -Recurse $luadir, 'build', 'lupa.egg-info', 'backup' -ErrorAction SilentlyContinue
@@ -34,7 +34,7 @@ Expand-Archive $luatar -DestinationPath .
 
 # build lua
 $origin_pwd = (Get-Location)
-Set-Location (Join-Path $luadir 'src')
+Set-Location "$luadir\src"
 & $env:ComSpec /c "call `"$vcvarsall`" $arch && msvcbuild.bat"
 Set-Location $origin_pwd
 
@@ -44,7 +44,7 @@ if(Test-Path 'dist'){
 }
 pip install -r requirements.txt
 pip install wheel
-python setup.py bdist_wheel
+& $env:ComSpec /c 'python setup.py bdist_wheel 2>&1'
 pip install @(Get-ChildItem dist\*.whl)[0] -U
 if(Test-Path 'backup'){
     Move-Item backup\*.whl 'dist' -ErrorAction SilentlyContinue
@@ -53,7 +53,7 @@ if(Test-Path 'backup'){
 
 # test lupa
 Set-Location 'lupa\tests'
-python __init__.py
+& $env:ComSpec /c 'python __init__.py 2>&1'
 $testexitcode = $lastexitcode
-Set-Location (Join-Path '..' '..')
+Set-Location "..\.."
 Exit $testexitcode
