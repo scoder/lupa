@@ -916,10 +916,10 @@ following should work on a Linux system:
 .. code:: python
 
       >>> import sys
-      >>> orig_dlflags = sys.getdlopenflags()
-      >>> sys.setdlopenflags(258)
+      >>> orig_dlflags = sys.getdlopenflags()     # doctest: +SKIP
+      >>> sys.setdlopenflags(258)                 # doctest: +SKIP
       >>> import lupa
-      >>> sys.setdlopenflags(orig_dlflags)
+      >>> sys.setdlopenflags(orig_dlflags)        # doctest: +SKIP
 
       >>> lua = lupa.LuaRuntime()
       >>> posix_module = lua.require('posix')     # doctest: +SKIP

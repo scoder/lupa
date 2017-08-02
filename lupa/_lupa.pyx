@@ -21,7 +21,10 @@ from cpython.method cimport (
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython.bytes cimport PyBytes_FromFormat
 
-from libc.stdint cimport uintptr_t
+cdef extern from '_stdint.h':
+    # old versions of msvc does not have stdint.h
+    # typedef uintptr_t to unsigned long long -- it might be incorrect, but does not matter
+    ctypedef unsigned long long uintptr_t
 
 cdef extern from *:
     ctypedef char* const_char_ptr "const char*"
