@@ -12,7 +12,7 @@ $pyversion = (python -c "print(__import__('sys').version)")
 if($pyversion.Contains('32 bit')){
     $arch = 'x86'
 }else{
-    $arch = 'x64'
+    $arch = 'x86_amd64'
 }
 if($pyversion.Contains('MSC v.1500')){
     # CPython 2.6, 2.7, 3.0, 3.1, 3.2
