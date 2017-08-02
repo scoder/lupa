@@ -75,4 +75,6 @@ Set-Location 'lupa\tests'
 run 'python __init__.py'
 $testexitcode = $lastexitcode
 Set-Location "..\.."
-Exit $testexitcode
+if($testexitcode -ne 0){
+    throw 'Test fail'
+}
