@@ -1,5 +1,12 @@
 build_script:
-  - ps: Get-ChildItem C:\Python* | ForEach-Object {.\.pyenv.ps1 ('C:\' + $_.Name) .\.appveyor.ps1}
+  - ps: .\.pyenv.ps1 C:\Python26 .\.appveyor.ps1
+  - ps: .\.pyenv.ps1 C:\Python27 .\.appveyor.ps1
+  - ps: .\.pyenv.ps1 C:\Python33 .\.appveyor.ps1
+  - ps: .\.pyenv.ps1 C:\Python34 .\.appveyor.ps1
+  - ps: .\.pyenv.ps1 C:\Python35 .\.appveyor.ps1
+  - ps: .\.pyenv.ps1 C:\Python35-x64 .\.appveyor.ps1
+  - ps: .\.pyenv.ps1 C:\Python36 .\.appveyor.ps1
+  - ps: .\.pyenv.ps1 C:\Python36-x64 .\.appveyor.ps1
 artifacts:
   - path: dist\*.whl
     name: wheels
