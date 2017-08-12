@@ -883,7 +883,7 @@ class TestStrNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_call_str_py(self):
         function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
         self.assertEqual(b"test-nil", function(None))
-        self.assertEqual(b"test-1", function(1))
+        self.assertEqual(b"test-1.5", function(1.5))
 
     def test_call_str_class(self):
         called = [False]
