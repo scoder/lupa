@@ -2535,10 +2535,19 @@ class TestFastRLock(unittest.TestCase):
         lock.release()
         self.assertFalse(lock._is_owned())
 
+
 ################################################################################
 # tests for error stacktrace
 
 class TestErrorStackTrace(unittest.TestCase):
+    if not hasattr(unittest.TestCase, 'assertIn'):
+        def assertIn(self, member, container, msg=None):
+            self.assertTrue(member in container, msg)
+
+    if not hasattr(unittest.TestCase, 'assertNotIn'):
+        def assertNotIn(self, member, container, msg=None):
+            self.assertFalse(member in container, msg)
+
     def test_stacktrace(self):
         lua = lupa.LuaRuntime()
         try:
