@@ -119,7 +119,6 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 def find_lua_build(no_luajit=False, use_bundle=False, no_bundle=False):
     # try to find local LuaJIT2 build
-    global ext_libraries
     if not use_bundle:
         os_path = os.path
         for filename in os.listdir(basedir):
@@ -170,7 +169,7 @@ def find_lua_build(no_luajit=False, use_bundle=False, no_bundle=False):
                     package_name, sys.exc_info()[1]))
 
     if not no_bundle:
-        print('Use bundled lua')
+        print('Using bundled Lua')
         ext_libraries = [
             ['lua', {
                 'sources': [bundle_lua_path + src for src in lua_sources],
@@ -178,7 +177,10 @@ def find_lua_build(no_luajit=False, use_bundle=False, no_bundle=False):
                 'macros': macros,
             }]
         ]
-        return {'include_dirs': [bundle_lua_path]}
+        return {
+            'include_dirs': [bundle_lua_path],
+            'ext_libraries': ext_libraries,
+        }
 
     error = ("None of LuaJIT2, Lua 5.1 or Lua 5.2 were found. Please install "
              "Lua and its development packages, "
@@ -240,7 +242,6 @@ lua_sources = \
  'lcorolib.c',
  'linit.c']
 bundle_lua_path = 'third-party/lua/'
-ext_libraries = None
 
 config = find_lua_build(no_luajit=has_option('--no-luajit'),
                         use_bundle=has_option('--use-bundle'),
@@ -248,9 +249,8 @@ config = find_lua_build(no_luajit=has_option('--no-luajit'),
 ext_args = {
     'extra_objects': config.get('extra_objects'),
     'include_dirs': config.get('include_dirs'),
+    'define_macros': macros,
 }
-ext_args['define_macros'] = macros
-
 
 # check if Cython is installed, and use it if requested or necessary
 use_cython = has_option('--with-cython')
@@ -342,6 +342,6 @@ setup(
 
     packages=['lupa'],
     ext_modules=ext_modules,
-    libraries=ext_libraries,
+    libraries=config.get('ext_libraries'),
     **extra_setup_args
 )
