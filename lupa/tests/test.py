@@ -754,6 +754,31 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             raise ValueError("huhu")
         self.assertRaises(ValueError, function, test)
 
+    def test_reraise_pcall(self):
+        exception = Exception('test')
+        def py_function():
+            raise exception
+        function = self.lua.eval(
+            'function(p) local r, err = pcall(p); return r, err end'
+        )
+        self.assertEqual(
+            function(py_function),
+            (False, exception)
+        )
+
+    def test_lua_error_after_intercepted_python_exception(self):
+        function = self.lua.eval('''
+            function(p)
+                pcall(p)
+                print(a.b);
+            end
+        ''')
+        self.assertRaises(
+            lupa.LuaError,
+            function,
+            lambda: 5/0,
+        )
+
     def test_attribute_filter(self):
         def attr_filter(obj, name, setting):
             if isinstance(name, unicode_type):
