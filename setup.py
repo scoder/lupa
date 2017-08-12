@@ -117,55 +117,68 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 # check if LuaJIT is in a subdirectory and build statically against it
 
-def find_lua_build(no_luajit=False):
+def find_lua_build(no_luajit=False, use_bundle=False, no_bundle=False):
     # try to find local LuaJIT2 build
-    os_path = os.path
-    for filename in os.listdir(basedir):
-        if not filename.lower().startswith('luajit'):
-            continue
-        filepath = os_path.join(basedir, filename, 'src')
-        if not os_path.isdir(filepath):
-            continue
-        libfile = os_path.join(filepath, 'libluajit.a')
-        if os_path.isfile(libfile):
-            print("found LuaJIT build in %s" % filepath)
-            print("building statically")
-            return dict(extra_objects=[libfile],
-                        include_dirs=[filepath])
-        # also check for lua51.lib, the Windows equivalent of libluajit.a
-        for libfile in iglob(os_path.join(filepath, 'lua5?.lib')):
+    global ext_libraries
+    if not use_bundle:
+        os_path = os.path
+        for filename in os.listdir(basedir):
+            if not filename.lower().startswith('luajit'):
+                continue
+            filepath = os_path.join(basedir, filename, 'src')
+            if not os_path.isdir(filepath):
+                continue
+            libfile = os_path.join(filepath, 'libluajit.a')
             if os_path.isfile(libfile):
-                print("found LuaJIT build in %s (%s)" % (
-                    filepath, os.path.basename(libfile)))
+                print("found LuaJIT build in %s" % filepath)
                 print("building statically")
-                # And return the dll file name too, as we need to
-                # include it in the install directory
                 return dict(extra_objects=[libfile],
-                            include_dirs=[filepath],
-                            libfile=libfile)
-    print("No local build of LuaJIT2 found in lupa directory")
+                            include_dirs=[filepath])
+            # also check for lua51.lib, the Windows equivalent of libluajit.a
+            for libfile in iglob(os_path.join(filepath, 'lua5?.lib')):
+                if os_path.isfile(libfile):
+                    print("found LuaJIT build in %s (%s)" % (
+                        filepath, os.path.basename(libfile)))
+                    print("building statically")
+                    # And return the dll file name too, as we need to
+                    # include it in the install directory
+                    return dict(extra_objects=[libfile],
+                                include_dirs=[filepath],
+                                libfile=libfile)
+        print("No local build of LuaJIT2 found in lupa directory")
 
-    # try to find installed LuaJIT2 or Lua
-    if no_luajit:
-        packages = []
-    else:
-        packages = [('luajit', '2')]
-    packages += [
-        (name, lua_version)
-        for lua_version in ('5.2', '5.1')
-        for name in ('lua%s' % lua_version, 'lua-%s' % lua_version, 'lua')
-    ]
+        # try to find installed LuaJIT2 or Lua
+        if no_luajit:
+            packages = []
+        else:
+            packages = [('luajit', '2')]
+        packages += [
+            (name, lua_version)
+            for lua_version in ('5.2', '5.1')
+            for name in ('lua%s' % lua_version, 'lua-%s' % lua_version, 'lua')
+        ]
 
-    for package_name, min_version in packages:
-        print("Checking for installed %s library using pkg-config" %
-              package_name)
-        try:
-            check_lua_installed(package_name, min_version)
-            return dict(extra_objects=lua_libs(package_name),
-                        include_dirs=lua_include(package_name))
-        except RuntimeError:
-            print("Did not find %s using pkg-config: %s" % (
-                package_name, sys.exc_info()[1]))
+        for package_name, min_version in packages:
+            print("Checking for installed %s library using pkg-config" %
+                package_name)
+            try:
+                check_lua_installed(package_name, min_version)
+                return dict(extra_objects=lua_libs(package_name),
+                            include_dirs=lua_include(package_name))
+            except RuntimeError:
+                print("Did not find %s using pkg-config: %s" % (
+                    package_name, sys.exc_info()[1]))
+
+    if not no_bundle:
+        print('Use bundled lua')
+        ext_libraries = [
+            ['lua', {
+                'sources': [bundle_lua_path + src for src in lua_sources],
+                'include_dirs': [bundle_lua_path],
+                'macros': macros,
+            }]
+        ]
+        return {'include_dirs': [bundle_lua_path]}
 
     error = ("None of LuaJIT2, Lua 5.1 or Lua 5.2 were found. Please install "
              "Lua and its development packages, "
@@ -180,17 +193,62 @@ def has_option(name):
         return True
     return False
 
-config = find_lua_build(no_luajit=has_option('--no-luajit'))
-ext_args = {
-    'extra_objects': config.get('extra_objects'),
-    'include_dirs': config.get('include_dirs'),
-}
 
-macros = [('LUA_COMPAT_ALL', None)]
+macros = [
+    ('LUA_COMPAT_ALL', None),
+    ('LUA_COMPAT_5_1', None),
+]
 if has_option('--without-assert'):
     macros.append(('CYTHON_WITHOUT_ASSERTIONS', None))
 if has_option('--with-lua-checks'):
     macros.append(('LUA_USE_APICHECK', None))
+
+# bundled lua
+lua_sources = \
+['lapi.c',
+ 'lcode.c',
+ 'lctype.c',
+ 'ldebug.c',
+ 'ldo.c',
+ 'ldump.c',
+ 'lfunc.c',
+ 'lgc.c',
+ 'llex.c',
+ 'lmem.c',
+ 'lobject.c',
+ 'lopcodes.c',
+ 'lparser.c',
+ 'lstate.c',
+ 'lstring.c',
+ 'ltable.c',
+ 'ltm.c',
+ 'lundump.c',
+ 'lvm.c',
+ 'lzio.c',
+ 'ltests.c',
+ 'lauxlib.c',
+ 'lbaselib.c',
+ 'ldblib.c',
+ 'liolib.c',
+ 'lmathlib.c',
+ 'loslib.c',
+ 'ltablib.c',
+ 'lstrlib.c',
+ 'lutf8lib.c',
+ 'lbitlib.c',
+ 'loadlib.c',
+ 'lcorolib.c',
+ 'linit.c']
+bundle_lua_path = 'third-party/lua/'
+ext_libraries = None
+
+config = find_lua_build(no_luajit=has_option('--no-luajit'),
+                        use_bundle=has_option('--use-bundle'),
+                        no_bundle=has_option('--no-bundle'))
+ext_args = {
+    'extra_objects': config.get('extra_objects'),
+    'include_dirs': config.get('include_dirs'),
+}
 ext_args['define_macros'] = macros
 
 
@@ -284,5 +342,6 @@ setup(
 
     packages=['lupa'],
     ext_modules=ext_modules,
+    libraries=ext_libraries,
     **extra_setup_args
 )
