@@ -2535,6 +2535,36 @@ class TestFastRLock(unittest.TestCase):
         lock.release()
         self.assertFalse(lock._is_owned())
 
+################################################################################
+# tests for error stacktrace
+
+class TestErrorStackTrace(unittest.TestCase):
+    def test_stacktrace(self):
+        lua = lupa.LuaRuntime()
+        try:
+            lua.execute("error('abc')")
+            raise RuntimeError("LuaError was not raised")
+        except lupa.LuaError as e:
+            self.assertIn("stack traceback:", e.args[0])
+
+    def test_nil_debug(self):
+        lua = lupa.LuaRuntime()
+        try:
+            lua.execute("debug = nil")
+            lua.execute("error('abc')")
+            raise RuntimeError("LuaError was not raised")
+        except lupa.LuaError as e:
+            self.assertNotIn("stack traceback:", e.args[0])
+
+    def test_nil_debug_traceback(self):
+        lua = lupa.LuaRuntime()
+        try:
+            lua.execute("debug = nil")
+            lua.execute("error('abc')")
+            raise RuntimeError("LuaError was not raised")
+        except lupa.LuaError as e:
+            self.assertNotIn("stack traceback:", e.args[0])
 
 if __name__ == '__main__':
     unittest.main()
+
