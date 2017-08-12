@@ -1,6 +1,13 @@
 Lupa change log
 ===============
 
+1.5 (2017-??-??)
+----------------
+
+* GH#91: bundle Lua 5.3 in source distribution to simplify one-shot installs
+  (patch by TitanSnow)
+
+
 1.4 (2016-12-10)
 ----------------
 
