@@ -119,6 +119,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 def find_lua_build(no_luajit=False):
     # try to find local LuaJIT2 build
+    global ext_libraries
     os_path = os.path
     for filename in os.listdir(basedir):
         if not filename.lower().startswith('luajit'):
@@ -167,11 +168,15 @@ def find_lua_build(no_luajit=False):
             print("Did not find %s using pkg-config: %s" % (
                 package_name, sys.exc_info()[1]))
 
-    error = ("None of LuaJIT2, Lua 5.1 or Lua 5.2 were found. Please install "
-             "Lua and its development packages, "
-             "or put a local build into the lupa main directory.")
-    print(error)
-    return {}
+    print('Use bundled lua')
+    ext_libraries = [
+        ['lua', {
+            'sources': [bundle_lua_path + src for src in lua_sources],
+            'include_dirs': [bundle_lua_path],
+            'macros': macros,
+        }]
+    ]
+    return {'include_dirs': [bundle_lua_path]}
 
 
 def has_option(name):
@@ -180,17 +185,60 @@ def has_option(name):
         return True
     return False
 
+
+macros = [
+    ('LUA_COMPAT_ALL', None),
+    ('LUA_COMPAT_5_1', None),
+]
+if has_option('--without-assert'):
+    macros.append(('CYTHON_WITHOUT_ASSERTIONS', None))
+if has_option('--with-lua-checks'):
+    macros.append(('LUA_USE_APICHECK', None))
+
+# bundled lua
+lua_sources = \
+['lapi.c',
+ 'lcode.c',
+ 'lctype.c',
+ 'ldebug.c',
+ 'ldo.c',
+ 'ldump.c',
+ 'lfunc.c',
+ 'lgc.c',
+ 'llex.c',
+ 'lmem.c',
+ 'lobject.c',
+ 'lopcodes.c',
+ 'lparser.c',
+ 'lstate.c',
+ 'lstring.c',
+ 'ltable.c',
+ 'ltm.c',
+ 'lundump.c',
+ 'lvm.c',
+ 'lzio.c',
+ 'ltests.c',
+ 'lauxlib.c',
+ 'lbaselib.c',
+ 'ldblib.c',
+ 'liolib.c',
+ 'lmathlib.c',
+ 'loslib.c',
+ 'ltablib.c',
+ 'lstrlib.c',
+ 'lutf8lib.c',
+ 'lbitlib.c',
+ 'loadlib.c',
+ 'lcorolib.c',
+ 'linit.c']
+bundle_lua_path = 'third-party/lua/'
+ext_libraries = None
+
 config = find_lua_build(no_luajit=has_option('--no-luajit'))
 ext_args = {
     'extra_objects': config.get('extra_objects'),
     'include_dirs': config.get('include_dirs'),
 }
-
-macros = [('LUA_COMPAT_ALL', None)]
-if has_option('--without-assert'):
-    macros.append(('CYTHON_WITHOUT_ASSERTIONS', None))
-if has_option('--with-lua-checks'):
-    macros.append(('LUA_USE_APICHECK', None))
 ext_args['define_macros'] = macros
 
 
@@ -284,5 +332,6 @@ setup(
 
     packages=['lupa'],
     ext_modules=ext_modules,
+    libraries=ext_libraries,
     **extra_setup_args
 )
