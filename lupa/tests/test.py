@@ -224,7 +224,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_call_str_py(self):
         function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
         self.assertEqual("test-nil", function(None))
-        self.assertEqual("test-1", function(1))
+        self.assertEqual("test-1.5", function(1.5))
 
     def test_call_str_class(self):
         called = [False]
