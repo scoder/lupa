@@ -23,9 +23,6 @@ from cpython.bytes cimport PyBytes_FromFormat
 
 from libc.stdint cimport uintptr_t
 
-cdef extern from *:
-    ctypedef char* const_char_ptr "const char*"
-
 cdef object exc_info
 from sys import exc_info
 
@@ -570,7 +567,7 @@ cdef class _LuaObject:
     def __repr__(self):
         assert self._runtime is not None
         cdef lua_State* L = self._state
-        encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
+        cdef bytes encoding = self._runtime._encoding or b'UTF-8'
         lock_runtime(self._runtime)
         try:
             self.push_lua_object()
@@ -583,9 +580,9 @@ cdef class _LuaObject:
         assert self._runtime is not None
         cdef lua_State* L = self._state
         cdef unicode py_string = None
-        cdef const_char_ptr s
+        cdef const char *s
         cdef size_t size = 0
-        encoding = self._runtime._encoding.decode('ASCII') if self._runtime._encoding else 'UTF-8'
+        cdef bytes encoding = self._runtime._encoding or b'UTF-8'
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
@@ -656,7 +653,7 @@ cdef void init_lua_object(_LuaObject obj, LuaRuntime runtime, lua_State* L, int 
     lua.lua_pushvalue(L, n)
     obj._ref = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
 
-cdef object lua_object_repr(lua_State* L, encoding):
+cdef object lua_object_repr(lua_State* L, bytes encoding):
     cdef bytes py_bytes
     lua_type = lua.lua_type(L, -1)
     if lua_type in (lua.LUA_TTABLE, lua.LUA_TFUNCTION):
@@ -1080,7 +1077,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     or unwrapping it.
     """
     cdef size_t size = 0
-    cdef const_char_ptr s
+    cdef const char *s
     cdef lua.lua_Number number
     cdef py_object* py_obj
     cdef int lua_type = lua.lua_type(L, n)
@@ -1251,7 +1248,7 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
 
 cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message, int n):
     cdef size_t size = 0
-    cdef const_char_ptr s = lua.lua_tolstring(L, n, &size)
+    cdef const char *s = lua.lua_tolstring(L, n, &size)
     if runtime._encoding is not None:
         try:
             py_ustring = s[:size].decode(runtime._encoding)
