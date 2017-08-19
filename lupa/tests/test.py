@@ -866,6 +866,11 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         ''').coroutine(f)
         self.assertEqual(lua.eval('coroutine.resume(...)', t, f), (True, '()'))
 
+    def test_compile(self):
+        lua_func = self.lua.compile('return 1 + 2')
+        self.assertEqual(lua_func(), 3)
+        self.assertRaises(lupa.LuaSyntaxError, self.lua.compile, 'function awd()')
+
 
 class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
     lua_runtime_kwargs = {'encoding': None}
