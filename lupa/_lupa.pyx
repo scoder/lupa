@@ -261,6 +261,9 @@ cdef class LuaRuntime:
         return run_lua(self, lua_code, args)
 
     def compile(self, lua_code):
+        """Compile a Lua program into a callable Lua function.
+        """
+        cdef const char *err
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         L = self._state
@@ -273,9 +276,8 @@ cdef class LuaRuntime:
                 return py_from_lua(self, L, -1)
             else:
                 err = lua.lua_tolstring(L, -1, &size)
-                err = err[:size]
-                if self._encoding is not None: err = err.decode(self._encoding.decode('ascii'))
-                raise LuaSyntaxError(err)
+                error = err[:size] if self._encoding is None else err[:size].decode(self._encoding)
+                raise LuaSyntaxError(error)
         finally:
             lua.lua_settop(L, oldtop)
             unlock_runtime(self)
