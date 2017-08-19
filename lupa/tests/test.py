@@ -869,10 +869,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_compile(self):
         lua_func = self.lua.compile('return 1 + 2')
         self.assertEqual(lua_func(), 3)
-        with self.assertRaises(lupa.LuaSyntaxError) as cm:
-            self.lua.compile('function awd()')
-        self.assertTrue(cm.exception.args[0] == '[string "<python>"]:1: \'end\' expected near <eof>' or
-                        cm.exception.args[0] == '[string "<python>"]:1: \'end\' expected near \'<eof>\'')
+        self.assertRaises(lupa.LuaSyntaxError, self.lua.compile, 'function awd()')
 
 
 class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
