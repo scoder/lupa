@@ -263,6 +263,26 @@ cdef class LuaRuntime:
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         return run_lua(self, lua_code, args)
 
+    def compile(self, lua_code):
+        if isinstance(lua_code, unicode):
+            lua_code = (<unicode>lua_code).encode(self._source_encoding)
+        L = self._state
+        lock_runtime(self)
+        oldtop = lua.lua_gettop(L)
+        cdef size_t size
+        try:
+            status = lua.luaL_loadbuffer(L, lua_code, len(lua_code), b'<python>')
+            if status == 0:
+                return py_from_lua(self, L, -1)
+            else:
+                err = lua.lua_tolstring(L, -1, &size)
+                err = err[:size]
+                if self._encoding is not None: err = err.decode(self._encoding.decode('ascii'))
+                raise LuaSyntaxError(err)
+        finally:
+            lua.lua_settop(L, oldtop)
+            unlock_runtime(self)
+
     def require(self, modulename):
         """Load a Lua library into the runtime.
         """
