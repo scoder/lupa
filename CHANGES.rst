@@ -4,13 +4,19 @@ Lupa change log
 1.5 (2017-??-??)
 ----------------
 
-* GH#91: bundle Lua 5.3 in source distribution to simplify one-shot installs
+* GH#93: New method ``LuaRuntime.compile()`` to compile Lua code
+  without executing it.
   (patch by TitanSnow)
 
-* GH#87: Lua stack trace is included in output in debug mode
+* GH#91: Lua 5.3 is bundled in the source distribution to simplify
+  one-shot installs.
+  (patch by TitanSnow)
+
+* GH#87: Lua stack trace is included in output in debug mode.
   (patch by aaiyer)
 
-* GH#78: allow Lua code to intercept Python exceptions
+* GH#78: Allow Lua code to intercept Python exceptions.
+  (patch by Sergey Dobrov)
 
 
 1.4 (2016-12-10)
