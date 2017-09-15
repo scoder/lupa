@@ -1,5 +1,6 @@
 PYTHON?=python
 TESTOPTS?=
+USE_BUNDLE?=true
 REPO = git://github.com/cython/cython.git
 VERSION?=$(shell sed -ne "s|^VERSION\s*=\s*'\([^']*\)'.*|\1|p" setup.py)
 
@@ -25,6 +26,7 @@ wheel_manylinux32 wheel_manylinux64: dist/lupa-$(VERSION).tar.gz
 		-v $(shell pwd):/io \
 		-e CFLAGS="-O3 -g0 -mtune=generic -pipe -fPIC" \
 		-e LDFLAGS="$(LDFLAGS) -fPIC" \
+		-e LUPA_USE_BUNDLE=$(USE_BUNDLE) \
 		-e WHEELHOUSE=wheelhouse_$(subst wheel_,,$@) \
 		$(if $(patsubst %32,,$@),$(MANYLINUX_IMAGE_X86_64),$(MANYLINUX_IMAGE_686)) \
 		bash -c 'for PYBIN in /opt/python/*/bin; do \

@@ -193,7 +193,8 @@ def has_option(name):
     if name in sys.argv[1:]:
         sys.argv.remove(name)
         return True
-    return False
+    envvar_name = 'LUPA_' + name.upper().replace('-', '_')
+    return os.environ.get(envvar_name) == 'true'
 
 
 macros = [
