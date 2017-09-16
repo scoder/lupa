@@ -1,5 +1,4 @@
 PYTHON?=python
-TESTOPTS?=
 USE_BUNDLE?=true
 REPO = git://github.com/cython/cython.git
 VERSION?=$(shell sed -ne "s|^VERSION\s*=\s*'\([^']*\)'.*|\1|p" setup.py)
@@ -7,15 +6,21 @@ VERSION?=$(shell sed -ne "s|^VERSION\s*=\s*'\([^']*\)'.*|\1|p" setup.py)
 MANYLINUX_IMAGE_X86_64=quay.io/pypa/manylinux1_x86_64
 MANYLINUX_IMAGE_686=quay.io/pypa/manylinux1_i686
 
-.PHONY: all local
+.PHONY: all local test clean realclean
 
-all:    local
+all:  local
 
 local:
 	${PYTHON} setup.py build_ext --inplace
 
-test:
-	python -m lupa.tests.test
+test: local
+	PYTHONPATH=. $(PYTHON) -m lupa.tests.test
+
+clean:
+	rm -fr build lupa/_lupa.so
+
+realclean: clean
+	rm -fr lupa/_lupa.c
 
 wheel_manylinux: wheel_manylinux64 wheel_manylinux32
 
