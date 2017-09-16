@@ -18,6 +18,8 @@ Lupa change log
 * GH#78: Allow Lua code to intercept Python exceptions.
   (patch by Sergey Dobrov)
 
+* Built with Cython 0.26.1.
+
 
 1.4 (2016-12-10)
 ----------------
