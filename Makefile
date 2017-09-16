@@ -1,6 +1,5 @@
 PYTHON?=python
 USE_BUNDLE?=true
-REPO = git://github.com/cython/cython.git
 VERSION?=$(shell sed -ne "s|^VERSION\s*=\s*'\([^']*\)'.*|\1|p" setup.py)
 
 MANYLINUX_IMAGE_X86_64=quay.io/pypa/manylinux1_x86_64
