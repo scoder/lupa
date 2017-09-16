@@ -1,7 +1,7 @@
 Lupa change log
 ===============
 
-1.5 (2017-??-??)
+1.5 (2017-09-16)
 ----------------
 
 * GH#93: New method ``LuaRuntime.compile()`` to compile Lua code
