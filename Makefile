@@ -28,8 +28,8 @@ wheel_manylinux32 wheel_manylinux64: dist/lupa-$(VERSION).tar.gz
 	mkdir -p wheelhouse_$(subst wheel_,,$@)
 	time docker run --rm -t \
 		-v $(shell pwd):/io \
-		-e CFLAGS="-O3 -g0 -mtune=generic -pipe -fPIC" \
-		-e LDFLAGS="$(LDFLAGS) -fPIC" \
+		-e CFLAGS="-O3 -g0 -mtune=generic -pipe -fPIC -flto" \
+		-e LDFLAGS="$(LDFLAGS) -fPIC -flto" \
 		-e LUPA_USE_BUNDLE=$(USE_BUNDLE) \
 		-e WHEELHOUSE=wheelhouse_$(subst wheel_,,$@) \
 		$(if $(patsubst %32,,$@),$(MANYLINUX_IMAGE_X86_64),$(MANYLINUX_IMAGE_686)) \
