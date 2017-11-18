@@ -270,8 +270,6 @@ cdef extern from "lua.h" nogil:
 ################################################################################
 
 cdef extern from "lauxlib.h" nogil:
-    char* LUA_LOADED_TABLE
-
     size_t luaL_getn(lua_State *L, int i)       #      ((int)lua_objlen(L, i))
     #void luaL_setn(lua_State *L, int i, int j)  #      ((void)0)  /* no op! */
 

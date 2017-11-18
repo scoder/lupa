@@ -12,6 +12,17 @@ from libc.string cimport *
 from lupa cimport lua
 from .lua cimport lua_State
 
+cdef void luaL_setfuncs(lua_State *L, const lua.luaL_Reg *l, int nup):
+    cdef int i
+    lua.luaL_checkstack(L, nup, "too many upvalues")
+    while l.name != NULL:
+        for i in range(nup):
+            lua.lua_pushvalue(L, -nup)
+        lua.lua_pushcclosure(L, l.func, nup)
+        lua.lua_setfield(L, -(nup + 2), l.name)
+        l += 1
+    lua.lua_pop(L, nup)
+
 cdef int libsize(const lua.luaL_Reg *l):
     cdef int size = 0
     while l and l.name:
@@ -45,7 +56,9 @@ cdef const char *luaL_findtable(lua_State *L, int idx,
 
 cdef void luaL_pushmodule(lua_State *L, const char *modname,
                           int sizehint):
-    luaL_findtable(L, lua.LUA_REGISTRYINDEX, lua.LUA_LOADED_TABLE, 1)
+    # XXX: "_LOADED" is the value of LUA_LOADED_TABLE,
+    # but it's absent in lua51
+    luaL_findtable(L, lua.LUA_REGISTRYINDEX, "_LOADED", 1)
     lua.lua_getfield(L, -1, modname)
     if lua.lua_type(L, -1) != lua.LUA_TTABLE:
         lua.lua_pop(L, 1)
@@ -62,7 +75,7 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
         luaL_pushmodule(L, libname, libsize(l))
         lua.lua_insert(L, -(nup + 1))
     if l:
-        lua.luaL_setfuncs(L, l, nup)
+        luaL_setfuncs(L, l, nup)
     else:
         lua.lua_pop(L, nup)
 
