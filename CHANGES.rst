@@ -1,6 +1,12 @@
 Lupa change log
 ===============
 
+1.6 (2017-??-??)
+----------------
+
+* GH#95: Improved compatibility with Lua 5.3.
+  (patch by TitanSnow)
+
 1.5 (2017-09-16)
 ----------------
 
