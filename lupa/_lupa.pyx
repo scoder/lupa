@@ -8,76 +8,9 @@ from __future__ import absolute_import
 
 cimport cython
 
-from libc.string cimport *
+from libc.string cimport strlen, strchr
 from lupa cimport lua
 from .lua cimport lua_State
-
-cdef void luaL_setfuncs(lua_State *L, const lua.luaL_Reg *l, int nup):
-    cdef int i
-    lua.luaL_checkstack(L, nup, "too many upvalues")
-    while l.name != NULL:
-        for i in range(nup):
-            lua.lua_pushvalue(L, -nup)
-        lua.lua_pushcclosure(L, l.func, nup)
-        lua.lua_setfield(L, -(nup + 2), l.name)
-        l += 1
-    lua.lua_pop(L, nup)
-
-cdef int libsize(const lua.luaL_Reg *l):
-    cdef int size = 0
-    while l and l.name:
-        l += 1
-        size += 1
-    return size
-
-cdef const char *luaL_findtable(lua_State *L, int idx,
-                                const char *fname, int szhint):
-    cdef const char *e
-    if idx: lua.lua_pushvalue(L, idx)
-    while True:
-        e = strchr(fname, '.')
-        if e == NULL: e = fname + strlen(fname)
-        lua.lua_pushlstring(L, fname, e - fname)
-        lua.lua_rawget(L, -2)
-        if lua.lua_type(L, -1) == lua.LUA_TNIL:
-            lua.lua_pop(L, 1)
-            lua.lua_createtable(L, 0, (1 if e[0] == '.' else szhint))
-            lua.lua_pushlstring(L, fname, e - fname)
-            lua.lua_pushvalue(L, -2)
-            lua.lua_settable(L, -4)
-        elif not lua.lua_istable(L, -1):
-            lua.lua_pop(L, 2)
-            return fname
-        lua.lua_remove(L, -2)
-        fname = e + 1
-        if not e[0] == '.':
-            break
-    return NULL
-
-cdef void luaL_pushmodule(lua_State *L, const char *modname,
-                          int sizehint):
-    # XXX: "_LOADED" is the value of LUA_LOADED_TABLE,
-    # but it's absent in lua51
-    luaL_findtable(L, lua.LUA_REGISTRYINDEX, "_LOADED", 1)
-    lua.lua_getfield(L, -1, modname)
-    if lua.lua_type(L, -1) != lua.LUA_TTABLE:
-        lua.lua_pop(L, 1)
-        lua.lua_getglobal(L, '_G')
-        if luaL_findtable(L, 0, modname, sizehint) != NULL:
-            lua.luaL_error(L, "name conflict for module '%s'", modname)
-        lua.lua_pushvalue(L, -1)
-        lua.lua_setfield(L, -3, modname)
-    lua.lua_remove(L, -2)
-
-cdef void luaL_openlib(lua_State *L, const char *libname,
-                       const lua.luaL_Reg *l, int nup):
-    if libname:
-        luaL_pushmodule(L, libname, libsize(l))
-        lua.lua_insert(L, -(nup + 1))
-    if l:
-        luaL_setfuncs(L, l, nup)
-    else:
-        lua.lua_pop(L, nup)
 
 cimport cpython.ref
 cimport cpython.tuple
@@ -1660,13 +1593,14 @@ cdef int py_object_setindex(lua_State* L) nogil:
 
 # special methods for Lua wrapped Python objects
 
-cdef lua.luaL_Reg py_object_lib[6]
-py_object_lib[0] = lua.luaL_Reg(name = "__call",     func = <lua.lua_CFunction> py_object_call)
-py_object_lib[1] = lua.luaL_Reg(name = "__index",    func = <lua.lua_CFunction> py_object_getindex)
-py_object_lib[2] = lua.luaL_Reg(name = "__newindex", func = <lua.lua_CFunction> py_object_setindex)
-py_object_lib[3] = lua.luaL_Reg(name = "__tostring", func = <lua.lua_CFunction> py_object_str)
-py_object_lib[4] = lua.luaL_Reg(name = "__gc",       func = <lua.lua_CFunction> py_object_gc)
-py_object_lib[5] = lua.luaL_Reg(name = NULL, func = NULL)
+cdef lua.luaL_Reg *py_object_lib = [
+    lua.luaL_Reg(name = "__call",     func = <lua.lua_CFunction> py_object_call),
+    lua.luaL_Reg(name = "__index",    func = <lua.lua_CFunction> py_object_getindex),
+    lua.luaL_Reg(name = "__newindex", func = <lua.lua_CFunction> py_object_setindex),
+    lua.luaL_Reg(name = "__tostring", func = <lua.lua_CFunction> py_object_str),
+    lua.luaL_Reg(name = "__gc",       func = <lua.lua_CFunction> py_object_gc),
+    lua.luaL_Reg(name = NULL, func = NULL),
+]
 
 ## # Python helper functions for Lua
 
@@ -1821,11 +1755,87 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
 
 # 'python' module functions in Lua
 
-cdef lua.luaL_Reg py_lib[7]
-py_lib[0] = lua.luaL_Reg(name = "as_attrgetter", func = <lua.lua_CFunction> py_as_attrgetter)
-py_lib[1] = lua.luaL_Reg(name = "as_itemgetter", func = <lua.lua_CFunction> py_as_itemgetter)
-py_lib[2] = lua.luaL_Reg(name = "as_function", func = <lua.lua_CFunction> py_as_function)
-py_lib[3] = lua.luaL_Reg(name = "iter", func = <lua.lua_CFunction> py_iter)
-py_lib[4] = lua.luaL_Reg(name = "iterex", func = <lua.lua_CFunction> py_iterex)
-py_lib[5] = lua.luaL_Reg(name = "enumerate", func = <lua.lua_CFunction> py_enumerate)
-py_lib[6] = lua.luaL_Reg(name = NULL, func = NULL)
+cdef lua.luaL_Reg *py_lib = [
+    lua.luaL_Reg(name = "as_attrgetter", func = <lua.lua_CFunction> py_as_attrgetter),
+    lua.luaL_Reg(name = "as_itemgetter", func = <lua.lua_CFunction> py_as_itemgetter),
+    lua.luaL_Reg(name = "as_function",   func = <lua.lua_CFunction> py_as_function),
+    lua.luaL_Reg(name = "iter",          func = <lua.lua_CFunction> py_iter),
+    lua.luaL_Reg(name = "iterex",        func = <lua.lua_CFunction> py_iterex),
+    lua.luaL_Reg(name = "enumerate",     func = <lua.lua_CFunction> py_enumerate),
+    lua.luaL_Reg(name = NULL, func = NULL),
+]
+
+# Setup helpers for library tables (removed from C-API in Lua 5.3).
+
+cdef void luaL_setfuncs(lua_State *L, const lua.luaL_Reg *l, int nup):
+    cdef int i
+    lua.luaL_checkstack(L, nup, "too many upvalues")
+    while l.name != NULL:
+        for i in range(nup):
+            lua.lua_pushvalue(L, -nup)
+        lua.lua_pushcclosure(L, l.func, nup)
+        lua.lua_setfield(L, -(nup + 2), l.name)
+        l += 1
+    lua.lua_pop(L, nup)
+
+
+cdef int libsize(const lua.luaL_Reg *l):
+    cdef int size = 0
+    while l and l.name:
+        l += 1
+        size += 1
+    return size
+
+
+cdef const char *luaL_findtable(lua_State *L, int idx,
+                                const char *fname, int size_hint):
+    cdef const char *end
+    if idx:
+        lua.lua_pushvalue(L, idx)
+
+    while True:
+        end = strchr(fname, '.')
+        if end == NULL:
+            end = fname + strlen(fname)
+        lua.lua_pushlstring(L, fname, end - fname)
+        lua.lua_rawget(L, -2)
+        if lua.lua_type(L, -1) == lua.LUA_TNIL:
+            lua.lua_pop(L, 1)
+            lua.lua_createtable(L, 0, (1 if end[0] == '.' else size_hint))
+            lua.lua_pushlstring(L, fname, end - fname)
+            lua.lua_pushvalue(L, -2)
+            lua.lua_settable(L, -4)
+        elif not lua.lua_istable(L, -1):
+            lua.lua_pop(L, 2)
+            return fname
+        lua.lua_remove(L, -2)
+        fname = end + 1
+        if end[0] != '.':
+            break
+    return NULL
+
+
+cdef void luaL_pushmodule(lua_State *L, const char *modname, int size_hint):
+    # XXX: "_LOADED" is the value of LUA_LOADED_TABLE,
+    # but it's absent in lua51
+    luaL_findtable(L, lua.LUA_REGISTRYINDEX, "_LOADED", 1)
+    lua.lua_getfield(L, -1, modname)
+    if lua.lua_type(L, -1) != lua.LUA_TTABLE:
+        lua.lua_pop(L, 1)
+        lua.lua_getglobal(L, '_G')
+        if luaL_findtable(L, 0, modname, size_hint) != NULL:
+            lua.luaL_error(L, "name conflict for module '%s'", modname)
+        lua.lua_pushvalue(L, -1)
+        lua.lua_setfield(L, -3, modname)
+    lua.lua_remove(L, -2)
+
+
+cdef void luaL_openlib(lua_State *L, const char *libname,
+                       const lua.luaL_Reg *l, int nup):
+    if libname:
+        luaL_pushmodule(L, libname, libsize(l))
+        lua.lua_insert(L, -(nup + 1))
+    if l:
+        luaL_setfuncs(L, l, nup)
+    else:
+        lua.lua_pop(L, nup)
