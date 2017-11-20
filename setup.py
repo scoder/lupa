@@ -305,7 +305,7 @@ def write_file(filename, content):
 
 long_description = '\n\n'.join([
     read_file(text_file)
-    for text_file in ['README.rst', 'INSTALL.rst', 'CHANGES.rst']])
+    for text_file in ['README.rst', 'INSTALL.rst', 'CHANGES.rst', "LICENSE.txt"]])
 
 write_file(os.path.join('lupa', 'version.py'), "__version__ = '%s'\n" % VERSION)
 
