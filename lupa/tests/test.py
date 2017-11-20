@@ -711,7 +711,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_globals(self):
         lua_globals = self.lua.globals()
-        self.assertNotEqual(None, lua_globals.unpack)
+        self.assertNotEqual(None, lua_globals.table)
 
     def test_globals_attrs_call(self):
         lua_globals = self.lua.globals()
@@ -1601,6 +1601,7 @@ class TestLuaApplications(unittest.TestCase):
         code = '''\
 function(N)
     local char, unpack = string.char, unpack
+    if unpack == nil then unpack = table.unpack end
     local result = ""
     local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
     for y=0,N-1 do
@@ -1859,6 +1860,7 @@ class TestThreading(unittest.TestCase):
         code = '''\
             function(N, i, total)
                 local char, unpack = string.char, unpack
+                if unpack == nil then unpack = table.unpack end
                 local result = ""
                 local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
                 local start_line, end_line = N/total * (i-1), N/total * i - 1

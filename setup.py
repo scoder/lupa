@@ -200,8 +200,6 @@ def has_option(name):
 
 
 c_defines = [
-    ('LUA_COMPAT_ALL', None),
-    ('LUA_COMPAT_5_1', None),
 ]
 if has_option('--without-assert'):
     c_defines.append(('CYTHON_WITHOUT_ASSERTIONS', None))

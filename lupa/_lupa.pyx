@@ -8,8 +8,76 @@ from __future__ import absolute_import
 
 cimport cython
 
+from libc.string cimport *
 from lupa cimport lua
 from .lua cimport lua_State
+
+cdef void luaL_setfuncs(lua_State *L, const lua.luaL_Reg *l, int nup):
+    cdef int i
+    lua.luaL_checkstack(L, nup, "too many upvalues")
+    while l.name != NULL:
+        for i in range(nup):
+            lua.lua_pushvalue(L, -nup)
+        lua.lua_pushcclosure(L, l.func, nup)
+        lua.lua_setfield(L, -(nup + 2), l.name)
+        l += 1
+    lua.lua_pop(L, nup)
+
+cdef int libsize(const lua.luaL_Reg *l):
+    cdef int size = 0
+    while l and l.name:
+        l += 1
+        size += 1
+    return size
+
+cdef const char *luaL_findtable(lua_State *L, int idx,
+                                const char *fname, int szhint):
+    cdef const char *e
+    if idx: lua.lua_pushvalue(L, idx)
+    while True:
+        e = strchr(fname, '.')
+        if e == NULL: e = fname + strlen(fname)
+        lua.lua_pushlstring(L, fname, e - fname)
+        lua.lua_rawget(L, -2)
+        if lua.lua_type(L, -1) == lua.LUA_TNIL:
+            lua.lua_pop(L, 1)
+            lua.lua_createtable(L, 0, (1 if e[0] == '.' else szhint))
+            lua.lua_pushlstring(L, fname, e - fname)
+            lua.lua_pushvalue(L, -2)
+            lua.lua_settable(L, -4)
+        elif not lua.lua_istable(L, -1):
+            lua.lua_pop(L, 2)
+            return fname
+        lua.lua_remove(L, -2)
+        fname = e + 1
+        if not e[0] == '.':
+            break
+    return NULL
+
+cdef void luaL_pushmodule(lua_State *L, const char *modname,
+                          int sizehint):
+    # XXX: "_LOADED" is the value of LUA_LOADED_TABLE,
+    # but it's absent in lua51
+    luaL_findtable(L, lua.LUA_REGISTRYINDEX, "_LOADED", 1)
+    lua.lua_getfield(L, -1, modname)
+    if lua.lua_type(L, -1) != lua.LUA_TTABLE:
+        lua.lua_pop(L, 1)
+        lua.lua_getglobal(L, '_G')
+        if luaL_findtable(L, 0, modname, sizehint) != NULL:
+            lua.luaL_error(L, "name conflict for module '%s'", modname)
+        lua.lua_pushvalue(L, -1)
+        lua.lua_setfield(L, -3, modname)
+    lua.lua_remove(L, -2)
+
+cdef void luaL_openlib(lua_State *L, const char *libname,
+                       const lua.luaL_Reg *l, int nup):
+    if libname:
+        luaL_pushmodule(L, libname, libsize(l))
+        lua.lua_insert(L, -(nup + 1))
+    if l:
+        luaL_setfuncs(L, l, nup)
+    else:
+        lua.lua_pop(L, nup)
 
 cimport cpython.ref
 cimport cpython.tuple
@@ -393,9 +461,9 @@ cdef class LuaRuntime:
         cdef lua_State *L = self._state
 
         # create 'python' lib and register our own object metatable
-        lua.luaL_openlib(L, "python", py_lib, 0)
+        luaL_openlib(L, "python", py_lib, 0)
         lua.luaL_newmetatable(L, POBJECT)
-        lua.luaL_openlib(L, NULL, py_object_lib, 0)
+        luaL_openlib(L, NULL, py_object_lib, 0)
         lua.lua_pop(L, 1)
 
         # register global names in the module

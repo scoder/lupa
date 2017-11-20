@@ -281,7 +281,6 @@ cdef extern from "lauxlib.h" nogil:
         char *name
         lua_CFunction func
 
-    void luaL_openlib (lua_State *L, char *libname, luaL_Reg *l, int nup)
     void luaL_register (lua_State *L, char *libname, luaL_Reg *l)
     void luaL_setfuncs (lua_State *L, luaL_Reg *l, int nup)  # 5.2+
     int luaL_getmetafield (lua_State *L, int obj, char *e)
@@ -319,8 +318,6 @@ cdef extern from "lauxlib.h" nogil:
 
 
     char *luaL_gsub (lua_State *L, char *s, char *p, char *r)
-
-    char *luaL_findtable (lua_State *L, int idx, char *fname, int szhint)
 
 
     # ===============================================================
