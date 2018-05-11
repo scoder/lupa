@@ -294,7 +294,7 @@ if cythonize is not None:
 
 
 def read_file(filename):
-    with open(os.path.join(basedir, filename)) as f:
+    with open(os.path.join(basedir, filename), encoding='utf8') as f:
         return f.read()
 
 
