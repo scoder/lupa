@@ -6,6 +6,7 @@ import os
 import os.path
 
 from glob import iglob
+from io import open
 
 try:
     # use setuptools if available
@@ -294,12 +295,12 @@ if cythonize is not None:
 
 
 def read_file(filename):
-    with open(os.path.join(basedir, filename)) as f:
+    with open(os.path.join(basedir, filename), encoding="utf8") as f:
         return f.read()
 
 
 def write_file(filename, content):
-    with open(os.path.join(basedir, filename), 'w') as f:
+    with open(os.path.join(basedir, filename), 'w', encoding='us-ascii') as f:
         f.write(content)
 
 
@@ -307,7 +308,7 @@ long_description = '\n\n'.join([
     read_file(text_file)
     for text_file in ['README.rst', 'INSTALL.rst', 'CHANGES.rst', "LICENSE.txt"]])
 
-write_file(os.path.join('lupa', 'version.py'), "__version__ = '%s'\n" % VERSION)
+write_file(os.path.join('lupa', 'version.py'), u"__version__ = '%s'\n" % VERSION)
 
 if config.get('libfile'):
     # include lua51.dll in the lib folder if we are on windows
