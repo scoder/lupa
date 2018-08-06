@@ -25,7 +25,7 @@ from cpython.bytes cimport PyBytes_FromFormat
 #from libc.stdint cimport uintptr_t
 cdef extern from *:
     """
-    #ifdef _MSC_VER
+    #if PY_VERSION_HEX < 0x03040000 && defined(_MSC_VER)
         #ifndef _MSC_STDINT_H_
             #ifdef _WIN64 // [
                typedef unsigned __int64  uintptr_t;
