@@ -1,11 +1,18 @@
 Lupa change log
 ===============
 
+1.7 (2018-08-06)
+----------------
+
+* GH#103: Provide wheels for MS Windows and fix MSVC build on Py2.7.
+
+
 1.6 (2017-12-15)
 ----------------
 
 * GH#95: Improved compatibility with Lua 5.3.
   (patch by TitanSnow)
+
 
 1.5 (2017-09-16)
 ----------------
