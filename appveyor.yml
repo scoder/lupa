@@ -27,11 +27,13 @@ install:
 
 build: off
 build_script:
-    - python -u setup.py clean
-    - python -u setup.py build install --use-bundle
-    - python -u setup.py bdist_wheel --use-bundle
+  - python -u setup.py clean
+  - python -u setup.py build install --use-bundle
+  - python -u setup.py bdist_wheel --use-bundle
 
-test: python -m lupa.tests
+test: off
+test_script:
+  - python -u setup.py test
 
 artifacts:
   - path: dist/*.whl
