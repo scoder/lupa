@@ -201,6 +201,7 @@ def has_option(name):
 
 
 c_defines = [
+    ('CYTHON_CLINE_IN_TRACEBACK', 0),
 ]
 if has_option('--without-assert'):
     c_defines.append(('CYTHON_WITHOUT_ASSERTIONS', None))
