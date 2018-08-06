@@ -23,13 +23,15 @@ clone_script:
 install:
   - SET PATH=C:\\Python%PYTHON%;c:\\Python%PYTHON%\\scripts;%PATH%
   - python -m pip.__main__ install -U pip wheel setuptools
+  - pip install -r requirements.txt --install-option="--no-cython-compile"
 
 build: off
 build_script:
-  - pip install -U tox-travis virtualenv
-  - tox
+    - python -u setup.py clean
+    - python -u setup.py build install --use-bundle
+    - python -u setup.py bdist_wheel --use-bundle
 
-test: off
+test: python -u setup.py test
 
 artifacts:
   - path: dist/*.whl
