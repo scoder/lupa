@@ -22,7 +22,22 @@ from cpython.method cimport (
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython.bytes cimport PyBytes_FromFormat
 
-from libc.stdint cimport uintptr_t
+#from libc.stdint cimport uintptr_t
+cdef extern from *:
+    """
+    #ifdef _MSC_VER
+        #ifndef _MSC_STDINT_H_
+            #ifdef _WIN64 // [
+               typedef unsigned __int64  uintptr_t;
+            #else // _WIN64 ][
+               typedef _W64 unsigned int uintptr_t;
+            #endif // _WIN64 ]
+        #endif
+    #else
+        #include <stdint.h>
+    #endif
+    """
+    ctypedef size_t uintptr_t
 
 cdef object exc_info
 from sys import exc_info
