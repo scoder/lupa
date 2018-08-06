@@ -61,6 +61,10 @@ matrix:
       env: LUA=lua5.2
     - python: pypy3
       env: LUA=bundle
+  allow_failures:
+    - python: 3.8-dev
+    - python: pypy
+    - python: pypy3
 
 cache: pip
 
