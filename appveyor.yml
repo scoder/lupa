@@ -31,7 +31,7 @@ build_script:
     - python -u setup.py build install --use-bundle
     - python -u setup.py bdist_wheel --use-bundle
 
-test: python -u setup.py test
+test: python -m lupa.tests
 
 artifacts:
   - path: dist/*.whl
