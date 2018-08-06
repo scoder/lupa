@@ -6,7 +6,6 @@ language: python
 python:
   - 3.6
   - 2.7
-  - 3.3
   - 3.5
   - 3.4
 
