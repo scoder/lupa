@@ -256,7 +256,7 @@ cdef class LuaRuntime:
     @cython.final
     cdef int store_raised_exception(self, lua_State* L, bytes lua_error_msg) except -1:
         try:
-            self._raised_exception = exc_info()
+            self._raised_exception = tuple(exc_info())
             py_to_lua(self, L, self._raised_exception[1])
         except:
             lua.lua_pushlstring(L, lua_error_msg, len(lua_error_msg))
