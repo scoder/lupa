@@ -1,6 +1,14 @@
 Lupa change log
 ===============
 
+1.8 (2019-02-01)
+----------------
+
+* GH#107: Fix a deprecated import in Py3.
+
+* Built with Cython 0.29.3 for better Py3.7 compatibility.
+
+
 1.7 (2018-08-06)
 ----------------
 
