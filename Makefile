@@ -6,12 +6,15 @@ WITH_CYTHON?=$(shell $(PYTHON)  -c 'import Cython.Build.Dependencies' >/dev/null
 MANYLINUX_IMAGE_X86_64=quay.io/pypa/manylinux1_x86_64
 MANYLINUX_IMAGE_686=quay.io/pypa/manylinux1_i686
 
-.PHONY: all local test clean realclean
+.PHONY: all local sdist test clean realclean
 
 all:  local
 
 local:
 	${PYTHON} setup.py build_ext --inplace $(WITH_CYTHON)
+
+sdist dist/lupa-$(VERSION).tar.gz:
+	${PYTHON} setup.py sdist
 
 test: local
 	PYTHONPATH=. $(PYTHON) -m lupa.tests.test
