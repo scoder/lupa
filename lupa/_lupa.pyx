@@ -43,7 +43,10 @@ cdef object exc_info
 from sys import exc_info
 
 cdef object Mapping
-from collections import Mapping
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping  # Py2
 
 cdef object wraps
 from functools import wraps
