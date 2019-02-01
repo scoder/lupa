@@ -1,6 +1,7 @@
 PYTHON?=python
 USE_BUNDLE?=true
 VERSION?=$(shell sed -ne "s|^VERSION\s*=\s*'\([^']*\)'.*|\1|p" setup.py)
+WITH_CYTHON?=$(shell $(PYTHON)  -c 'import Cython.Build.Dependencies' >/dev/null 2>/dev/null && echo " --with-cython" || true)
 
 MANYLINUX_IMAGE_X86_64=quay.io/pypa/manylinux1_x86_64
 MANYLINUX_IMAGE_686=quay.io/pypa/manylinux1_i686
@@ -10,7 +11,7 @@ MANYLINUX_IMAGE_686=quay.io/pypa/manylinux1_i686
 all:  local
 
 local:
-	${PYTHON} setup.py build_ext --inplace
+	${PYTHON} setup.py build_ext --inplace $(WITH_CYTHON)
 
 test: local
 	PYTHONPATH=. $(PYTHON) -m lupa.tests.test
