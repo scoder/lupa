@@ -14,7 +14,7 @@ try:
 except ImportError:
     from distutils.core import setup, Extension
 
-VERSION = '1.8'
+VERSION = '1.9'
 
 extra_setup_args = {}
 
@@ -347,10 +347,10 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'Programming Language :: Other Scripting Engines',
         'Operating System :: OS Independent',
         'Topic :: Software Development',

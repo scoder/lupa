@@ -1,6 +1,20 @@
 Lupa change log
 ===============
 
+1.9 (2019-12-21)
+----------------
+
+* Build against Lua 5.3 if available.
+
+* Use Lua 5.3.5 in binary wheels and as bundled Lua.
+
+* GH#129: Fix Lua module loading in Python 3.x.
+
+* GH#126: Fix build on Linux systems that install Lua as "lua52" package.
+
+* Built with Cython 0.29.14 for better Py3.8 compatibility.
+
+
 1.8 (2019-02-01)
 ----------------
 
