@@ -746,7 +746,7 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
 
     lua_code = '''\
         function(N, i, total)
-            local char, unpack = string.char, unpack
+            local char, unpack = string.char, table.unpack
             local result = ""
             local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
             local start_line, end_line = N/total * (i-1), N/total * i - 1
@@ -793,8 +793,8 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
 
     result_buffer = b''.join(results)
 
-    # use PIL to display the image
-    import Image
+    # use Pillow to display the image
+    from PIL import Image
     image = Image.fromstring('1', (image_size, image_size), result_buffer)
     image.show()
 
