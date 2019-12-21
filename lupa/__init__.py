@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 
 # We need to enable global symbol visibility for lupa in order to
 # support binary module loading in Lua.  If we can enable it here, we
@@ -5,11 +7,10 @@
 
 def _try_import_with_global_library_symbols():
     try:
-        import DLFCN
-        dlopen_flags = DLFCN.RTLD_NOW | DLFCN.RTLD_GLOBAL
+        from os import RTLD_NOW, RTLD_GLOBAL
     except ImportError:
-        import ctypes
-        dlopen_flags = ctypes.RTLD_GLOBAL
+        from DLFCN import RTLD_NOW, RTLD_GLOBAL  # Py2.7
+    dlopen_flags = RTLD_NOW | RTLD_GLOBAL
 
     import sys
     old_flags = sys.getdlopenflags()
