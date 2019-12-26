@@ -451,8 +451,7 @@ def unpacks_lua_table(func):
     robustly.
     """
     @wraps(func)
-    def wrapper(*args):
-        kwargs = {}
+    def wrapper(*args, **kwargs):
         if len(args) > 0 and isinstance(args[0], _LuaTable):
             args, kwargs = _fix_args_kwargs(args)
         return func(*args, **kwargs)
@@ -465,8 +464,7 @@ def unpacks_lua_table_method(meth):
     (i.e. it knows about the 'self' argument).
     """
     @wraps(meth)
-    def wrapper(self, *args):
-        kwargs = {}
+    def wrapper(self, *args, **kwargs):
         if len(args) > 0 and isinstance(args[0], _LuaTable):
             args, kwargs = _fix_args_kwargs(args)
         return meth(self, *args, **kwargs)
