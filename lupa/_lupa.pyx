@@ -452,7 +452,9 @@ def unpacks_lua_table(func):
     """
     @wraps(func)
     def wrapper(*args):
-        args, kwargs = _fix_args_kwargs(args)
+        kwargs = {}
+        if isinstance(args[0], _LuaTable):
+            args, kwargs = _fix_args_kwargs(args)
         return func(*args, **kwargs)
     return wrapper
 
@@ -464,7 +466,9 @@ def unpacks_lua_table_method(meth):
     """
     @wraps(meth)
     def wrapper(self, *args):
-        args, kwargs = _fix_args_kwargs(args)
+        kwargs = {}
+        if isinstance(args[0], _LuaTable):
+            args, kwargs = _fix_args_kwargs(args)
         return meth(self, *args, **kwargs)
     return wrapper
 
