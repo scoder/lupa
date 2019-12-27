@@ -63,7 +63,12 @@ except ImportError:
     import builtins
 
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
-cdef int IS_PY2 = PY_MAJOR_VERSION == 2
+
+cdef extern from *:
+    """
+    #define IS_PY2 (PY_MAJOR_VERSION == 2)
+    """
+    int IS_PY2
 
 cdef enum WrappedObjectFlags:
     # flags that determine the behaviour of a wrapped object:
