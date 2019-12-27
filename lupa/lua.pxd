@@ -72,6 +72,7 @@ cdef extern from "lua.h" nogil:
     lua_State *lua_newstate (lua_Alloc f, void *ud)
     void       lua_close (lua_State *L)
     lua_State *lua_newthread (lua_State *L)
+    const lua_Number *lua_version(lua_State *L)
 
     lua_CFunction lua_atpanic (lua_State *L, lua_CFunction panicf)
 
@@ -421,15 +422,16 @@ cdef extern from *:
     # Compatibility definitions for Lupa.
     """
     #if LUA_VERSION_NUM >= 502
+    #define read_lua_version(L)  ((int) *lua_version(L))
     #define __lupa_lua_resume(L, from_, nargs)   lua_resume(L, from_, nargs)
     #define lua_objlen(L, i)                     lua_rawlen(L, (i))
 
-    #else
-    #if LUA_VERSION_NUM >= 501
+    #elif LUA_VERSION_NUM >= 501
     #define __lupa_lua_resume(L, from_, nargs)   lua_resume(L, nargs)
+    #define read_lua_version(L)  ((int) LUA_VERSION_NUM)
 
     #else
     #error Lupa requires at least Lua 5.1 or LuaJIT 2.x
     #endif
-    #endif
     """
+    int read_lua_version(lua_State *L)

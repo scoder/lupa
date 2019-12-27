@@ -52,7 +52,7 @@ cdef object wraps
 from functools import wraps
 
 
-__all__ = ['LuaRuntime', 'LuaError', 'LuaSyntaxError',
+__all__ = ['LUA_VERSION', 'LuaRuntime', 'LuaError', 'LuaSyntaxError',
            'as_itemgetter', 'as_attrgetter', 'lua_type',
            'unpacks_lua_table', 'unpacks_lua_table_method']
 
@@ -83,6 +83,10 @@ cdef struct py_object:
 
 
 include "lock.pxi"
+
+
+cdef int _LUA_VERSION = lua.read_lua_version(NULL)
+LUA_VERSION = (_LUA_VERSION // 100, _LUA_VERSION % 100)
 
 
 class LuaError(Exception):
@@ -249,6 +253,11 @@ cdef class LuaRuntime:
         if self._state is not NULL:
             lua.lua_close(self._state)
             self._state = NULL
+
+    @property
+    def lua_version(self):
+        cdef int version = lua.read_lua_version(self._state)
+        return (version // 100, version % 100)
 
     @cython.final
     cdef int reraise_on_exception(self) except -1:
