@@ -78,6 +78,14 @@ class TestLuaRuntimeRefcounting(unittest.TestCase):
 
 
 class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_lua_version(self):
+        version = self.lua.lua_version
+        self.assertEqual(tuple, type(version))
+        self.assertEqual(5, version[0])
+        self.assertTrue(version[1] >= 1)
+        self.assertTrue(version[1] < 10)  # arbitrary boundary
+        self.assertEqual(version, lupa.LUA_VERSION)  # no distinction currently
+
     def test_eval(self):
         self.assertEqual(2, self.lua.eval('1+1'))
 
