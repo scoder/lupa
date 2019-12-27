@@ -256,8 +256,23 @@ cdef class LuaRuntime:
 
     @property
     def lua_version(self):
+        """
+        The Lua runtime/language version as tuple, e.g. (5, 3) for Lua 5.3.
+        """
         cdef int version = lua.read_lua_version(self._state)
         return (version // 100, version % 100)
+
+    @property
+    def lua_implementation(self):
+        """
+        The Lua implementation version string, e.g. "Lua 5.3" or "LuaJIT 2.0.1".
+        May execute Lua code.
+        """
+        return self.eval(
+            "(function () "
+            "    if type(jit) == 'table' then return jit.version else return _VERSION end "
+            "end)()"
+        )
 
     @cython.final
     cdef int reraise_on_exception(self) except -1:
