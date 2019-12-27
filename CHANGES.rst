@@ -7,6 +7,9 @@ Upcoming release
 * The runtime version of the Lua library as a tuple (e.g. ``(5,3)``)
   is provided via ``lupa.LUA_VERSION`` and ``LuaRuntime.lua_version``.
 
+* The Lua implementation name and version string is provided as
+  ``LuaRuntime.lua_implementation``.
+
 
 1.9 (2019-12-21)
 ----------------
