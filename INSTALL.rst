@@ -34,7 +34,7 @@ Building with LuaJIT2
 
 #) Build lupa::
 
-     python setup.py install
+     python setup.py build_ext -i
 
    Or any other distutils target of your choice, such as ``build``
    or one of the ``bdist`` targets.  See the `distutils
@@ -67,11 +67,11 @@ Building with LuaJIT2
 .. _`hints on building extension modules`: http://docs.python.org/install/index.html#building-extensions-tips-and-tricks
 
 
-Building with Lua 5.1
+Building with Lua 5.x
 ---------------------
 
 Reportedly, it also works to use Lupa with the standard (non-JIT) Lua
-runtime.  To that end, install Lua 5.1 instead of LuaJIT2, including
+runtime.  To that end, install Lua 5.x instead of LuaJIT2, including
 any development packages (header files etc.).
 
 On systems that use the "pkg-config" configuration mechanism, Lupa's
