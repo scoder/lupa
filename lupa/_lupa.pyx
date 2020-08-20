@@ -958,8 +958,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
             nargs = len(args)
             push_lua_arguments(thread._runtime, co, args)
         with nogil:
-            status = lua.lua_resume(co, L, nargs)
-        nres = lua.lua_gettop(co)
+            status = lua.lua_resume(co, L, nargs, &nres)
         if status != lua.LUA_YIELD:
             if status == 0:
                 # terminated

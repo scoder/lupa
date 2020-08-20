@@ -247,7 +247,6 @@ lua_sources = [
     'ltablib.c',
     'lstrlib.c',
     'lutf8lib.c',
-    'lbitlib.c',
     'loadlib.c',
     'lcorolib.c',
     'linit.c',
