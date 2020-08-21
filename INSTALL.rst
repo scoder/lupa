@@ -70,11 +70,20 @@ Building with LuaJIT2
 Building with Lua 5.x
 ---------------------
 
-Reportedly, it also works to use Lupa with the standard (non-JIT) Lua
-runtime.  To that end, install Lua 5.x instead of LuaJIT2, including
-any development packages (header files etc.).
+It also works to use Lupa with the standard (non-JIT) Lua
+runtime. The easiest way is to use the bundled lua submodule:
 
-On systems that use the "pkg-config" configuration mechanism, Lupa's
+#) Clone the submodule::
+
+     $ git submodule update --init third-party/lua
+     
+#) Build Lupa::
+
+     $ python3 setup.py build --use-bundle --with-cython
+
+You can also build it by installing a Lua 5.x package, including
+any development packages (header files etc.). On systems that
+use the "pkg-config" configuration mechanism, Lupa's
 setup.py will pick up either LuaJIT2 or Lua automatically, with a
 preference for LuaJIT2 if it is found.  Pass the ``--no-luajit`` option
 to the setup.py script if you have both installed but do not want to
@@ -85,10 +94,6 @@ externally, e.g. using environment variables or by changing the
 setup.py script manually.  Pass the ``--no-luajit`` option to the
 setup.py script in order to ignore the failure you get when neither
 LuaJIT2 nor Lua are found automatically.
-
-For further information, read this mailing list post:
-
-http://article.gmane.org/gmane.comp.python.lupa.devel/31
 
 
 Installing lupa from packages
