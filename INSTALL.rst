@@ -95,6 +95,10 @@ setup.py script manually.  Pass the ``--no-luajit`` option to the
 setup.py script in order to ignore the failure you get when neither
 LuaJIT2 nor Lua are found automatically.
 
+For further information, read this mailing list post:
+
+https://www.freelists.org/post/lupa-dev/Lupa-with-normal-Lua-interpreter-Lua-51,2
+
 
 Installing lupa from packages
 =============================
