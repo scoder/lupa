@@ -151,7 +151,7 @@ cdef extern from "lua.h" nogil:
 
     # coroutine functions
     int  lua_yield (lua_State *L, int nresults)
-    int  lua_resume "__lupa_lua_resume" (lua_State *L, lua_State *from_, int narg)
+    int  lua_resume "__lupa_lua_resume" (lua_State *L, lua_State *from_, int narg, int *nresults)
     int  lua_status (lua_State *L)
 
     # garbage-collection function and options
@@ -421,15 +421,30 @@ cdef extern from "lualib.h":
 cdef extern from *:
     # Compatibility definitions for Lupa.
     """
+    #if LUA_VERSION_NUM >= 504
+    #define __lupa_lua_resume lua_resume
+    #else
+    LUA_API int __lupa_lua_resume (lua_State *L, lua_State *from, int nargs, int* nresults) {
     #if LUA_VERSION_NUM >= 502
+        int status = lua_resume(L, from, nargs);
+    #else
+        int status = lua_resume(L, nargs);
+    #endif
+        *nresults = lua_gettop(L);
+        return status;
+    }
+    #endif
+
+    #if LUA_VERSION_NUM >= 502
+    #define lua_objlen(L, i) lua_rawlen(L, (i))
+    #endif
+
+    #if LUA_VERSION_NUM >= 504
+    #define read_lua_version(L)  ((int) lua_version(L))
+    #elif LUA_VERSION_NUM >= 502
     #define read_lua_version(L)  ((int) *lua_version(L))
-    #define __lupa_lua_resume(L, from_, nargs)   lua_resume(L, from_, nargs)
-    #define lua_objlen(L, i)                     lua_rawlen(L, (i))
-
     #elif LUA_VERSION_NUM >= 501
-    #define __lupa_lua_resume(L, from_, nargs)   lua_resume(L, nargs)
     #define read_lua_version(L)  ((int) LUA_VERSION_NUM)
-
     #else
     #error Lupa requires at least Lua 5.1 or LuaJIT 2.x
     #endif
