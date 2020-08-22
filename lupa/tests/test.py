@@ -2620,5 +2620,10 @@ class TestErrorStackTrace(unittest.TestCase):
             self.assertNotIn("stack traceback:", e.args[0])
 
 if __name__ == '__main__':
+    def print_version():
+        version = lupa.LuaRuntime().lua_implementation
+        print('Running Lupa %s tests against %s.' % (lupa.__version__, version))
+
+    print_version()
     unittest.main()
 
