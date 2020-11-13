@@ -230,7 +230,7 @@ cdef class LuaRuntime:
         else:
             self._existent_state = True
             if not PyCapsule_IsValid(state, capsule_name):
-                raise ValueError("invalid pointer to state")
+                raise ValueError("Invalid pointer to Lua state")
             L = <lua_State*> PyCapsule_GetPointer(state, capsule_name)
         self._state = L
         self._lock = FastRLock()
