@@ -21,6 +21,7 @@ from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython.bytes cimport PyBytes_FromFormat
+from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer
 
 #from libc.stdint cimport uintptr_t
 cdef extern from *:
@@ -186,6 +187,9 @@ cdef class LuaRuntime:
       gives the former.
       (default: False, new in Lupa 0.21)
 
+    * ``state``: existing Lua state, encapsuled as "lua_State"
+      (default: None, creates new state)
+
     Example usage::
 
       >>> from lupa import LuaRuntime
@@ -210,14 +214,24 @@ cdef class LuaRuntime:
     cdef object _attribute_getter
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
+    cdef bint _existent_state
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
-                  bint register_builtins=True):
-        cdef lua_State* L = lua.luaL_newstate()
-        if L is NULL:
-            raise LuaError("Failed to initialise Lua runtime")
+                  bint register_builtins=True, object state=None):
+        cdef lua_State* L
+        cdef const char *capsule_name = "lua_State"
+        if state is None:
+            self._existent_state = False
+            L = lua.luaL_newstate()
+            if L is NULL:
+                raise LuaError("Failed to initialise Lua runtime")
+        else:
+            self._existent_state = True
+            if not PyCapsule_IsValid(state, capsule_name):
+                raise ValueError("invalid pointer to state")
+            L = <lua_State*> PyCapsule_GetPointer(state, capsule_name)
         self._state = L
         self._lock = FastRLock()
         self._pyrefs_in_lua = {}
@@ -251,7 +265,8 @@ cdef class LuaRuntime:
 
     def __dealloc__(self):
         if self._state is not NULL:
-            lua.lua_close(self._state)
+            if not self._existent_state:
+                lua.lua_close(self._state)
             self._state = NULL
 
     @property
