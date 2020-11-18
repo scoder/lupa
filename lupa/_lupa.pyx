@@ -188,7 +188,7 @@ cdef class LuaRuntime:
       (default: False, new in Lupa 0.21)
 
     * ``state``: existing Lua state, encapsuled as "lua_State"
-      (default: None, creates new state)
+      (default: None, creates new state internally)
 
     Example usage::
 
@@ -214,7 +214,7 @@ cdef class LuaRuntime:
     cdef object _attribute_getter
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
-    cdef bint _existent_state
+    cdef bint _new_internal_state
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
@@ -223,12 +223,12 @@ cdef class LuaRuntime:
         cdef lua_State* L
         cdef const char *capsule_name = "lua_State"
         if state is None:
-            self._existent_state = False
+            self._new_internal_state = True
             L = lua.luaL_newstate()
             if L is NULL:
                 raise LuaError("Failed to initialise Lua runtime")
         else:
-            self._existent_state = True
+            self._new_internal_state = False
             if not PyCapsule_IsValid(state, capsule_name):
                 raise ValueError("Invalid pointer to Lua state")
             L = <lua_State*> PyCapsule_GetPointer(state, capsule_name)
@@ -258,14 +258,18 @@ cdef class LuaRuntime:
                 raise ValueError("attribute_filter and attribute_handlers are mutually exclusive")
             self._attribute_getter, self._attribute_setter = getter, setter
 
-        lua.luaL_openlibs(L)
+        if self._new_internal_state:
+            lua.luaL_openlibs(L)
+
         self.init_python_lib(register_eval, register_builtins)
-        lua.lua_settop(L, 0)
-        lua.lua_atpanic(L, <lua.lua_CFunction>1)
+
+        if self._new_internal_state:
+            lua.lua_settop(L, 0)
+            lua.lua_atpanic(L, <lua.lua_CFunction>1)
 
     def __dealloc__(self):
         if self._state is not NULL:
-            if not self._existent_state:
+            if self._new_internal_state:
                 lua.lua_close(self._state)
             self._state = NULL
 
@@ -455,8 +459,14 @@ cdef class LuaRuntime:
     cdef int init_python_lib(self, bint register_eval, bint register_builtins) except -1:
         cdef lua_State *L = self._state
 
-        # create 'python' lib and register our own object metatable
-        luaL_openlib(L, "python", py_lib, 0)
+        # create python lib
+        if self._new_internal_state:
+            luaL_openlib(L, "python", py_lib, 0)
+        else:
+            lua.lua_createtable(L, 0, libsize(py_lib))
+            lua.luaL_setfuncs(L, py_lib, 0)
+
+        # create our own object metatable
         lua.luaL_newmetatable(L, POBJECT)
         luaL_openlib(L, NULL, py_object_lib, 0)
         lua.lua_pop(L, 1)
