@@ -464,7 +464,7 @@ cdef class LuaRuntime:
             luaL_openlib(L, "python", py_lib, 0)
         else:
             lua.lua_createtable(L, 0, libsize(py_lib))
-            lua.luaL_setfuncs(L, py_lib, 0)
+            luaL_setfuncs(L, py_lib, 0)
 
         # create our own object metatable
         lua.luaL_newmetatable(L, POBJECT)
