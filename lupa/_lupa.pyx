@@ -133,6 +133,10 @@ def lua_type(obj):
         lua.lua_settop(L, old_top)
         unlock_runtime(lua_object._runtime)
 
+def eval_main(string):
+    import __main__
+    d = __main__.__dict__
+    return eval(string, d, d)
 
 @cython.no_gc_clear
 cdef class LuaRuntime:
@@ -474,7 +478,10 @@ cdef class LuaRuntime:
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
         if register_eval:
-            self.register_py_object(b'eval',     b'eval', eval)
+            if self._new_internal_state:
+                self.register_py_object(b'eval', b'eval', eval)
+            else:
+                self.register_py_object(b'eval', b'eval', eval_main)
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', builtins)
 
