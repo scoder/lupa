@@ -138,6 +138,11 @@ def eval_main(string):
     d = __main__.__dict__
     return eval(string, d, d)
 
+def exec_main(string):
+    import __main__
+    d = __main__.__dict__
+    return exec(string, d, d)
+
 @cython.no_gc_clear
 cdef class LuaRuntime:
     """The main entry point to the Lua runtime.
@@ -175,6 +180,11 @@ cdef class LuaRuntime:
 
     * ``register_eval``: should Python's ``eval()`` function be available
       to Lua code as ``python.eval()``?  Note that this does not remove it
+      from the builtins.  Use an ``attribute_filter`` function for that.
+      (default: True)
+
+    * ``register_exec``: should Python's ``exec()`` function be available
+      to Lua code as ``python.exec()``?  Note that this does not remove it
       from the builtins.  Use an ``attribute_filter`` function for that.
       (default: True)
 
@@ -223,7 +233,7 @@ cdef class LuaRuntime:
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
-                  bint register_builtins=True, object state=None):
+                  bint register_builtins=True, bint register_exec=True, object state=None):
         cdef lua_State* L
         cdef const char *capsule_name = "lua_State"
         if state is None:
@@ -265,7 +275,7 @@ cdef class LuaRuntime:
         if self._new_internal_state:
             lua.luaL_openlibs(L)
 
-        self.init_python_lib(register_eval, register_builtins)
+        self.init_python_lib(register_eval, register_exec, register_builtins)
 
         if self._new_internal_state:
             lua.lua_settop(L, 0)
@@ -460,7 +470,7 @@ cdef class LuaRuntime:
         return 0
 
     @cython.final
-    cdef int init_python_lib(self, bint register_eval, bint register_builtins) except -1:
+    cdef int init_python_lib(self, bint register_eval, bint register_exec, bint register_builtins) except -1:
         cdef lua_State *L = self._state
 
         # create python lib
@@ -478,10 +488,11 @@ cdef class LuaRuntime:
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
         if register_eval:
-            if self._new_internal_state:
-                self.register_py_object(b'eval', b'eval', eval)
-            else:
-                self.register_py_object(b'eval', b'eval', eval_main)
+            self.register_py_object(b'eval', b'eval',
+                eval if self._new_internal_state else eval_main)
+        if register_exec:
+            self.register_py_object(b'exec', b'exec',
+                exec if self._new_internal_state else exec_main)
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', builtins)
 
