@@ -136,12 +136,15 @@ def lua_type(obj):
 def eval_main(string):
     import __main__
     d = __main__.__dict__
-    return eval(string, d, d)
+    return eval(string, d)
+
+def exec_wrapper(string, g=None, l=None):
+    exec(string, g, l)
 
 def exec_main(string):
     import __main__
     d = __main__.__dict__
-    return exec(string, d, d)
+    exec(string, d)
 
 @cython.no_gc_clear
 cdef class LuaRuntime:
@@ -492,7 +495,7 @@ cdef class LuaRuntime:
                 eval if self._new_internal_state else eval_main)
         if register_exec:
             self.register_py_object(b'exec', b'exec',
-                exec if self._new_internal_state else exec_main)
+                exec_wrapper if self._new_internal_state else exec_main)
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', builtins)
 
