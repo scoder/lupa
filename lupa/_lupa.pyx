@@ -1182,15 +1182,15 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TNUMBER:
         if lua.LUA_VERSION_NUM >= 503:
             if lua.lua_isinteger(L, n):
-                return <long>lua.lua_tointeger(L, n)
+                return lua.lua_tointeger(L, n)
             else:
-                return <double>lua.lua_tonumber(L, n)
+                return lua.lua_tonumber(L, n)
         else:
             number = lua.lua_tonumber(L, n)
-            if number == <long>number:
-                return <long>number
+            if number == <lua.lua_Integer>number:
+                return <lua.lua_Integer>number
             else:
-                return <double>number
+                return number
     elif lua_type == lua.LUA_TSTRING:
         s = lua.lua_tolstring(L, n, &size)
         if runtime._encoding is not None:
