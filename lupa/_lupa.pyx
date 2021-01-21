@@ -1253,10 +1253,10 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         lua.lua_pushnumber(L, <lua.lua_Number>cpython.float.PyFloat_AS_DOUBLE(o))
         pushed_values_count = 1
     elif isinstance(o, long):
-        lua.lua_pushnumber(L, <lua.lua_Number>cpython.long.PyLong_AsDouble(o))
+        lua.lua_pushinteger(L, <lua.lua_Integer>cpython.long.PyLong_AsLongLong(o))
         pushed_values_count = 1
     elif IS_PY2 and isinstance(o, int):
-        lua.lua_pushnumber(L, <lua.lua_Number><long>o)
+        lua.lua_pushinteger(L, <lua.lua_Integer><long>o)
         pushed_values_count = 1
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
