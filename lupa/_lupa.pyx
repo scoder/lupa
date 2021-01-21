@@ -1180,11 +1180,17 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     if lua_type == lua.LUA_TNIL:
         return None
     elif lua_type == lua.LUA_TNUMBER:
-        number = lua.lua_tonumber(L, n)
-        if number != <long>number:
-            return <double>number
+        if lua.LUA_VERSION_NUM >= 503:
+            if lua.lua_isinteger(L, n):
+                return <long>lua.lua_tointeger(L, n)
+            else:
+                return <double>lua.lua_tonumber(L, n)
         else:
-            return <long>number
+            number = lua.lua_tonumber(L, n)
+            if number == <long>number:
+                return <long>number
+            else:
+                return <double>number
     elif lua_type == lua.LUA_TSTRING:
         s = lua.lua_tolstring(L, n, &size)
         if runtime._encoding is not None:

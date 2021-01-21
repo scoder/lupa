@@ -439,6 +439,10 @@ cdef extern from *:
     #define lua_objlen(L, i) lua_rawlen(L, (i))
     #endif
 
+    #if LUA_VERSION_NUM < 503
+    #define lua_isinteger(L, i) (((void) i), 0)
+    #endif
+
     #if LUA_VERSION_NUM >= 504
     #define read_lua_version(L)  ((int) lua_version(L))
     #elif LUA_VERSION_NUM >= 502
@@ -450,3 +454,4 @@ cdef extern from *:
     #endif
     """
     int read_lua_version(lua_State *L)
+    int lua_isinteger(lua_State *L, int idx)
