@@ -115,6 +115,21 @@ def lua_libs(package='luajit'):
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
+def get_lua_build_from_arguments():
+    lua_libs = get_options('--lua-lib')
+    lua_lib_dirs = get_options('--lua-lib-dir')
+    lua_inc_dirs = get_options('--lua-inc-dir')
+
+    if not lua_libs or not lua_inc_dirs:
+        return None
+
+    print('Using Lua libraries: %s' % ', '.join(lua_libs))
+    print('Using Lua library directories: %s' % ', '.join(lua_lib_dirs))
+    print('Using Lua include directories: %s' % ', '.join(lua_inc_dirs))
+
+    return dict(libraries=lua_libs,
+                library_dirs=lua_lib_dirs,
+                include_dirs=lua_inc_dirs)
 
 def find_lua_build(no_luajit=False):
     # try to find local LuaJIT2 build
@@ -197,6 +212,19 @@ def use_bundled_lua(path, lua_sources, macros):
     }
 
 
+def get_options(name):
+    options = list()
+    indices = set()
+    args = sys.argv[1:]
+    for i, arg in enumerate(args):
+        if arg == name and i < len(args) - 1:
+            options.append(args[i+1])
+            indices.add(i)
+            indices.add(i+1)
+    for index in reversed(sorted(indices)):
+        sys.argv.pop(index+1)
+    return options
+
 def has_option(name):
     if name in sys.argv[1:]:
         sys.argv.remove(name)
@@ -252,9 +280,8 @@ lua_sources = [
     'linit.c',
 ]
 
-
-config = None
-if not has_option('--use-bundle'):
+config = get_lua_build_from_arguments()
+if not config and not has_option('--use-bundle'):
     config = find_lua_build(no_luajit=has_option('--no-luajit'))
 if not config and not has_option('--no-bundle'):
     config = use_bundled_lua(lua_bundle_path, lua_sources, c_defines)
@@ -263,6 +290,8 @@ if not config:
 
 ext_args = {
     'extra_objects': config.get('extra_objects'),
+    'libraries': config.get('libraries'),
+    'library_dirs': config.get('library_dirs'),
     'include_dirs': config.get('include_dirs'),
     'define_macros': c_defines,
 }
