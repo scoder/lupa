@@ -215,14 +215,15 @@ def use_bundled_lua(path, lua_sources, macros):
 def get_options(name):
     options = list()
     indices = set()
-    args = sys.argv[1:]
-    for i, arg in enumerate(args):
-        if arg == name and i < len(args) - 1:
-            options.append(args[i+1])
+    for i, arg in enumerate(sys.argv):
+        if i == 0:
+            continue # Ignore script name
+        if arg == name and i < len(sys.argv) - 1:
+            options.append(sys.argv[i+1])
             indices.add(i)
             indices.add(i+1)
     for index in reversed(sorted(indices)):
-        sys.argv.pop(index+1)
+        sys.argv.pop(index)
     return options
 
 def has_option(name):
