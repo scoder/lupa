@@ -4,7 +4,7 @@
 A fast Python wrapper around Lua and LuaJIT2.
 """
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 cimport cython
 
@@ -1479,15 +1479,21 @@ cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
     try:
         obj_id = <object><uintptr_t>py_obj.obj
         if DEBUG_GC:
-            print("Collecting object %s (%s)" % (str(<object>py_obj.obj), hex(obj_id)))
+            print("Collecting object %s (%s) ... " % (str(<object>py_obj.obj), hex(obj_id)), end='')
         try:
             refs = <list>runtime._pyrefs_in_lua[obj_id]
         except (TypeError, KeyError):
+            if DEBUG_GC:
+                print("already collected")
             return 0  # runtime was already cleared during GC, nothing left to do
         if len(refs) == 1:
             del runtime._pyrefs_in_lua[obj_id]
+            if DEBUG_GC:
+                print("last collected")
         else:
             refs.pop()  # any, really
+            if DEBUG_GC:
+                print("collected (%d left)" % len(refs))
         return 0
     except:
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
