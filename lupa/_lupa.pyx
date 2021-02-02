@@ -36,8 +36,14 @@ cdef extern from *:
     #else
         #include <stdint.h>
     #endif
+    #ifdef LUPA_DEBUG_GC
+        #define DEBUG_GC 1
+    #else
+        #define DEBUG_GC 0
+    #endif
     """
     ctypedef size_t uintptr_t
+    cdef int DEBUG_GC
 
 cdef object exc_info
 from sys import exc_info
@@ -1420,6 +1426,8 @@ cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
     runtime = <LuaRuntime>py_obj.runtime
     try:
         obj_id = <object><uintptr_t>py_obj.obj
+        if DEBUG_GC:
+            print("Collecting object %s (%s)" % (str(<object>py_obj.obj), hex(obj_id)))
         try:
             refs = <list>runtime._pyrefs_in_lua[obj_id]
         except (TypeError, KeyError):
