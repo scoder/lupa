@@ -1306,9 +1306,6 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
             raise LuaError("cannot mix objects from different Lua runtimes")
         lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, (<_LuaObject>o)._ref)
         pushed_values_count = 1
-    elif isinstance(o, float):
-        lua.lua_pushnumber(L, <lua.lua_Number><double>o)
-        pushed_values_count = 1
     else:
         if isinstance(o, _PyProtocolWrapper):
             type_flags = (<_PyProtocolWrapper>o)._type_flags
