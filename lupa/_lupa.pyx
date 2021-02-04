@@ -1347,6 +1347,10 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     py_obj.type_flags = type_flags
     lua.luaL_getmetatable(L, POBJECT)
     lua.lua_setmetatable(L, -2)
+
+    if DEBUG_GC:
+        print("Creating userdata %s (%s)" % (<object>py_obj.obj, hex(<object><uintptr_t>py_obj.obj)))
+
     return 1 # values pushed
 
 
@@ -1508,33 +1512,47 @@ cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
     try:
         obj_id = <object><uintptr_t>py_obj.obj
         if DEBUG_GC:
-            print("Collecting object %s (%s) ... " % (str(<object>py_obj.obj), hex(obj_id)), end='')
+            print("%s (%s) from " % (str(<object>py_obj.obj), hex(obj_id)), end='')
         try:
             refs = <list>runtime._pyrefs_in_lua[obj_id]
         except (TypeError, KeyError):
             if DEBUG_GC:
-                print("already collected")
+                print(0)
             return 0  # runtime was already cleared during GC, nothing left to do
+        if DEBUG_GC:
+            print(len(refs))
         if len(refs) == 1:
             del runtime._pyrefs_in_lua[obj_id]
-            if DEBUG_GC:
-                print("last collected")
         else:
             refs.pop()  # any, really
-            if DEBUG_GC:
-                print("collected (%d left)" % len(refs))
         return 0
     except:
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
         finally: return -1
 
 cdef int py_object_gc(lua_State* L) nogil:
+    if DEBUG_GC:
+        with gil:
+            print("Collecting", end=' ')
+
     if not lua.lua_isuserdata(L, 1):
+        if DEBUG_GC:
+            with gil:
+                print("non-userdata")
         return 0
+
     py_obj = unpack_userdata(L, 1)
+    if DEBUG_GC:
+        with gil:
+            print("userdata", end=' ')
+
     if py_obj is not NULL and py_obj.obj is not NULL:
         if decref_with_gil(py_obj, L):
             return lua.lua_error(L)  # never returns!
+    else:
+        if DEBUG_GC:
+            with gil:
+                print("NULL")
     return 0
 
 # calling Python objects
