@@ -48,6 +48,7 @@ cdef extern from *:
 
 cdef object exc_info
 from sys import exc_info
+from traceback import format_exception
 
 cdef object Mapping
 try:
@@ -328,7 +329,10 @@ cdef class LuaRuntime:
     cdef int store_raised_exception(self, lua_State* L, bytes lua_error_msg) except -1:
         try:
             self._raised_exception = tuple(exc_info())
-            py_to_lua(self, L, self._raised_exception[1])
+            if self._new_internal_state:
+                py_to_lua(self, L, self._raised_exception[1])
+            else:
+                py_to_lua(self, L, "".join(format_exception(*self._raised_exception)))
         except:
             lua.lua_pushlstring(L, lua_error_msg, len(lua_error_msg))
             raise
