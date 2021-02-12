@@ -1342,9 +1342,9 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     # and a borrowed reference in "py_obj.obj" for access from Lua
     obj_id = <object><uintptr_t><PyObject*>(o)
     if obj_id in runtime._pyrefs_in_lua:
-        runtime._pyrefs_in_lua[obj_id].append(o)
+        runtime._pyrefs_in_lua[obj_id]["refcount"] += 1
     else:
-        runtime._pyrefs_in_lua[obj_id] = [o]
+        runtime._pyrefs_in_lua[obj_id] = { "refcount": 1, "object": o }
 
     py_obj.obj = <PyObject*>o
     py_obj.runtime = <PyObject*>runtime
@@ -1511,24 +1511,24 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
     # originally, we just used:
     #cpython.ref.Py_XDECREF(py_obj.obj)
-    # now, we keep Python object references in Lua visible to Python in a dict of lists:
+    # now, we keep Python object references in Lua visible to Python in a dict of dicts:
     runtime = <LuaRuntime>py_obj.runtime
     try:
         obj_id = <object><uintptr_t>py_obj.obj
         if DEBUG_GC:
             print("%s (%s) from " % (str(<object>py_obj.obj), hex(obj_id)), end='')
         try:
-            refs = <list>runtime._pyrefs_in_lua[obj_id]
+            refinfo = <dict>runtime._pyrefs_in_lua[obj_id]
         except (TypeError, KeyError):
             if DEBUG_GC:
                 print(0)
             return 0  # runtime was already cleared during GC, nothing left to do
         if DEBUG_GC:
-            print(len(refs))
-        if len(refs) == 1:
+            print(refinfo["refcount"])
+        if refinfo["refcount"] == 1:
             del runtime._pyrefs_in_lua[obj_id]
         else:
-            refs.pop()  # any, really
+            refinfo["refcount"] -= 1
         return 0
     except:
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
