@@ -184,9 +184,10 @@ def no_lua_error():
 
 def use_bundled_lua(path, lua_sources, macros):
     print('Using bundled Lua')
+    os_path = os.path
     ext_libraries = [
         ['lua', {
-            'sources': [path + src for src in lua_sources],
+            'sources': [os_path.join(path, src) for src in lua_sources],
             'include_dirs': [path],
             'macros': macros,
         }]
@@ -215,7 +216,7 @@ if has_option('--with-lua-checks'):
 
 
 # bundled lua
-lua_bundle_path = 'third-party/lua/'
+lua_bundle_path = os.path.join(basedir, 'third-party', 'lua')
 lua_sources = [
     'lapi.c',
     'lcode.c',

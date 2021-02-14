@@ -9,10 +9,14 @@ jobs:
     strategy:
       matrix:
         python-version: ["2.7", "3.5", "3.6", "3.7", "3.8"]
-        lua-version: ["bundle", "5.2", "5.3", "luajit-5.1"]
+        lua-version: ["bundle", "lua5.2", "lua5.3", "luajit-5.1"]
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Check out recursively
+      run: git submodule update --init --recursive
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
@@ -25,12 +29,12 @@ jobs:
         python -m pip install -U tox virtualenv
 
     - name: Install Lua ${{ matrix.lua-version }}
-      if: ${{ contains(matrix.lua-version, 'bundle' }}
+      if: ${{ !contains(matrix.lua-version, 'bundle') }}
       run: sudo apt-get install lib${{ matrix.lua-version }}-dev
 
     - name: Test with tox
-      run: tox
+      run: echo "py${{ matrix.python-version }}" | tr -d '.' | xargs tox -e
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
-        CFLAGS: ${{ contains(matrix.lua-version, 'bundle') && '-flto' || '' }}
+        CFLAGS: ${{ contains(matrix.lua-version, 'bundle') && '-flto -g' || '-g' }}
         LDFLAGS: ${{ contains(matrix.lua-version, 'bundle') && '-flto' || '' }}
