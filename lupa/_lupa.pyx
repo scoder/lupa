@@ -1064,13 +1064,12 @@ cdef class _LuaIter:
             return
         cdef lua_State* L = self._state
         if L is not NULL and self._refiter:
-            locked = False
             try:
                 lock_runtime(self._runtime)
                 locked = True
             except:
-                pass
-            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
+                locked = False
+            self._free_key(L)
             if locked:
                 unlock_runtime(self._runtime)
 
@@ -1093,12 +1092,7 @@ cdef class _LuaIter:
             self._obj.push_lua_object(L)
             if not lua.lua_istable(L, -1):
                 raise TypeError("cannot iterate over non-table (found %r)" % self._obj)
-            if not self._refiter:
-                # initial key
-                lua.lua_pushnil(L)
-            else:
-                # last key
-                lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._refiter)
+            self._push_key(L)
             if lua.lua_next(L, -2):
                 try:
                     if self._what == KEYS:
@@ -1111,20 +1105,34 @@ cdef class _LuaIter:
                     # pop value
                     lua.lua_pop(L, 1)
                     # pop and store key
-                    if not self._refiter:
-                        self._refiter = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
-                    else:
-                        lua.lua_rawseti(L, lua.LUA_REGISTRYINDEX, self._refiter)
+                    self._pop_key(L)
+                # if no errors were raised, return value
                 return retval
-            # iteration done, clean up
-            if self._refiter:
-                lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
-                self._refiter = 0
-            self._obj = None
+            else:
+                # iteration done, clean up
+                self._free_key(L)
+                self._obj = None
         finally:
             lua.lua_settop(L, old_top)
             unlock_runtime(self._runtime)
         raise StopIteration
+
+    cdef inline void _push_key(self, lua_State* L):
+        if self._refiter:
+            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._refiter)
+        else:
+            lua.lua_pushnil(L)
+
+    cdef inline void _pop_key(self, lua_State* L):
+        if self._refiter:
+            lua.lua_rawseti(L, lua.LUA_REGISTRYINDEX, self._refiter)
+        else:
+            self._refiter = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
+
+    cdef inline void _free_key(self, lua_State* L):
+        if self._refiter:
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
+            self._refiter = 0
 
 # type conversions and protocol adaptations
 
