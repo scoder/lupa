@@ -1092,9 +1092,6 @@ cdef class _LuaIter:
             # iterable object
             self._obj.push_lua_object(L)
             if not lua.lua_istable(L, -1):
-                if lua.lua_isnil(L, -1):
-                    lua.lua_pop(L, 1)
-                    raise LuaError("lost reference")
                 raise TypeError("cannot iterate over non-table (found %r)" % self._obj)
             if not self._refiter:
                 # initial key
