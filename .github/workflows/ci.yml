@@ -1,0 +1,36 @@
+name: Continuous Integration
+
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["2.7", "3.5", "3.6", "3.7", "3.8"]
+        lua-version: ["bundle", "5.2", "5.3", "luajit-5.1"]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+        python -m pip install -U tox virtualenv
+
+    - name: Install Lua ${{ matrix.lua-version }}
+      if: ${{ contains(matrix.lua-version, 'bundle' }}
+      run: sudo apt-get install lib${{ matrix.lua-version }}-dev
+
+    - name: Test with tox
+      run: tox
+      env:
+        SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
+        CFLAGS: ${{ contains(matrix.lua-version, 'bundle') && '-flto' || '' }}
+        LDFLAGS: ${{ contains(matrix.lua-version, 'bundle') && '-flto' || '' }}
