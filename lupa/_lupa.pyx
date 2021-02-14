@@ -119,11 +119,11 @@ def lua_type(obj):
     lua_object = <_LuaObject>obj
     assert lua_object._runtime is not None
     lock_runtime(lua_object._runtime)
-    L = lua_object._state
+    cdef lua_State* L = lua_object._state
     old_top = lua.lua_gettop(L)
     cdef const char* lua_type_name
     try:
-        lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, lua_object._ref)
+        lua_object.push_lua_object(L)
         ltype = lua.lua_type(L, -1)
         if ltype == lua.LUA_TTABLE:
             return 'table'
@@ -444,14 +444,14 @@ cdef class LuaRuntime:
                         lua.lua_rawset(L, -3)
 
                 elif isinstance(obj, _LuaTable):
-                    # Stack:                            # tbl
-                    (<_LuaObject>obj).push_lua_object() # tbl, obj
-                    lua.lua_pushnil(L)                  # tbl, obj, nil       // iterate over obj (-2)
-                    while lua.lua_next(L, -2):          # tbl, obj, k, v
-                        lua.lua_pushvalue(L, -2)        # tbl, obj, k, v, k   // copy key (because
-                        lua.lua_insert(L, -2)           # tbl, obj, k, k, v   // lua_next needs a key for iteration)
-                        lua.lua_settable(L, -5)         # tbl, obj, k         // tbl[k] = v
-                    lua.lua_pop(L, 1)                   # tbl                 // remove obj from stack
+                    # Stack:                             # tbl
+                    (<_LuaObject>obj).push_lua_object(L) # tbl, obj
+                    lua.lua_pushnil(L)                   # tbl, obj, nil       // iterate over obj (-2)
+                    while lua.lua_next(L, -2):           # tbl, obj, k, v
+                        lua.lua_pushvalue(L, -2)         # tbl, obj, k, v, k   // copy key (because
+                        lua.lua_insert(L, -2)            # tbl, obj, k, k, v   // lua_next needs a key for iteration)
+                        lua.lua_settable(L, -5)          # tbl, obj, k         // tbl[k] = v
+                    lua.lua_pop(L, 1)                    # tbl                 // remove obj from stack
 
                 elif isinstance(obj, Mapping):
                     for key in obj:
@@ -627,8 +627,7 @@ cdef class _LuaObject:
             unlock_runtime(self._runtime)
 
     @cython.final
-    cdef inline int push_lua_object(self) except -1:
-        cdef lua_State* L = self._state
+    cdef inline int push_lua_object(self, lua_State* L) except -1:
         lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
         if lua.lua_isnil(L, -1):
             lua.lua_pop(L, 1)
@@ -640,7 +639,7 @@ cdef class _LuaObject:
         lock_runtime(self._runtime)
         try:
             lua.lua_settop(L, 0)
-            self.push_lua_object()
+            self.push_lua_object(L)
             return call_lua(self._runtime, L, args)
         finally:
             lua.lua_settop(L, 0)
@@ -656,7 +655,7 @@ cdef class _LuaObject:
         lock_runtime(self._runtime)
         size = 0
         try:
-            self.push_lua_object()
+            self.push_lua_object(L)
             size = lua.lua_objlen(L, -1)
             lua.lua_pop(L, 1)
         finally:
@@ -676,7 +675,7 @@ cdef class _LuaObject:
         cdef bytes encoding = self._runtime._encoding or b'UTF-8'
         lock_runtime(self._runtime)
         try:
-            self.push_lua_object()
+            self.push_lua_object(L)
             return lua_object_repr(L, encoding)
         finally:
             lua.lua_pop(L, 1)
@@ -692,7 +691,7 @@ cdef class _LuaObject:
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
-            self.push_lua_object()
+            self.push_lua_object(L)
             # lookup and call "__tostring" metatable method manually to catch any errors
             if lua.lua_getmetatable(L, -1):
                 lua.lua_pushlstring(L, "__tostring", 10)
@@ -733,7 +732,7 @@ cdef class _LuaObject:
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
-            self.push_lua_object()
+            self.push_lua_object(L)
             lua_type = lua.lua_type(L, -1)
             if lua_type == lua.LUA_TFUNCTION or lua_type == lua.LUA_TTHREAD:
                 lua.lua_pop(L, 1)
@@ -829,7 +828,7 @@ cdef class _LuaTable(_LuaObject):
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
-            self.push_lua_object()
+            self.push_lua_object(L)
             # table[nil] fails, so map None -> python.none for Lua tables
             py_to_lua(self._runtime, L, name, wrap_none=True)
             py_to_lua(self._runtime, L, value)
@@ -860,7 +859,7 @@ cdef class _LuaTable(_LuaObject):
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
-            self.push_lua_object()
+            self.push_lua_object(L)
             py_to_lua(self._runtime, L, name, wrap_none=True)
             lua.lua_pushnil(L)
             lua.lua_settable(L, -3)
@@ -891,7 +890,7 @@ cdef class _LuaFunction(_LuaObject):
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
-            self.push_lua_object()
+            self.push_lua_object(L)
             if not lua.lua_isfunction(L, -1) or lua.lua_iscfunction(L, -1):
                 raise TypeError("Lua object is not a function")
             # create thread stack and push the function on it
@@ -1091,7 +1090,7 @@ cdef class _LuaIter:
             if self._obj is None:
                 raise StopIteration
             # iterable object
-            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._obj._ref)
+            self._obj.push_lua_object(L)
             if not lua.lua_istable(L, -1):
                 if lua.lua_isnil(L, -1):
                     lua.lua_pop(L, 1)
@@ -1308,7 +1307,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
     elif isinstance(o, _LuaObject):
         if (<_LuaObject>o)._runtime is not runtime:
             raise LuaError("cannot mix objects from different Lua runtimes")
-        lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, (<_LuaObject>o)._ref)
+        (<_LuaObject>o).push_lua_object(L)
         pushed_values_count = 1
     else:
         if isinstance(o, _PyProtocolWrapper):
