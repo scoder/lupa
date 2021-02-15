@@ -1117,11 +1117,15 @@ cdef class _LuaIter:
             unlock_runtime(self._runtime)
         raise StopIteration
 
-    cdef inline void _push_key(self, lua_State* L):
+    cdef inline int _push_key(self, lua_State* L) except -1:
         if self._refiter:
             lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._refiter)
+            if lua.lua_isnil(L, -1):
+                lua.lua_pop(L, 1)
+                raise LuaError("table index is nil")
         else:
             lua.lua_pushnil(L)
+        return 1
 
     cdef inline void _pop_key(self, lua_State* L):
         if self._refiter:
