@@ -1598,12 +1598,7 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
             runtime._state = stored_state
 
 cdef int py_object_call(lua_State* L) nogil:
-    cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")  # never returns!
-    if not py_obj.obj:
-        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
-
+    cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_call_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
@@ -1630,11 +1625,7 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
         finally: return -1
 
 cdef int py_object_str(lua_State* L) nogil:
-    cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
-    if not py_obj.obj:
-        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
+    cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_str_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
@@ -1706,11 +1697,7 @@ cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         return -1
 
 cdef int py_object_getindex(lua_State* L) nogil:
-    cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
-    if not py_obj.obj:
-        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
+    cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_object_getindex_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
@@ -1730,11 +1717,7 @@ cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         return -1
 
 cdef int py_object_setindex(lua_State* L) nogil:
-    cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
-    if not py_obj.obj:
-        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
+    cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_object_setindex_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
@@ -1756,9 +1739,14 @@ cdef lua.luaL_Reg *py_object_lib = [
 cdef inline py_object* unpack_single_python_argument_or_jump(lua_State* L) nogil:
     if lua.lua_gettop(L) > 1:
         lua.luaL_argerror(L, 2, "invalid arguments")   # never returns!
-    cdef py_object* py_obj = unwrap_lua_object(L, 1)
+    return unpack_python_argument_or_jump(L, 1)
+
+cdef inline py_object* unpack_python_argument_or_jump(lua_State* L, int n) nogil:
+    cdef py_object* py_obj = unwrap_lua_object(L, n)
     if not py_obj:
-        lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+        lua.luaL_argerror(L, n, "not a python object")   # never returns!
+    if not py_obj.obj:
+        lua.luaL_argerror(L, n, "deleted python object") # never returns!
     return py_obj
 
 cdef py_object* unwrap_lua_object(lua_State* L, int n) nogil:
@@ -1813,9 +1801,7 @@ cdef int py_iterex(lua_State* L) nogil:
 cdef int py_enumerate(lua_State* L) nogil:
     if lua.lua_gettop(L) > 2:
         lua.luaL_argerror(L, 3, "invalid arguments")   # never returns!
-    cdef py_object* py_obj = unwrap_lua_object(L, 1)
-    if not py_obj:
-        lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1)
     cdef double start = lua.lua_tonumber(L, -1) if lua.lua_gettop(L) == 2 else 0.0
     result = py_enumerate_with_gil(L, py_obj, start)
     if result < 0:
