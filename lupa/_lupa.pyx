@@ -37,14 +37,8 @@ cdef extern from *:
     #else
         #include <stdint.h>
     #endif
-    #ifdef LUPA_DEBUG_GC
-        #define DEBUG_GC 1
-    #else
-        #define DEBUG_GC 0
-    #endif
     """
     ctypedef size_t uintptr_t
-    cdef int DEBUG_GC
 
 cdef object exc_info
 from sys import exc_info
@@ -1360,9 +1354,6 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     lua.luaL_getmetatable(L, POBJECT)
     lua.lua_setmetatable(L, -2)
 
-    if DEBUG_GC:
-        print("Creating userdata %s (%s)" % (<object>py_obj.obj, hex(<object><uintptr_t>py_obj.obj)))
-
     return 1 # values pushed
 
 
@@ -1523,18 +1514,13 @@ cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
     runtime = <LuaRuntime>py_obj.runtime
     try:
         obj_id = <object><uintptr_t>py_obj.obj
-        if DEBUG_GC:
-            print("%s (%s) from " % (str(<object>py_obj.obj), hex(obj_id)), end='')
         try:
             refinfo = <dict>runtime._pyrefs_in_lua[obj_id]
         except (TypeError, KeyError):
-            if DEBUG_GC:
-                print(0)
             return 0  # runtime was already cleared during GC, nothing left to do
-        if DEBUG_GC:
-            print(refinfo["refcount"])
         if refinfo["refcount"] == 1:
             del runtime._pyrefs_in_lua[obj_id]
+            py_obj.obj = NULL
         else:
             refinfo["refcount"] -= 1
         return 0
@@ -1543,28 +1529,12 @@ cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
         finally: return -1
 
 cdef int py_object_gc(lua_State* L) nogil:
-    if DEBUG_GC:
-        with gil:
-            print("Collecting", end=' ')
-
     if not lua.lua_isuserdata(L, 1):
-        if DEBUG_GC:
-            with gil:
-                print("non-userdata")
         return 0
-
     py_obj = unpack_userdata(L, 1)
-    if DEBUG_GC:
-        with gil:
-            print("userdata", end=' ')
-
     if py_obj is not NULL and py_obj.obj is not NULL:
         if decref_with_gil(py_obj, L):
             return lua.lua_error(L)  # never returns!
-    else:
-        if DEBUG_GC:
-            with gil:
-                print("NULL")
     return 0
 
 # calling Python objects
@@ -1631,6 +1601,8 @@ cdef int py_object_call(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")  # never returns!
+    if not py_obj.obj:
+        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
 
     result = py_call_with_gil(L, py_obj)
     if result < 0:
@@ -1661,6 +1633,8 @@ cdef int py_object_str(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    if not py_obj.obj:
+        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
     result = py_str_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
@@ -1735,6 +1709,8 @@ cdef int py_object_getindex(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    if not py_obj.obj:
+        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
     result = py_object_getindex_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
@@ -1757,6 +1733,8 @@ cdef int py_object_setindex(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    if not py_obj.obj:
+        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
     result = py_object_setindex_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
