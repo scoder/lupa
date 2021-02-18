@@ -242,8 +242,6 @@ if has_option('--without-assert'):
     c_defines.append(('CYTHON_WITHOUT_ASSERTIONS', None))
 if has_option('--with-lua-checks'):
     c_defines.append(('LUA_USE_APICHECK', None))
-if has_option('--debug-gc'):
-    c_defines.append(('LUPA_DEBUG_GC', None))
 
 
 # bundled lua

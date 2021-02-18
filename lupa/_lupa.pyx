@@ -36,14 +36,8 @@ cdef extern from *:
     #else
         #include <stdint.h>
     #endif
-    #ifdef LUPA_DEBUG_GC
-        #define DEBUG_GC 1
-    #else
-        #define DEBUG_GC 0
-    #endif
     """
     ctypedef size_t uintptr_t
-    cdef int DEBUG_GC
 
 cdef object exc_info
 from sys import exc_info
@@ -1266,6 +1260,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     py_obj.type_flags = type_flags
     lua.luaL_getmetatable(L, POBJECT)
     lua.lua_setmetatable(L, -2)
+
     return 1 # values pushed
 
 
@@ -1426,14 +1421,13 @@ cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
     runtime = <LuaRuntime>py_obj.runtime
     try:
         obj_id = <object><uintptr_t>py_obj.obj
-        if DEBUG_GC:
-            print("Collecting object %s (%s)" % (str(<object>py_obj.obj), hex(obj_id)))
         try:
             refs = <list>runtime._pyrefs_in_lua[obj_id]
         except (TypeError, KeyError):
             return 0  # runtime was already cleared during GC, nothing left to do
         if len(refs) == 1:
             del runtime._pyrefs_in_lua[obj_id]
+            py_obj.obj = NULL
         else:
             refs.pop()  # any, really
         return 0
@@ -1514,6 +1508,8 @@ cdef int py_object_call(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")  # never returns!
+    if not py_obj.obj:
+        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
 
     result = py_call_with_gil(L, py_obj)
     if result < 0:
@@ -1544,6 +1540,8 @@ cdef int py_object_str(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    if not py_obj.obj:
+        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
     result = py_str_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
@@ -1618,6 +1616,8 @@ cdef int py_object_getindex(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    if not py_obj.obj:
+        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
     result = py_object_getindex_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
@@ -1640,6 +1640,8 @@ cdef int py_object_setindex(lua_State* L) nogil:
     cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
     if not py_obj:
         return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    if not py_obj.obj:
+        return lua.luaL_argerror(L, 1, "deleted python object") # never returns!
     result = py_object_setindex_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
