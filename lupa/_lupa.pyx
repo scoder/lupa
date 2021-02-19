@@ -1137,7 +1137,7 @@ cdef class _LuaIter:
 cdef int py_asfunc_call(lua_State *L) nogil:
     if (lua.lua_gettop(L) == 1 and lua.lua_islightuserdata(L, 1)
             and lua.lua_topointer(L, 1) == <void*>unpack_wrapped_pyfunction):
-        # special case: unwrap_lua_object() calls this to find out the Python object
+        # special case: unpack_python_argument_or_jump() calls this to find out the Python object
         lua.lua_pushvalue(L, lua.lua_upvalueindex(1))
         return 1
     lua.lua_pushvalue(L, lua.lua_upvalueindex(1))
@@ -1214,7 +1214,10 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TUSERDATA:
         py_obj = unpack_userdata(L, n)
         if py_obj:
-            return <object>py_obj.obj
+            if py_obj.obj:
+                return <object>py_obj.obj
+            else:
+                raise ReferenceError("deleted python object")
     elif lua_type == lua.LUA_TTABLE:
         return new_lua_table(runtime, L, n)
     elif lua_type == lua.LUA_TTHREAD:
@@ -1222,7 +1225,10 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TFUNCTION:
         py_obj = unpack_wrapped_pyfunction(L, n)
         if py_obj:
-            return <object>py_obj.obj
+            if py_obj.obj:
+                return <object>py_obj.obj
+            else:
+                raise ReferenceError("deleted python object")
         return new_lua_function(runtime, L, n)
     return new_lua_object(runtime, L, n)
 
@@ -1543,9 +1549,6 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
     cdef int i, nargs = lua.lua_gettop(L) - 1
     cdef tuple args
 
-    if not py_obj:
-        raise TypeError("not a python object")
-
     f = <object>py_obj.obj
 
     if not nargs:
@@ -1742,18 +1745,19 @@ cdef inline py_object* unpack_single_python_argument_or_jump(lua_State* L) nogil
     return unpack_python_argument_or_jump(L, 1)
 
 cdef inline py_object* unpack_python_argument_or_jump(lua_State* L, int n) nogil:
-    cdef py_object* py_obj = unwrap_lua_object(L, n)
+    cdef py_object* py_obj
+
+    if lua.lua_isuserdata(L, n):
+        py_obj = unpack_userdata(L, n)
+    else:
+        py_obj = unpack_wrapped_pyfunction(L, n)
+
     if not py_obj:
         lua.luaL_argerror(L, n, "not a python object")   # never returns!
     if not py_obj.obj:
         lua.luaL_argerror(L, n, "deleted python object") # never returns!
-    return py_obj
 
-cdef py_object* unwrap_lua_object(lua_State* L, int n) nogil:
-    if lua.lua_isuserdata(L, n):
-        return unpack_userdata(L, n)
-    else:
-        return unpack_wrapped_pyfunction(L, n)
+    return py_obj
 
 cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
     cdef LuaRuntime runtime
@@ -1849,9 +1853,7 @@ cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_f
 
 cdef int py_iter_next(lua_State* L) nogil:
     # first value in the C closure: the Python iterator object
-    cdef py_object* py_obj = unwrap_lua_object(L, 1)
-    if not py_obj:
-        return lua.luaL_argerror(L, 1, "not a python object")   # never returns!
+    cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_iter_next_with_gil(L, py_obj)
     if result < 0:
         return lua.lua_error(L)  # never returns!
