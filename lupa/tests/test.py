@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import threading
 import operator
@@ -2618,6 +2618,60 @@ class TestErrorStackTrace(unittest.TestCase):
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
             self.assertNotIn("stack traceback:", e.args[0])
+
+################################################################################
+# tests for missing reference
+
+class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
+
+    def setUp(self):
+        super(TestMissingReference, self).setUp()
+        self.testmissingref = self.lua.eval('''
+        function(obj, f)
+            local t
+            if newproxy then
+                local p = newproxy(true)
+                t = getmetatable(p)
+                t.obj = obj
+                t.__gc = function(p_) t = getmetatable(p_) end
+            else
+                t = { obj = obj }
+                setmetatable(t, {__gc = function(t_) t = t_ end})
+            end
+            obj = nil
+            t = nil
+            collectgarbage()
+            assert(t ~= nil)
+            assert(t.obj ~= nil)
+            local ok, ret = pcall(f, t.obj)
+            assert(not ok)
+            assert(tostring(ret):find("deleted python object"))
+        end
+        ''')
+
+    def test_fallbacks(self):
+        class X():
+            def __call__(self, *args):
+                return None
+
+        def assign(var):
+            var = None
+
+        self.testmissingref({}, lambda o: str(o))                            # __tostring
+        self.testmissingref({}, lambda o: o[1])                              # __index
+        self.testmissingref({}, lambda o: lupa.as_itemgetter(o)[1])          # __index (itemgetter)
+        self.testmissingref({}, lambda o: lupa.as_attrgetter(o).items)       # __index (attrgetter)
+        self.testmissingref({}, lambda o: assign(o[1]))                      # __newindex
+        self.testmissingref({}, lambda o: assign(lupa.as_itemgetter(o)[1]))  # __newindex (itemgetter)
+        self.testmissingref(X(), lambda o: assign(lupa.as_attrgetter(o).a))  # __newindex (attrgetter)
+        self.testmissingref(X(), lambda o: o())                              # __call
+
+    def test_functions(self):
+        self.testmissingref({}, print)              # reflection
+        self.testmissingref({}, iter)               # iteration
+        self.testmissingref({}, enumerate)          # enumerate
+        self.testmissingref({}, lupa.as_itemgetter) # item getter protocol
+        self.testmissingref({}, lupa.as_attrgetter) # attribute getter protocol
 
 if __name__ == '__main__':
     def print_version():
