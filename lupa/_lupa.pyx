@@ -1350,9 +1350,9 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     # and a borrowed reference in "py_obj.obj" for access from Lua
     obj_id = <object><uintptr_t><PyObject*>(o)
     if obj_id in runtime._pyrefs_in_lua:
-        runtime._pyrefs_in_lua[obj_id]["refcount"] += 1
+        (<_PyReference>runtime._pyrefs_in_lua[obj_id]).refcnt += 1
     else:
-        runtime._pyrefs_in_lua[obj_id] = { "refcount": 1, "object": o }
+        runtime._pyrefs_in_lua[obj_id] = _PyReference.__new__(_PyReference, o)
 
     py_obj.obj = <PyObject*>o
     py_obj.runtime = <PyObject*>runtime
@@ -1513,22 +1513,34 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 
 # ref-counting support for Python objects
 
+@cython.final
+@cython.internal
+@cython.freelist(8)
+cdef class _PyReference:
+    cdef object obj
+    cdef uintptr_t refcnt
+    def __cinit__(self, obj):
+        self.obj = obj
+        self.refcnt = 1
+    def __init__(self):
+        raise TypeError("Type cannot be instantiated from Python")
+
 cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
     # originally, we just used:
     #cpython.ref.Py_XDECREF(py_obj.obj)
-    # now, we keep Python object references in Lua visible to Python in a dict of dicts:
+    # now, we keep Python object references in Lua visible to Python in a dict of _PyReference:
     runtime = <LuaRuntime>py_obj.runtime
     try:
         obj_id = <object><uintptr_t>py_obj.obj
         try:
-            refinfo = <dict>runtime._pyrefs_in_lua[obj_id]
+            pyref = <_PyReference>runtime._pyrefs_in_lua[obj_id]
         except (TypeError, KeyError):
             return 0  # runtime was already cleared during GC, nothing left to do
-        if refinfo["refcount"] == 1:
+        if pyref.refcnt == 1:
             del runtime._pyrefs_in_lua[obj_id]
             py_obj.obj = NULL
         else:
-            refinfo["refcount"] -= 1
+            pyref.refcnt -= 1
         return 0
     except:
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
