@@ -190,7 +190,7 @@ def find_lua_build(no_luajit=False):
 
 
 def no_lua_error():
-    error = ("Neither LuaJIT2 nor Lua 5.[123] were found. Please install "
+    error = ("Neither LuaJIT2 nor Lua 5.[1234] were found. Please install "
              "Lua and its development packages, "
              "or put a local build into the lupa main directory.")
     print(error)
@@ -302,7 +302,7 @@ ext_args = {
 # check if Cython is installed, and use it if requested or necessary
 use_cython = has_option('--with-cython')
 if not use_cython:
-    if not os.path.exists(os.path.join(os.path.dirname(__file__), 'lupa', '_lupa.c')):
+    if not os.path.exists(os.path.join(basedir, 'lupa', '_lupa.c')):
         print("generated sources not available, need Cython to build")
         use_cython = True
 
@@ -322,7 +322,7 @@ else:
 ext_modules = [
     Extension(
         'lupa._lupa',
-        sources = ['lupa/_lupa'+source_extension],
+        sources = [os.path.join(basedir, 'lupa', '_lupa'+source_extension)],
         **ext_args
     )]
 
@@ -341,10 +341,10 @@ def write_file(filename, content):
 
 
 long_description = '\n\n'.join([
-    read_file(text_file)
+    read_file(os.path.join(basedir, text_file))
     for text_file in ['README.rst', 'INSTALL.rst', 'CHANGES.rst', "LICENSE.txt"]])
 
-write_file(os.path.join('lupa', 'version.py'), u"__version__ = '%s'\n" % VERSION)
+write_file(os.path.join(basedir, 'lupa', 'version.py'), u"__version__ = '%s'\n" % VERSION)
 
 if config.get('libfile'):
     # include lua51.dll in the lib folder if we are on windows
