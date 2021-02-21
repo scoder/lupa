@@ -4,7 +4,7 @@
 A fast Python wrapper around Lua and LuaJIT2.
 """
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 cimport cython
 
@@ -39,6 +39,9 @@ cdef extern from *:
     #endif
     """
     ctypedef size_t uintptr_t
+
+cdef object __main__
+import __main__
 
 cdef object exc_info
 from sys import exc_info
@@ -135,7 +138,6 @@ def lua_type(obj):
         unlock_runtime(lua_object._runtime)
 
 def eval_main(string):
-    import __main__
     d = __main__.__dict__
     return eval(string, d)
 
@@ -143,7 +145,6 @@ def exec_wrapper(string, g=None, l=None):
     exec(string, g, l)
 
 def exec_main(string):
-    import __main__
     d = __main__.__dict__
     exec(string, d)
 
