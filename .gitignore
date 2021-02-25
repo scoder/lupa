@@ -6,6 +6,8 @@ build
 dist
 MANIFEST
 *.pyc
+*.pyd
+*.dll
 *.egg-info
 *.so
 *.c

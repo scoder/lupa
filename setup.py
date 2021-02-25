@@ -127,6 +127,17 @@ def get_lua_build_from_arguments():
     print('Using Lua library directories: %s' % ', '.join(lua_lib_dirs))
     print('Using Lua include directories: %s' % ', '.join(lua_inc_dirs))
 
+    os_path = os.path
+    for lua_lib_dir in lua_lib_dirs:
+        for lua_lib_file in iglob(os_path.join(lua_lib_dir, 'lua5?.lib')):
+            if os_path.isfile(lua_lib_file):
+                print('Using Lua library file: %s' % lua_lib_file)
+                return dict(extra_objects=[lua_lib_file],
+                            libfile=lua_lib_file,
+                            libraries=lua_libs,
+                            library_dirs=lua_lib_dirs,
+                            include_dirs=lua_inc_dirs)
+
     return dict(libraries=lua_libs,
                 library_dirs=lua_lib_dirs,
                 include_dirs=lua_inc_dirs)
