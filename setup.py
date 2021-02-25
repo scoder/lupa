@@ -116,31 +116,23 @@ def lua_libs(package='luajit'):
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 def get_lua_build_from_arguments():
-    lua_libs = get_options('--lua-lib')
-    lua_lib_dirs = get_options('--lua-lib-dir')
-    lua_inc_dirs = get_options('--lua-inc-dir')
+    lua_l = get_option('--lua-l')
+    lua_I = get_option('--lua-I')
 
-    if not lua_libs or not lua_inc_dirs:
+    if not lua_l or not lua_I:
         return None
 
-    print('Using Lua libraries: %s' % ', '.join(lua_libs))
-    print('Using Lua library directories: %s' % ', '.join(lua_lib_dirs))
-    print('Using Lua include directories: %s' % ', '.join(lua_inc_dirs))
+    print('Using Lua library: %s' % lua_l)
+    print('Using Lua include directory: %s' % lua_I)
 
-    os_path = os.path
-    for lua_lib_dir in lua_lib_dirs:
-        for lua_lib_file in iglob(os_path.join(lua_lib_dir, 'lua5?.lib')):
-            if os_path.isfile(lua_lib_file):
-                print('Using Lua library file: %s' % lua_lib_file)
-                return dict(extra_objects=[lua_lib_file],
-                            libfile=lua_lib_file,
-                            libraries=lua_libs,
-                            library_dirs=lua_lib_dirs,
-                            include_dirs=lua_inc_dirs)
+    root, ext = os.path.splitext(lua_l)
+    if os.name == 'nt' and ext == '.lib':
+        return dict(extra_objects=[lua_l],
+                    include_dirs=[lua_I],
+                    libfile=lua_l)
 
-    return dict(libraries=lua_libs,
-                library_dirs=lua_lib_dirs,
-                include_dirs=lua_inc_dirs)
+    return dict(extra_objects=[lua_l],
+                include_dirs=[lua_I])
 
 def find_lua_build(no_luajit=False):
     # try to find local LuaJIT2 build
@@ -224,19 +216,13 @@ def use_bundled_lua(path, lua_sources, macros):
     }
 
 
-def get_options(name):
-    options = list()
-    indices = set()
+def get_option(name):
     for i, arg in enumerate(sys.argv):
         if i == 0:
             continue # Ignore script name
         if arg == name and i < len(sys.argv) - 1:
-            options.append(sys.argv[i+1])
-            indices.add(i)
-            indices.add(i+1)
-    for index in reversed(sorted(indices)):
-        sys.argv.pop(index)
-    return options
+            sys.argv.pop(i)
+            return sys.argv.pop(i)
 
 def has_option(name):
     if name in sys.argv[1:]:
@@ -358,7 +344,7 @@ long_description = '\n\n'.join([
 write_file(os.path.join(basedir, 'lupa', 'version.py'), u"__version__ = '%s'\n" % VERSION)
 
 if config.get('libfile'):
-    # include lua51.dll in the lib folder if we are on windows
+    # include Lua DLL in the lib folder if we are on Windows
     dllfile = os.path.splitext(config['libfile'])[0] + ".dll"
     shutil.copy(dllfile, os.path.join(basedir, 'lupa'))
     extra_setup_args['package_data'] = {'lupa': [os.path.basename(dllfile)]}
