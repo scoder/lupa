@@ -136,22 +136,21 @@ def get_lua_build_from_arguments():
 
 def find_lua_build(no_luajit=False):
     # try to find local LuaJIT2 build
-    os_path = os.path
     for filename in os.listdir(basedir):
         if not filename.lower().startswith('luajit'):
             continue
-        filepath = os_path.join(basedir, filename, 'src')
-        if not os_path.isdir(filepath):
+        filepath = os.path.join(basedir, filename, 'src')
+        if not os.path.isdir(filepath):
             continue
-        libfile = os_path.join(filepath, 'libluajit.a')
-        if os_path.isfile(libfile):
+        libfile = os.path.join(filepath, 'libluajit.a')
+        if os.path.isfile(libfile):
             print("found LuaJIT build in %s" % filepath)
             print("building statically")
             return dict(extra_objects=[libfile],
                         include_dirs=[filepath])
         # also check for lua51.lib, the Windows equivalent of libluajit.a
-        for libfile in iglob(os_path.join(filepath, 'lua5?.lib')):
-            if os_path.isfile(libfile):
+        for libfile in iglob(os.path.join(filepath, 'lua5?.lib')):
+            if os.path.isfile(libfile):
                 print("found LuaJIT build in %s (%s)" % (
                     filepath, os.path.basename(libfile)))
                 print("building statically")
@@ -202,10 +201,9 @@ def no_lua_error():
 
 def use_bundled_lua(path, lua_sources, macros):
     print('Using bundled Lua')
-    os_path = os.path
     ext_libraries = [
         ['lua', {
-            'sources': [os_path.join(path, src) for src in lua_sources],
+            'sources': [os.path.join(path, src) for src in lua_sources],
             'include_dirs': [path],
             'macros': macros,
         }]
@@ -289,8 +287,6 @@ if not config:
 
 ext_args = {
     'extra_objects': config.get('extra_objects'),
-    'libraries': config.get('libraries'),
-    'library_dirs': config.get('library_dirs'),
     'include_dirs': config.get('include_dirs'),
     'define_macros': c_defines,
 }

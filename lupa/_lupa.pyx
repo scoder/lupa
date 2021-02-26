@@ -4,7 +4,7 @@
 A fast Python wrapper around Lua and LuaJIT2.
 """
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 cimport cython
 
@@ -1058,12 +1058,13 @@ cdef class _LuaIter:
             return
         cdef lua_State* L = self._state
         if L is not NULL and self._refiter:
+            locked = False
             try:
                 lock_runtime(self._runtime)
                 locked = True
             except:
-                locked = False
-            self._free_key(L)
+                pass
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
             if locked:
                 unlock_runtime(self._runtime)
 
@@ -1086,7 +1087,12 @@ cdef class _LuaIter:
             self._obj.push_lua_object(L)
             if not lua.lua_istable(L, -1):
                 raise TypeError("cannot iterate over non-table (found %r)" % self._obj)
-            self._push_key(L)
+            if not self._refiter:
+                # initial key
+                lua.lua_pushnil(L)
+            else:
+                # last key
+                lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._refiter)
             if lua.lua_next(L, -2):
                 try:
                     if self._what == KEYS:
@@ -1099,38 +1105,20 @@ cdef class _LuaIter:
                     # pop value
                     lua.lua_pop(L, 1)
                     # pop and store key
-                    self._pop_key(L)
-                # if no errors were raised, return value
+                    if not self._refiter:
+                        self._refiter = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
+                    else:
+                        lua.lua_rawseti(L, lua.LUA_REGISTRYINDEX, self._refiter)
                 return retval
-            else:
-                # iteration done, clean up
-                self._free_key(L)
-                self._obj = None
+            # iteration done, clean up
+            if self._refiter:
+                lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
+                self._refiter = 0
+            self._obj = None
         finally:
             lua.lua_settop(L, old_top)
             unlock_runtime(self._runtime)
         raise StopIteration
-
-    cdef inline int _push_key(self, lua_State* L) except -1:
-        if self._refiter:
-            lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._refiter)
-            if lua.lua_isnil(L, -1):
-                lua.lua_pop(L, 1)
-                raise LuaError("table index is nil")
-        else:
-            lua.lua_pushnil(L)
-        return 1
-
-    cdef inline void _pop_key(self, lua_State* L):
-        if self._refiter:
-            lua.lua_rawseti(L, lua.LUA_REGISTRYINDEX, self._refiter)
-        else:
-            self._refiter = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
-
-    cdef inline void _free_key(self, lua_State* L):
-        if self._refiter:
-            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
-            self._refiter = 0
 
 # type conversions and protocol adaptations
 
@@ -1359,7 +1347,6 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     py_obj.type_flags = type_flags
     lua.luaL_getmetatable(L, POBJECT)
     lua.lua_setmetatable(L, -2)
-
     return 1 # values pushed
 
 
