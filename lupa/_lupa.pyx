@@ -1190,7 +1190,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
             if lua.lua_isinteger(L, n):
                 integer = lua.lua_tointeger(L, n)
                 if IS_PY2 and integer >= -maxint-1 and integer <= maxint:
-                        return <int>integer
+                        return int(integer)
                 else:
                         return integer
             else:
@@ -1200,7 +1200,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
             integer = <lua.lua_Integer>number
             if number == integer:
                 if IS_PY2 and integer >= -maxint-1 and integer <= maxint:
-                        return <int>integer
+                        return int(integer)
                 else:
                         return integer
             else:
