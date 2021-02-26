@@ -1188,21 +1188,14 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TNUMBER:
         if lua.LUA_VERSION_NUM >= 503:
             if lua.lua_isinteger(L, n):
-                integer = lua.lua_tointeger(L, n)
-                if IS_PY2 and integer >= -maxint-1 and integer <= maxint:
-                        return int(integer)
-                else:
-                        return integer
+                return lua.lua_tointeger(L, n)
             else:
                 return lua.lua_tonumber(L, n)
         else:
             number = lua.lua_tonumber(L, n)
             integer = <lua.lua_Integer>number
             if number == integer:
-                if IS_PY2 and integer >= -maxint-1 and integer <= maxint:
-                        return int(integer)
-                else:
-                        return integer
+                return integer
             else:
                 return number
     elif lua_type == lua.LUA_TSTRING:
