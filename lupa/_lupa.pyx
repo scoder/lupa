@@ -1260,7 +1260,6 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     py_obj.type_flags = type_flags
     lua.luaL_getmetatable(L, POBJECT)
     lua.lua_setmetatable(L, -2)
-
     return 1 # values pushed
 
 
