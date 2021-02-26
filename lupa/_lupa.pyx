@@ -1009,7 +1009,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
             # already terminated
             raise StopIteration
         if args:
-            nargs = len(args)
+            nargs = <int>len(args)
             push_lua_arguments(thread._runtime, co, args)
         with nogil:
             status = lua.lua_resume(co, L, nargs, &nres)
@@ -1189,7 +1189,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
         if lua.LUA_VERSION_NUM >= 503:
             if lua.lua_isinteger(L, n):
                 integer = lua.lua_tointeger(L, n)
-                if maxint and integer >= -maxint and integer < maxint:
+                if IS_PY2 and integer >= -maxint-1 and integer <= maxint:
                         return <int>integer
                 else:
                         return integer
@@ -1199,7 +1199,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
             number = lua.lua_tonumber(L, n)
             integer = <lua.lua_Integer>number
             if number == integer:
-                if maxint and integer >= -maxint and integer < maxint:
+                if IS_PY2 and integer >= -maxint-1 and integer <= maxint:
                         return <int>integer
                 else:
                         return integer
@@ -1252,7 +1252,7 @@ cdef py_object* unpack_userdata(lua_State *L, int n) nogil:
 cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) except -1:
      if runtime._unpack_returned_tuples and isinstance(o, tuple):
          push_lua_arguments(runtime, L, <tuple>o)
-         return len(<tuple>o)
+         return <int>len(<tuple>o)
      return py_to_lua(runtime, L, o)
 
 cdef int py_to_lua_overflow(LuaRuntime runtime, lua_State *L, object o) except -1:
@@ -1451,7 +1451,7 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
                 lua.lua_replace(L, -2)
                 lua.lua_insert(L, 1)
                 errfunc = 1
-        result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, errfunc)
+        result_status = lua.lua_pcall(L, <int>nargs, lua.LUA_MULTRET, errfunc)
         if errfunc:
             lua.lua_remove(L, 1)
     results = unpack_lua_results(runtime, L)
