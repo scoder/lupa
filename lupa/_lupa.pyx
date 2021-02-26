@@ -50,6 +50,11 @@ try:
 except ImportError:
     from collections import Mapping  # Py2
 
+try:
+    from sys import maxint
+except ImportError:
+    maxint = None
+
 cdef object wraps
 from functools import wraps
 
@@ -1174,6 +1179,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     cdef size_t size = 0
     cdef const char *s
     cdef lua.lua_Number number
+    cdef lua.lua_Integer integer
     cdef py_object* py_obj
     cdef int lua_type = lua.lua_type(L, n)
 
@@ -1182,13 +1188,21 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TNUMBER:
         if lua.LUA_VERSION_NUM >= 503:
             if lua.lua_isinteger(L, n):
-                return lua.lua_tointeger(L, n)
+                integer = lua.lua_tointeger(L, n)
+                if maxint and integer >= -maxint and integer < maxint:
+                        return <int>integer
+                else:
+                        return integer
             else:
                 return lua.lua_tonumber(L, n)
         else:
             number = lua.lua_tonumber(L, n)
-            if number == <lua.lua_Integer>number:
-                return <lua.lua_Integer>number
+            integer = <lua.lua_Integer>number
+            if number == integer:
+                if maxint and integer >= -maxint and integer < maxint:
+                        return <int>integer
+                else:
+                        return integer
             else:
                 return number
     elif lua_type == lua.LUA_TSTRING:
