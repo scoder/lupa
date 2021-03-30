@@ -561,6 +561,8 @@ cdef tuple _fix_args_kwargs(tuple args):
     script. Arguments are processed only if a single argument is passed and
     it is a table.
     """
+    cdef Py_ssize_t index
+
     if len(args) != 1:
         return args, {}
 
@@ -569,20 +571,33 @@ cdef tuple _fix_args_kwargs(tuple args):
         return args, {}
 
     table = <_LuaTable>arg
-    encoding = table._runtime._source_encoding
+    table_len = table._len()
+    source_encoding = table._runtime._source_encoding
 
-    # arguments with keys from 1 to #tbl are passed as positional
-    new_args = [
-        table._getitem(key, is_attr_access=False)
-        for key in range(1, table._len() + 1)
-    ]
+    # arguments with keys from 1 to table_len are passed as positional
+    new_args = cpython.tuple.PyTuple_New(table_len)
 
-    # arguments with non-integer keys are passed as named
-    new_kwargs = {
-        (<bytes>key).decode(encoding) if not IS_PY2 and isinstance(key, bytes) else key: value
-        for key, value in _LuaIter(table, ITEMS)
-        if not isinstance(key, (int, long))
-    }
+    # arguments with string keys are passed as named
+    new_kwargs = {}
+
+    for key, value in table.items():
+        if isinstance(key, (int, long)):
+            index = <Py_ssize_t>key
+            if 1 <= index <= table_len:
+                cpython.ref.Py_INCREF(value)
+                cpython.tuple.PyTuple_SET_ITEM(new_args, index - 1, value)
+            else:
+                raise IndexError("Table index is out of range")
+        elif isinstance(key, bytes):
+            if IS_PY2:
+                new_kwargs[key] = value
+            else:
+                new_kwargs[(<bytes>key).decode(source_encoding)] = value
+        elif isinstance(key, unicode):
+            new_kwargs[key] = value
+        else:
+            raise TypeError("Table key is neither an integer nor a string")
+
     return new_args, new_kwargs
 
 

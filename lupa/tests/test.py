@@ -2225,9 +2225,9 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
         lua_func = self.lua.eval("function (f) return f%s end" % call_txt)
         self.assertEqual(lua_func(f), res_txt)
 
-    def assertIncorrect(self, f, call_txt):
+    def assertIncorrect(self, f, call_txt, error=TypeError):
         lua_func = self.lua.eval("function (f) return f%s end" % call_txt)
-        self.assertRaises(TypeError, lua_func, f)
+        self.assertRaises(error, lua_func, f)
 
     def test_many_args(self):
         self.assertResult(self.arg2, "{x=1, y=2}", "x=1, y=2")
@@ -2272,8 +2272,8 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_posargs_kwargs_bad(self):
         self.assertIncorrect(self.arg2, "{5, y=6, z=7}")
-        self.assertIncorrect(self.arg2, "{5, [3]=6}")
-        self.assertIncorrect(self.arg2, "{x=5, [2]=6}")  # I guess it's ok to reject this
+        self.assertIncorrect(self.arg2, "{5, [3]=6}", error=IndexError)
+        self.assertIncorrect(self.arg2, "{x=5, [2]=6}", error=IndexError)
 
         self.assertIncorrect(self.arg3, "{5, z=7}")
         self.assertIncorrect(self.arg3, "{5}")
@@ -2335,9 +2335,9 @@ class MethodKwargsDecoratorTest(KwargsDecoratorTest):
         lua_func = self.lua.eval("function (obj) return obj:meth%s end" % call_txt)
         self.assertEqual(lua_func(f), res_txt)
 
-    def assertIncorrect(self, f, call_txt):
+    def assertIncorrect(self, f, call_txt, error=TypeError):
         lua_func = self.lua.eval("function (obj) return obj:meth%s end" % call_txt)
-        self.assertRaises(TypeError, lua_func, f)
+        self.assertRaises(error, lua_func, f)
 
 
 class NoEncodingKwargsDecoratorTest(KwargsDecoratorTest):
