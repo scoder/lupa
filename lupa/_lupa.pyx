@@ -499,6 +499,8 @@ cdef class LuaRuntime:
 
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
+        self.register_py_object(b'unpacks_lua_table', b'as_namedfunction', unpacks_lua_table)
+        self.register_py_object(b'unpacks_lua_table_method', b'as_namedmethod', unpacks_lua_table_method)
         if register_eval:
             self.register_py_object(b'eval', b'eval',
                 eval if self._new_internal_state else eval_main)
