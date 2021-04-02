@@ -21,7 +21,6 @@ from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython.bytes cimport PyBytes_FromFormat
-from cpython.pycapsule cimport PyCapsule_IsValid, PyCapsule_GetPointer
 
 #from libc.stdint cimport uintptr_t
 cdef extern from *:
@@ -42,18 +41,12 @@ cdef extern from *:
 
 cdef object exc_info
 from sys import exc_info
-from traceback import format_exception
 
 cdef object Mapping
 try:
     from collections.abc import Mapping
 except ImportError:
     from collections import Mapping  # Py2
-
-try:
-    from sys import maxint
-except ImportError:
-    maxint = None
 
 cdef object wraps
 from functools import wraps
@@ -139,18 +132,6 @@ def lua_type(obj):
         lua.lua_settop(L, old_top)
         unlock_runtime(lua_object._runtime)
 
-def eval_main(string):
-    import __main__
-    d = __main__.__dict__
-    return eval(string, d)
-
-def exec_wrapper(string, g=None, l=None):
-    exec(string, g, l)
-
-def exec_main(string):
-    import __main__
-    d = __main__.__dict__
-    exec(string, d)
 
 @cython.no_gc_clear
 cdef class LuaRuntime:
@@ -192,11 +173,6 @@ cdef class LuaRuntime:
       from the builtins.  Use an ``attribute_filter`` function for that.
       (default: True)
 
-    * ``register_exec``: should Python's ``exec()`` function be available
-      to Lua code as ``python.exec()``?  Note that this does not remove it
-      from the builtins.  Use an ``attribute_filter`` function for that.
-      (default: True)
-
     * ``register_builtins``: should Python's builtins be available to Lua
       code as ``python.builtins.*``?  Note that this does not prevent access
       to the globals available as special Python function attributes, for
@@ -209,9 +185,6 @@ cdef class LuaRuntime:
       ``a == (1,2,3), b == nil, c == nil``?  ``unpack_returned_tuples=True``
       gives the former.
       (default: False, new in Lupa 0.21)
-
-    * ``state``: existing Lua state, encapsuled as "lua_State"
-      (default: None, creates new state internally)
 
     Example usage::
 
@@ -237,24 +210,14 @@ cdef class LuaRuntime:
     cdef object _attribute_getter
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
-    cdef bint _new_internal_state
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
-                  bint register_builtins=True, bint register_exec=True, object state=None):
-        cdef lua_State* L
-        cdef const char *capsule_name = "lua_State"
-        if state is None:
-            self._new_internal_state = True
-            L = lua.luaL_newstate()
-            if L is NULL:
-                raise LuaError("Failed to initialise Lua runtime")
-        else:
-            self._new_internal_state = False
-            if not PyCapsule_IsValid(state, capsule_name):
-                raise ValueError("Invalid pointer to Lua state")
-            L = <lua_State*> PyCapsule_GetPointer(state, capsule_name)
+                  bint register_builtins=True):
+        cdef lua_State* L = lua.luaL_newstate()
+        if L is NULL:
+            raise LuaError("Failed to initialise Lua runtime")
         self._state = L
         self._lock = FastRLock()
         self._pyrefs_in_lua = {}
@@ -281,19 +244,14 @@ cdef class LuaRuntime:
                 raise ValueError("attribute_filter and attribute_handlers are mutually exclusive")
             self._attribute_getter, self._attribute_setter = getter, setter
 
-        if self._new_internal_state:
-            lua.luaL_openlibs(L)
-
-        self.init_python_lib(register_eval, register_exec, register_builtins)
-
-        if self._new_internal_state:
-            lua.lua_settop(L, 0)
-            lua.lua_atpanic(L, <lua.lua_CFunction>1)
+        lua.luaL_openlibs(L)
+        self.init_python_lib(register_eval, register_builtins)
+        lua.lua_settop(L, 0)
+        lua.lua_atpanic(L, <lua.lua_CFunction>1)
 
     def __dealloc__(self):
         if self._state is not NULL:
-            if self._new_internal_state:
-                lua.lua_close(self._state)
+            lua.lua_close(self._state)
             self._state = NULL
 
     @property
@@ -328,10 +286,7 @@ cdef class LuaRuntime:
     cdef int store_raised_exception(self, lua_State* L, bytes lua_error_msg) except -1:
         try:
             self._raised_exception = tuple(exc_info())
-            if self._new_internal_state:
-                py_to_lua(self, L, self._raised_exception[1])
-            else:
-                py_to_lua(self, L, "".join(format_exception(*self._raised_exception)))
+            py_to_lua(self, L, self._raised_exception[1])
         except:
             lua.lua_pushlstring(L, lua_error_msg, len(lua_error_msg))
             raise
@@ -482,31 +437,19 @@ cdef class LuaRuntime:
         return 0
 
     @cython.final
-    cdef int init_python_lib(self, bint register_eval, bint register_exec, bint register_builtins) except -1:
+    cdef int init_python_lib(self, bint register_eval, bint register_builtins) except -1:
         cdef lua_State *L = self._state
 
-        # create python lib
-        if self._new_internal_state:
-            luaL_openlib(L, "python", py_lib, 0)
-        else:
-            lua.lua_createtable(L, 0, libsize(py_lib))
-            luaL_setfuncs(L, py_lib, 0)
-
-        # create our own object metatable
+        # create 'python' lib and register our own object metatable
+        luaL_openlib(L, "python", py_lib, 0)
         lua.luaL_newmetatable(L, POBJECT)
         luaL_openlib(L, NULL, py_object_lib, 0)
         lua.lua_pop(L, 1)
 
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
-        self.register_py_object(b'unpacks_lua_table', b'as_namedfunction', unpacks_lua_table)
-        self.register_py_object(b'unpacks_lua_table_method', b'as_namedmethod', unpacks_lua_table_method)
         if register_eval:
-            self.register_py_object(b'eval', b'eval',
-                eval if self._new_internal_state else eval_main)
-        if register_exec:
-            self.register_py_object(b'exec', b'exec',
-                exec_wrapper if self._new_internal_state else exec_main)
+            self.register_py_object(b'eval',     b'eval', eval)
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', builtins)
 
@@ -561,8 +504,6 @@ cdef tuple _fix_args_kwargs(tuple args):
     script. Arguments are processed only if a single argument is passed and
     it is a table.
     """
-    cdef Py_ssize_t index
-
     if len(args) != 1:
         return args, {}
 
@@ -571,33 +512,20 @@ cdef tuple _fix_args_kwargs(tuple args):
         return args, {}
 
     table = <_LuaTable>arg
-    table_len = table._len()
-    source_encoding = table._runtime._source_encoding
+    encoding = table._runtime._source_encoding
 
-    # arguments with keys from 1 to table_len are passed as positional
-    new_args = cpython.tuple.PyTuple_New(table_len)
+    # arguments with keys from 1 to #tbl are passed as positional
+    new_args = [
+        table._getitem(key, is_attr_access=False)
+        for key in range(1, table._len() + 1)
+    ]
 
-    # arguments with string keys are passed as named
-    new_kwargs = {}
-
-    for key, value in table.items():
-        if isinstance(key, (int, long)):
-            index = <Py_ssize_t>key
-            if 1 <= index and <size_t>index <= table_len:
-                cpython.ref.Py_INCREF(value)
-                cpython.tuple.PyTuple_SET_ITEM(new_args, index - 1, value)
-            else:
-                raise IndexError("Table index is out of range")
-        elif isinstance(key, bytes):
-            if IS_PY2:
-                new_kwargs[key] = value
-            else:
-                new_kwargs[(<bytes>key).decode(source_encoding)] = value
-        elif isinstance(key, unicode):
-            new_kwargs[key] = value
-        else:
-            raise TypeError("Table key is neither an integer nor a string")
-
+    # arguments with non-integer keys are passed as named
+    new_kwargs = {
+        (<bytes>key).decode(encoding) if not IS_PY2 and isinstance(key, bytes) else key: value
+        for key, value in _LuaIter(table, ITEMS)
+        if not isinstance(key, (int, long))
+    }
     return new_args, new_kwargs
 
 
@@ -1026,7 +954,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
             # already terminated
             raise StopIteration
         if args:
-            nargs = <int>len(args)
+            nargs = len(args)
             push_lua_arguments(thread._runtime, co, args)
         with nogil:
             status = lua.lua_resume(co, L, nargs, &nres)
@@ -1196,25 +1124,17 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     cdef size_t size = 0
     cdef const char *s
     cdef lua.lua_Number number
-    cdef lua.lua_Integer integer
     cdef py_object* py_obj
     cdef int lua_type = lua.lua_type(L, n)
 
     if lua_type == lua.LUA_TNIL:
         return None
     elif lua_type == lua.LUA_TNUMBER:
-        if lua.LUA_VERSION_NUM >= 503:
-            if lua.lua_isinteger(L, n):
-                return lua.lua_tointeger(L, n)
-            else:
-                return lua.lua_tonumber(L, n)
+        number = lua.lua_tonumber(L, n)
+        if number != <long>number:
+            return <double>number
         else:
-            number = lua.lua_tonumber(L, n)
-            integer = <lua.lua_Integer>number
-            if number == integer:
-                return integer
-            else:
-                return number
+            return <long>number
     elif lua_type == lua.LUA_TSTRING:
         s = lua.lua_tolstring(L, n, &size)
         if runtime._encoding is not None:
@@ -1262,32 +1182,12 @@ cdef py_object* unpack_userdata(lua_State *L, int n) nogil:
 cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) except -1:
      if runtime._unpack_returned_tuples and isinstance(o, tuple):
          push_lua_arguments(runtime, L, <tuple>o)
-         return <int>len(<tuple>o)
+         return len(<tuple>o)
      return py_to_lua(runtime, L, o)
-
-cdef int py_to_lua_overflow(LuaRuntime runtime, lua_State *L, object o) except -1:
-    cdef const char* cb_name = "lupa_overflow_cb"
-    cdef int nargs = 0
-
-    lua.lua_getglobal(L, cb_name)
-    if lua.lua_isfunction(L, -1):
-        nargs = py_to_lua_custom(runtime, L, o, 0)
-        if nargs <= 0:
-            lua.lua_pop(L, 1)
-            return 0
-        if lua.lua_pcall(L, nargs, 1, 0):
-            lua.lua_pop(L, 1)
-            return 0
-        else:
-            return 1
-    else:
-        lua.lua_pop(L, 1)
-        return 0
 
 cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False) except -1:
     cdef int pushed_values_count = 0
     cdef int type_flags = 0
-    cdef object overflow_exception = None
 
     if o is None:
         if wrap_none:
@@ -1309,17 +1209,11 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         lua.lua_pushnumber(L, <lua.lua_Number>cpython.float.PyFloat_AS_DOUBLE(o))
         pushed_values_count = 1
     elif isinstance(o, long):
-        try:
-            lua.lua_pushinteger(L, <lua.lua_Integer>cpython.long.PyLong_AsLongLong(o))
-            pushed_values_count = 1
-        except Exception as e:
-            overflow_exception = e
+        lua.lua_pushnumber(L, <lua.lua_Number>cpython.long.PyLong_AsDouble(o))
+        pushed_values_count = 1
     elif IS_PY2 and isinstance(o, int):
-        try:
-            lua.lua_pushinteger(L, <lua.lua_Integer><long>o)
-            pushed_values_count = 1
-        except Exception as e:
-            overflow_exception = e
+        lua.lua_pushnumber(L, <lua.lua_Number><long>o)
+        pushed_values_count = 1
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
         pushed_values_count = 1
