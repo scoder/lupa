@@ -1224,6 +1224,9 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
             raise LuaError("cannot mix objects from different Lua runtimes")
         (<_LuaObject>o).push_lua_object(L)
         pushed_values_count = 1
+    elif isinstance(o, float):
+        lua.lua_pushnumber(L, <lua.lua_Number><double>o)
+        pushed_values_count = 1
     else:
         if isinstance(o, _PyProtocolWrapper):
             type_flags = (<_PyProtocolWrapper>o)._type_flags
@@ -1232,12 +1235,6 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
             # prefer __getitem__ over __getattr__ by default
             type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
-
-    if overflow_exception is not None:
-        pushed_values_count = py_to_lua_overflow(runtime, L, o)
-        if pushed_values_count <= 0:
-            raise overflow_exception
-    
     return pushed_values_count
 
 cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode ustring) except -1:
