@@ -2,17 +2,6 @@
 from cpython cimport pythread
 from cpython.exc cimport PyErr_NoMemory
 
-cdef extern from *:
-    # Compatibility definitions for Python
-    """
-    #if PY_VERSION_HEX >= 0x03070000
-    typedef unsigned long pythread_t;
-    #else
-    typedef long pythread_t;
-    #endif
-    """
-    ctypedef unsigned long pythread_t
-
 cdef class FastRLock:
     """Fast, re-entrant locking.
 
@@ -23,14 +12,13 @@ cdef class FastRLock:
     wonderful GIL.
     """
     cdef pythread.PyThread_type_lock _real_lock
-    cdef bint _has_owner        # whether the lock has an owner
-    cdef pythread_t _owner      # ID of thread owning the lock
+    cdef long _owner            # ID of thread owning the lock
     cdef int _count             # re-entry count
     cdef int _pending_requests  # number of pending requests for real lock
     cdef bint _is_locked        # whether the real lock is acquired
 
     def __cinit__(self):
-        self._has_owner = False
+        self._owner = -1
         self._count = 0
         self._is_locked = False
         self._pending_requests = 0
@@ -47,7 +35,7 @@ cdef class FastRLock:
         return lock_lock(self, pythread.PyThread_get_thread_ident(), blocking)
 
     def release(self):
-        if not self._has_owner or self._owner != pythread.PyThread_get_thread_ident():
+        if self._owner != pythread.PyThread_get_thread_ident():
             raise RuntimeError("cannot release un-acquired lock")
         unlock_lock(self)
 
@@ -59,28 +47,27 @@ cdef class FastRLock:
 
     def __exit__(self, t, v, tb):
         # self.release()
-        if not self._has_owner or self._owner != pythread.PyThread_get_thread_ident():
+        if self._owner != pythread.PyThread_get_thread_ident():
             raise RuntimeError("cannot release un-acquired lock")
         unlock_lock(self)
 
     def _is_owned(self):
-        return self._has_owner and self._owner == pythread.PyThread_get_thread_ident()
+        return self._owner == pythread.PyThread_get_thread_ident()
 
 
-cdef inline bint lock_lock(FastRLock lock, pythread_t current_thread, bint blocking) nogil:
+cdef inline bint lock_lock(FastRLock lock, long current_thread, bint blocking) nogil:
     # Note that this function *must* hold the GIL when being called.
     # We just use 'nogil' in the signature to make sure that no Python
     # code execution slips in that might free the GIL
 
     if lock._count:
         # locked! - by myself?
-        if lock._has_owner and current_thread == lock._owner:
+        if current_thread == lock._owner:
             lock._count += 1
             return 1
     elif not lock._pending_requests:
         # not locked, not requested - go!
         lock._owner = current_thread
-        lock._has_owner = True
         lock._count = 1
         return 1
     # need to get the real lock
@@ -88,7 +75,7 @@ cdef inline bint lock_lock(FastRLock lock, pythread_t current_thread, bint block
         lock, current_thread,
         pythread.WAIT_LOCK if blocking else pythread.NOWAIT_LOCK)
 
-cdef bint _acquire_lock(FastRLock lock, pythread_t current_thread, int wait) nogil:
+cdef bint _acquire_lock(FastRLock lock, long current_thread, int wait) nogil:
     # Note that this function *must* hold the GIL when being called.
     # We just use 'nogil' in the signature to make sure that no Python
     # code execution slips in that might free the GIL
@@ -113,7 +100,6 @@ cdef bint _acquire_lock(FastRLock lock, pythread_t current_thread, int wait) nog
         return 0
     lock._is_locked = True
     lock._owner = current_thread
-    lock._has_owner = True
     lock._count = 1
     return 1
 
@@ -122,11 +108,11 @@ cdef inline void unlock_lock(FastRLock lock) nogil:
     # We just use 'nogil' in the signature to make sure that no Python
     # code execution slips in that might free the GIL
 
-    #assert lock._has_owner and lock._owner == pythread.PyThread_get_thread_ident()
+    #assert lock._owner == pythread.PyThread_get_thread_ident()
     #assert lock._count > 0
     lock._count -= 1
     if lock._count == 0:
-        lock._has_owner = False
+        lock._owner = -1
         if lock._is_locked:
             pythread.PyThread_release_lock(lock._real_lock)
             lock._is_locked = False
