@@ -583,7 +583,7 @@ cdef tuple _fix_args_kwargs(tuple args):
     for key, value in table.items():
         if isinstance(key, (int, long)):
             index = <Py_ssize_t>key
-            if 1 <= index <= table_len:
+            if 1 <= index and <size_t>index <= table_len:
                 cpython.ref.Py_INCREF(value)
                 cpython.tuple.PyTuple_SET_ITEM(new_args, index - 1, value)
             else:
