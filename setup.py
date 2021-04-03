@@ -130,9 +130,9 @@ def get_lua_build_from_arguments():
         return dict(extra_objects=[lua_l],
                     include_dirs=[lua_I],
                     libfile=lua_l)
-
-    return dict(extra_objects=[lua_l],
-                include_dirs=[lua_I])
+    else:
+        return dict(extra_objects=[lua_l],
+                    include_dirs=[lua_I])
 
 def find_lua_build(no_luajit=False):
     # try to find local LuaJIT2 build
@@ -215,12 +215,12 @@ def use_bundled_lua(path, lua_sources, macros):
 
 
 def get_option(name):
-    for i, arg in enumerate(sys.argv):
-        if i == 0:
-            continue # Ignore script name
-        if arg == name and i < len(sys.argv) - 1:
+    for i, arg in enumerate(sys.argv[[1:], 1):
+        if arg == name:
             sys.argv.pop(i)
             return sys.argv.pop(i)
+    return ""
+
 
 def has_option(name):
     if name in sys.argv[1:]:
