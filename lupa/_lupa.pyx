@@ -1138,7 +1138,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
         if number != <long>number:
             return <double>number
         else:
-            return <long>number
+            return lua.lua_tointeger(L, n)
     elif lua_type == lua.LUA_TSTRING:
         s = lua.lua_tolstring(L, n, &size)
         if runtime._encoding is not None:
