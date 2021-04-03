@@ -1242,9 +1242,9 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
             overflow_exception = e
     elif IS_PY2 and isinstance(o, int):
         try:
-            lua.lua_pushinteger(L, <lua.lua_Integer><long>o)
+            lua.lua_pushinteger(L, <lua.lua_Integer>o)
             pushed_values_count = 1
-        except Exception as e:
+        except OverflowError as e:
             overflow_exception = e
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
