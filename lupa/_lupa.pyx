@@ -1128,17 +1128,25 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     cdef size_t size = 0
     cdef const char *s
     cdef lua.lua_Number number
+    cdef lua.lua_Integer integer
     cdef py_object* py_obj
     cdef int lua_type = lua.lua_type(L, n)
 
     if lua_type == lua.LUA_TNIL:
         return None
     elif lua_type == lua.LUA_TNUMBER:
-        number = lua.lua_tonumber(L, n)
-        if number != <long>number:
-            return <double>number
+        if lua.LUA_VERSION_NUM >= 503:
+            if lua.lua_isinteger(L, n):
+                return lua.lua_tointeger(L, n)
+            else:
+                return lua.lua_tonumber(L, n)
         else:
-            return <long>number
+            number = lua.lua_tonumber(L, n)
+            integer = <lua.lua_Integer>number
+            if number == integer:
+                return integer
+            else:
+                return number
     elif lua_type == lua.LUA_TSTRING:
         s = lua.lua_tolstring(L, n, &size)
         if runtime._encoding is not None:
@@ -1183,9 +1191,29 @@ cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) e
          return len(<tuple>o)
      return py_to_lua(runtime, L, o)
 
+cdef int py_to_lua_overflow(LuaRuntime runtime, lua_State *L, object o) except -1:
+    cdef const char* cb_name = "lupa_overflow_cb"
+    cdef int nargs = 0
+
+    lua.lua_getglobal(L, cb_name)
+    if lua.lua_isfunction(L, -1):
+        nargs = py_to_lua_custom(runtime, L, o, 0)
+        if nargs <= 0:
+            lua.lua_pop(L, 1)
+            return 0
+        if lua.lua_pcall(L, nargs, 1, 0):
+            lua.lua_pop(L, 1)
+            return 0
+        else:
+            return 1
+    else:
+        lua.lua_pop(L, 1)
+        return 0
+
 cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False) except -1:
     cdef int pushed_values_count = 0
     cdef int type_flags = 0
+    cdef object overflow_exception = None
 
     if o is None:
         if wrap_none:
@@ -1207,11 +1235,17 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         lua.lua_pushnumber(L, <lua.lua_Number>cpython.float.PyFloat_AS_DOUBLE(o))
         pushed_values_count = 1
     elif isinstance(o, long):
-        lua.lua_pushnumber(L, <lua.lua_Number>cpython.long.PyLong_AsDouble(o))
-        pushed_values_count = 1
+        try:
+            lua.lua_pushinteger(L, <lua.lua_Integer>cpython.long.PyLong_AsLongLong(o))
+            pushed_values_count = 1
+        except Exception as e:
+            overflow_exception = e
     elif IS_PY2 and isinstance(o, int):
-        lua.lua_pushnumber(L, <lua.lua_Number><long>o)
-        pushed_values_count = 1
+        try:
+            lua.lua_pushinteger(L, <lua.lua_Integer><long>o)
+            pushed_values_count = 1
+        except Exception as e:
+            overflow_exception = e
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
         pushed_values_count = 1
@@ -1233,6 +1267,12 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
             # prefer __getitem__ over __getattr__ by default
             type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
+
+    if overflow_exception is not None:
+        pushed_values_count = py_to_lua_overflow(runtime, L, o)
+        if pushed_values_count <= 0:
+            raise overflow_exception
+    
     return pushed_values_count
 
 cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode ustring) except -1:
