@@ -1236,7 +1236,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         pushed_values_count = 1
     elif isinstance(o, long):
         try:
-            lua.lua_pushinteger(L, <lua.lua_Integer>cpython.long.PyLong_AsLongLong(o))
+            lua.lua_pushinteger(L, <lua.lua_Integer>o)
             pushed_values_count = 1
         except Exception as e:
             overflow_exception = e
