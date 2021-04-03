@@ -186,6 +186,14 @@ cdef class LuaRuntime:
       gives the former.
       (default: False, new in Lupa 0.21)
 
+    * ``overflow_handler``: function for handling Python integers overflowing
+      Lua integers. Must have the signature ``func(obj)``. If provided, the
+      function will be called when a Python integer (possibly of arbitrary
+      precision type) is too large to fit in a fixed-precision Lua integer.
+      Normally, it should return the now well-behaved object that can be
+      converted/wrapped to a Lua type. If the object cannot be precisely
+      represented in Lua, it should raise an ``OverflowError``.
+
     Example usage::
 
       >>> from lupa import LuaRuntime
@@ -209,12 +217,13 @@ cdef class LuaRuntime:
     cdef object _attribute_filter
     cdef object _attribute_getter
     cdef object _attribute_setter
+    cdef object _overflow_handler
     cdef bint _unpack_returned_tuples
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
-                  bint register_builtins=True):
+                  bint register_builtins=True, overflow_handler=None):
         cdef lua_State* L = lua.luaL_newstate()
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
@@ -226,6 +235,9 @@ cdef class LuaRuntime:
         if attribute_filter is not None and not callable(attribute_filter):
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
+        if overflow_handler is not None and not callable(overflow_handler):
+            raise ValueError("overflow_handler must be callable")
+        self._overflow_handler = overflow_handler
         self._unpack_returned_tuples = unpack_returned_tuples
 
         if attribute_handlers:
@@ -423,6 +435,13 @@ cdef class LuaRuntime:
             lua.lua_settop(L, old_top)
             unlock_runtime(self)
 
+    def set_overflow_handler(self, overflow_handler):
+        """Set overflow handler.
+        """
+        if overflow_handler is not None and not callable(overflow_handler):
+            raise ValueError("overflow_handler must be callable")
+        self._overflow_handler = overflow_handler
+
     @cython.final
     cdef int register_py_object(self, bytes cname, bytes pyname, object obj) except -1:
         cdef lua_State *L = self._state
@@ -452,6 +471,7 @@ cdef class LuaRuntime:
             self.register_py_object(b'eval',     b'eval', eval)
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', builtins)
+        self.register_py_object(b'set_overflow_handler', b'set_overflow_handler', self.set_overflow_handler)
 
         return 0  # nothing left to return on the stack
 
@@ -1213,7 +1233,7 @@ cdef int py_to_lua_handle_overflow(LuaRuntime runtime, lua_State *L, object o) e
 cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False) except -1:
     cdef int pushed_values_count = 0
     cdef int type_flags = 0
-    cdef OverflowError overflow_error = None
+    cdef object overflow_error = None
 
     if o is None:
         if wrap_none:
