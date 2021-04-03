@@ -115,25 +115,42 @@ def lua_libs(package='luajit'):
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
+def get_lua_build_from_arguments():
+    lua_l = get_option('--lua-l')
+    lua_I = get_option('--lua-I')
+
+    if not lua_l or not lua_I:
+        return None
+
+    print('Using Lua library: %s' % lua_l)
+    print('Using Lua include directory: %s' % lua_I)
+
+    root, ext = os.path.splitext(lua_l)
+    if os.name == 'nt' and ext == '.lib':
+        return dict(extra_objects=[lua_l],
+                    include_dirs=[lua_I],
+                    libfile=lua_l)
+
+    return dict(extra_objects=[lua_l],
+                include_dirs=[lua_I])
 
 def find_lua_build(no_luajit=False):
     # try to find local LuaJIT2 build
-    os_path = os.path
     for filename in os.listdir(basedir):
         if not filename.lower().startswith('luajit'):
             continue
-        filepath = os_path.join(basedir, filename, 'src')
-        if not os_path.isdir(filepath):
+        filepath = os.path.join(basedir, filename, 'src')
+        if not os.path.isdir(filepath):
             continue
-        libfile = os_path.join(filepath, 'libluajit.a')
-        if os_path.isfile(libfile):
+        libfile = os.path.join(filepath, 'libluajit.a')
+        if os.path.isfile(libfile):
             print("found LuaJIT build in %s" % filepath)
             print("building statically")
             return dict(extra_objects=[libfile],
                         include_dirs=[filepath])
         # also check for lua51.lib, the Windows equivalent of libluajit.a
-        for libfile in iglob(os_path.join(filepath, 'lua5?.lib')):
-            if os_path.isfile(libfile):
+        for libfile in iglob(os.path.join(filepath, 'lua5?.lib')):
+            if os.path.isfile(libfile):
                 print("found LuaJIT build in %s (%s)" % (
                     filepath, os.path.basename(libfile)))
                 print("building statically")
@@ -151,7 +168,7 @@ def find_lua_build(no_luajit=False):
         packages = [('luajit', '2')]
     packages += [
         (name, lua_version)
-        for lua_version in ('5.3', '5.2', '5.1')
+        for lua_version in ('5.4', '5.3', '5.2', '5.1')
         for name in (
             'lua%s' % lua_version,
             'lua-%s' % lua_version,
@@ -175,7 +192,7 @@ def find_lua_build(no_luajit=False):
 
 
 def no_lua_error():
-    error = ("Neither LuaJIT2 nor Lua 5.[123] were found. Please install "
+    error = ("Neither LuaJIT2 nor Lua 5.[1234] were found. Please install "
              "Lua and its development packages, "
              "or put a local build into the lupa main directory.")
     print(error)
@@ -186,7 +203,7 @@ def use_bundled_lua(path, lua_sources, macros):
     print('Using bundled Lua')
     ext_libraries = [
         ['lua', {
-            'sources': [path + src for src in lua_sources],
+            'sources': [os.path.join(path, src) for src in lua_sources],
             'include_dirs': [path],
             'macros': macros,
         }]
@@ -196,6 +213,14 @@ def use_bundled_lua(path, lua_sources, macros):
         'ext_libraries': ext_libraries,
     }
 
+
+def get_option(name):
+    for i, arg in enumerate(sys.argv):
+        if i == 0:
+            continue # Ignore script name
+        if arg == name and i < len(sys.argv) - 1:
+            sys.argv.pop(i)
+            return sys.argv.pop(i)
 
 def has_option(name):
     if name in sys.argv[1:]:
@@ -215,7 +240,7 @@ if has_option('--with-lua-checks'):
 
 
 # bundled lua
-lua_bundle_path = 'third-party/lua/'
+lua_bundle_path = os.path.join(basedir, 'third-party', 'lua')
 lua_sources = [
     'lapi.c',
     'lcode.c',
@@ -252,9 +277,8 @@ lua_sources = [
     'linit.c',
 ]
 
-
-config = None
-if not has_option('--use-bundle'):
+config = get_lua_build_from_arguments()
+if not config and not has_option('--use-bundle'):
     config = find_lua_build(no_luajit=has_option('--no-luajit'))
 if not config and not has_option('--no-bundle'):
     config = use_bundled_lua(lua_bundle_path, lua_sources, c_defines)
@@ -271,7 +295,7 @@ ext_args = {
 # check if Cython is installed, and use it if requested or necessary
 use_cython = has_option('--with-cython')
 if not use_cython:
-    if not os.path.exists(os.path.join(os.path.dirname(__file__), 'lupa', '_lupa.c')):
+    if not os.path.exists(os.path.join(basedir, 'lupa', '_lupa.c')):
         print("generated sources not available, need Cython to build")
         use_cython = True
 
@@ -291,7 +315,7 @@ else:
 ext_modules = [
     Extension(
         'lupa._lupa',
-        sources = ['lupa/_lupa'+source_extension],
+        sources = [os.path.join(basedir, 'lupa', '_lupa'+source_extension)],
         **ext_args
     )]
 
@@ -310,13 +334,13 @@ def write_file(filename, content):
 
 
 long_description = '\n\n'.join([
-    read_file(text_file)
+    read_file(os.path.join(basedir, text_file))
     for text_file in ['README.rst', 'INSTALL.rst', 'CHANGES.rst', "LICENSE.txt"]])
 
-write_file(os.path.join('lupa', 'version.py'), u"__version__ = '%s'\n" % VERSION)
+write_file(os.path.join(basedir, 'lupa', 'version.py'), u"__version__ = '%s'\n" % VERSION)
 
 if config.get('libfile'):
-    # include lua51.dll in the lib folder if we are on windows
+    # include Lua DLL in the lib folder if we are on Windows
     dllfile = os.path.splitext(config['libfile'])[0] + ".dll"
     shutil.copy(dllfile, os.path.join(basedir, 'lupa'))
     extra_setup_args['package_data'] = {'lupa': [os.path.basename(dllfile)]}
