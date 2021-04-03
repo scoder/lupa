@@ -215,7 +215,7 @@ def use_bundled_lua(path, lua_sources, macros):
 
 
 def get_option(name):
-    for i, arg in enumerate(sys.argv[[1:], 1):
+    for i, arg in enumerate(sys.argv[1:-1], 1):
         if arg == name:
             sys.argv.pop(i)
             return sys.argv.pop(i)
