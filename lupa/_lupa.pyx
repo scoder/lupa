@@ -436,7 +436,7 @@ cdef class LuaRuntime:
             unlock_runtime(self)
 
     def set_overflow_handler(self, overflow_handler):
-        """Set overflow handler.
+        """Set the overflow handler function that is called on failures to pass large numbers to Lua.
         """
         if overflow_handler is not None and not callable(overflow_handler):
             raise ValueError("overflow_handler must be callable")
