@@ -63,6 +63,8 @@ except ImportError:
     import builtins
 
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
+DEF LUPAOFH = b"LUPA_NUMBER_OVERFLOW_CALLBACK_FUNCTION"
+DEF LUPAOFH_LEN = len(LUPAOFH)
 
 cdef extern from *:
     """
@@ -441,7 +443,7 @@ cdef class LuaRuntime:
         if overflow_handler is not None and not callable(overflow_handler):
             raise ValueError("overflow_handler must be callable")
         
-        lua.lua_pushlstring(L, "LUPAOFH", 7)
+        lua.lua_pushlstring(L, LUPAOFH, LUPAOFH_LEN)
 
         if not py_to_lua(self, L, overflow_handler):
             lua.lua_pop(L, 1)
@@ -1220,7 +1222,7 @@ cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) e
 cdef int py_to_lua_handle_overflow(LuaRuntime runtime, lua_State *L, object o) except -1:
     cdef int nargs
 
-    lua.lua_pushlstring(L, "LUPAOFH", 7)
+    lua.lua_pushlstring(L, LUPAOFH, LUPAOFH_LEN)
     lua.lua_rawget(L, lua.LUA_REGISTRYINDEX)
     if not lua.lua_isnil(L, -1):
         nargs = py_to_lua_custom(runtime, L, o, 0)
@@ -1868,10 +1870,10 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
 # overflow handler setter
 
 cdef int py_set_overflow_handler(lua_State* L) nogil:
-    lua.lua_settop(L, 1)                     # hdl
-    lua.lua_pushlstring(L, "LUPAOFH", 7)     # hdl name
-    lua.lua_pushvalue(L, 1)                  # hdl name hdl
-    lua.lua_rawset(L, lua.LUA_REGISTRYINDEX) # hdl
+    lua.lua_settop(L, 1)                         # hdl
+    lua.lua_pushlstring(L, LUPAOFH, LUPAOFH_LEN) # hdl name
+    lua.lua_pushvalue(L, 1)                      # hdl name hdl
+    lua.lua_rawset(L, lua.LUA_REGISTRYINDEX)     # hdl
     return 0
 
 # 'python' module functions in Lua
