@@ -2619,14 +2619,15 @@ class TestErrorStackTrace(unittest.TestCase):
         except lupa.LuaError as e:
             self.assertNotIn("stack traceback:", e.args[0])
 
+
 ################################################################################
 # tests for handling overflow
 
 class TestOverflow(SetupLuaRuntimeMixin):
-    maxinteger = sys.maxsize # maximum value for C Py_ssize_t
-    biginteger = (maxinteger + 1) << 1 # value too big to fit in C size_t
-    maxfloat = sys.float_info.max # maximum value for Python float
-    bigfloat = int(maxfloat) * 2 # value too big to fit in Python float
+    maxinteger = sys.maxsize            # maximum value for C Py_ssize_t
+    biginteger = (maxinteger + 1) << 1  # value too big to fit in C size_t
+    maxfloat = sys.float_info.max       # maximum value for Python float
+    bigfloat = int(maxfloat) * 2        # value too big to fit in Python float
 
     assert biginteger <= maxfloat
 
@@ -2739,4 +2740,3 @@ if __name__ == '__main__':
 
     print_version()
     unittest.main()
-
