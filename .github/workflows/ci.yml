@@ -30,7 +30,7 @@ jobs:
       run: sudo apt-get install lib${{ matrix.lua-version }}-dev
 
     - name: Run tests with tox
-      run: echo "${{ matrix.python-version }}" | tr -d -c '[0-9]' | xargs -i tox -e "py{}"
+      run: tox -e py # Runs the version of Python tox is currently using
       continue-on-error: ${{ contains(matrix.python-version, 'pypy') }}
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
