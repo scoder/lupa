@@ -1240,7 +1240,6 @@ cdef int py_to_lua_handle_overflow(LuaRuntime runtime, lua_State *L, object o) e
 cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False) except -1:
     cdef int pushed_values_count = 0
     cdef int type_flags = 0
-    cdef object overflow_error = None
 
     if o is None:
         if wrap_none:
@@ -1265,14 +1264,18 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         try:
             lua.lua_pushinteger(L, <lua.lua_Integer>o)
             pushed_values_count = 1
-        except OverflowError as e:
-            overflow_error = e
+        except OverflowError:
+            pushed_values_count = py_to_lua_handle_overflow(runtime, L, o)
+            if pushed_values_count <= 0:
+                raise
     elif IS_PY2 and isinstance(o, int):
         try:
             lua.lua_pushinteger(L, <lua.lua_Integer>o)
             pushed_values_count = 1
-        except OverflowError as e:
-            overflow_error = e
+        except OverflowError:
+            pushed_values_count = py_to_lua_handle_overflow(runtime, L, o)
+            if pushed_values_count <= 0:
+                raise
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
         pushed_values_count = 1
@@ -1294,12 +1297,6 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
             # prefer __getitem__ over __getattr__ by default
             type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
-
-    if overflow_error is not None:
-        pushed_values_count = py_to_lua_handle_overflow(runtime, L, o)
-        if pushed_values_count <= 0:
-            raise overflow_error
-    
     return pushed_values_count
 
 cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode ustring) except -1:
