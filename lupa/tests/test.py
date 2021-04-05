@@ -2688,6 +2688,9 @@ class TestBadOverflowHandlerInPython(unittest.TestCase):
         self.assertRaises(ValueError, lupa.LuaRuntime, overflow_handler=123)
 
 class TestBadOverflowHandlerInLua(SetupLuaRuntimeMixin, unittest.TestCase):
+    def _test_set_overflow_handler(self, overflow_handler_code):
+        self.assertRaises(lupa.LuaError, self.lua.execute, 'python.set_overflow_handler(%s)' % overflow_handler_code)
+
     def test_number(self):
         self._test_set_overflow_handler('123')
 
@@ -2706,9 +2709,6 @@ class TestBadOverflowHandlerInLua(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_thread(self):
         self._test_set_overflow_handler('coroutine.create(function() end)')
-
-    def _test_set_overflow_handler(self, overflow_handler_code):
-        self.assertRaises(lupa.LuaError, self.lua.execute, 'python.set_overflow_handler(%s)' % overflow_handler_code)
 
 class TestOverflowHandlerOverwrite(TestOverflow, unittest.TestCase):
     lua_runtime_kwargs = dict(overflow_handler=float)
