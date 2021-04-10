@@ -2619,6 +2619,29 @@ class TestErrorStackTrace(unittest.TestCase):
         except lupa.LuaError as e:
             self.assertNotIn("stack traceback:", e.args[0])
 
+
+################################################################################
+# tests for table access error
+
+class TestTableAccessError(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_error_index_metamethod(self):
+        self.lua.execute('''
+        t = {}
+        setmetatable(t, {__index = function() error() end})
+        ''')
+        lua_t = self.lua.eval('t')
+        self.assertRaises(lupa.LuaError, lambda t, k: t[k], lua_t, 'k')
+
+    def test_error_metatable_index_metamethod(self):
+        self.lua.execute('''
+        mt = {}
+        setmetatable(mt, {__index = function() error() end})
+        t = {}
+        setmetatable(t, mt)
+        ''')
+        lua_t = self.lua.eval('t')
+        self.assertRaises(lupa.LuaError, lambda t, k: t[k], lua_t, 'k')
+
 if __name__ == '__main__':
     def print_version():
         version = lupa.LuaRuntime().lua_implementation
