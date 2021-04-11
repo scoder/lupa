@@ -947,3 +947,12 @@ configure the following options on setup:
    * - ``--lua-includes <incdir>``
      - Lua include directory
      - ``--lua-includes /usr/local/include``
+   * - ``--use-bundle``
+     - Use bundled Lua
+     -
+   * - ``--no-bundle``
+     - Don't use bundled Lua
+     -
+   * - ``--no-lua-jit``
+     - Don't use LuaJIT
+     -
