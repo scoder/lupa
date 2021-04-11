@@ -2619,6 +2619,7 @@ class TestErrorStackTrace(unittest.TestCase):
         except lupa.LuaError as e:
             self.assertNotIn("stack traceback:", e.args[0])
 
+
 ################################################################################
 # tests for missing reference
 
@@ -2677,6 +2678,7 @@ class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
         self.testmissingref({}, lupa.as_itemgetter) # item getter protocol
         self.testmissingref({}, lupa.as_attrgetter) # attribute getter protocol
 
+
 if __name__ == '__main__':
     def print_version():
         version = lupa.LuaRuntime().lua_implementation
@@ -2684,4 +2686,3 @@ if __name__ == '__main__':
 
     print_version()
     unittest.main()
-

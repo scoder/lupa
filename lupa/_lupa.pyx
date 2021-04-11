@@ -1146,10 +1146,9 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TUSERDATA:
         py_obj = unpack_userdata(L, n)
         if py_obj:
-            if py_obj.obj:
-                return <object>py_obj.obj
-            else:
+            if not py_obj.obj:
                 raise ReferenceError("deleted python object")
+            return <object>py_obj.obj
     elif lua_type == lua.LUA_TTABLE:
         return new_lua_table(runtime, L, n)
     elif lua_type == lua.LUA_TTHREAD:
@@ -1157,10 +1156,9 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TFUNCTION:
         py_obj = unpack_wrapped_pyfunction(L, n)
         if py_obj:
-            if py_obj.obj:
-                return <object>py_obj.obj
-            else:
+            if not py_obj.obj:
                 raise ReferenceError("deleted python object")
+            return <object>py_obj.obj
         return new_lua_function(runtime, L, n)
     return new_lua_object(runtime, L, n)
 
@@ -1421,11 +1419,14 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 cdef class _PyReference:
     cdef object obj
     cdef uintptr_t refcnt
+
     def __cinit__(self, obj):
         self.obj = obj
         self.refcnt = 1
+
     def __init__(self):
         raise TypeError("Type cannot be instantiated from Python")
+
 
 cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
     # originally, we just used:
