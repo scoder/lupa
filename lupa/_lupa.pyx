@@ -80,6 +80,7 @@ cdef struct py_object:
     PyObject* obj
     PyObject* runtime
     int type_flags  # or-ed set of WrappedObjectFlags
+    uintptr_t refcount
 
 
 include "lock.pxi"
@@ -1461,6 +1462,7 @@ cdef int py_object_gc(lua_State* L) nogil:
 # calling Python objects
 
 cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) except -1:
+    # here we assume that py_obj and py_obj.obj aren't NULL
     cdef int i, nargs = lua.lua_gettop(L) - 1
     cdef tuple args
 
