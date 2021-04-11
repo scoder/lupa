@@ -928,6 +928,7 @@ following should work on a Linux system:
 
 .. _luaposix: http://git.alpinelinux.org/cgit/luaposix
 
+
 Building with different Lua versions
 ------------------------------------
 
@@ -935,24 +936,25 @@ If you wish to build Lupa with a specific version of Lua, you can
 configure the following options on setup:
 
 .. list-table::
-   :widths: 20 20 20
+   :widths: 20 40 20
    :header-rows: 1
-   
+
    * - Option
      - Description
      - Example
-   * - ``--lua-lib <libfile>``
+ * - ``--lua-lib <libfile>``
      - Lua library file path
      - ``--lua-lib /usr/local/lib/lualib.a``
    * - ``--lua-includes <incdir>``
      - Lua include directory
      - ``--lua-includes /usr/local/include``
    * - ``--use-bundle``
-     - Use bundled Lua
+     - Use bundled LuaJIT or Lua instead of searching for an installed version.
      -
    * - ``--no-bundle``
-     - Don't use bundled Lua
+     - Don't use the bundled LuaJIT/Lua, search for an installed version of LuaJIT or Lua,
+       e.g. using ``pkg-config``.
      -
    * - ``--no-lua-jit``
-     - Don't use LuaJIT
+     - Don't use or search for LuaJIT, only use or search Lua instead.
      -
