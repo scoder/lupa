@@ -80,7 +80,6 @@ cdef struct py_object:
     PyObject* obj
     PyObject* runtime
     int type_flags  # or-ed set of WrappedObjectFlags
-    uintptr_t refcount
 
 
 include "lock.pxi"
