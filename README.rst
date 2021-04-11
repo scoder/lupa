@@ -942,7 +942,7 @@ configure the following options on setup:
    * - Option
      - Description
      - Example
- * - ``--lua-lib <libfile>``
+   * - ``--lua-lib <libfile>``
      - Lua library file path
      - ``--lua-lib /usr/local/lib/lualib.a``
    * - ``--lua-includes <incdir>``
