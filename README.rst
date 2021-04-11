@@ -35,10 +35,10 @@ Major features
 * frees the GIL and supports threading in separate runtimes when
   calling into Lua
 
-* tested with Python 2.6/3.2 and later
+* tested with Python 2.7/3.5 and later
 
 * written for LuaJIT2 (tested with LuaJIT 2.0.2), but also works
-  with the normal Lua interpreter (5.1 and 5.2)
+  with the normal Lua interpreter (5.1 and later)
 
 * easy to hack on and extend as it is written in Cython, not C
 
