@@ -927,3 +927,23 @@ following should work on a Linux system:
       >>> posix_module = lua.require('posix')     # doctest: +SKIP
 
 .. _luaposix: http://git.alpinelinux.org/cgit/luaposix
+
+Building with different Lua versions
+------------------------------------
+
+If you wish to build Lupa with a specific version of Lua, you can
+configure the following options on setup:
+
+.. list-table::
+   :widths: 20 20 20
+   :header-rows: 1
+   
+   * - Option
+     - Description
+     - Example
+   * - ``--lua-lib <libfile>``
+     - Lua library file path
+     - ``--lua-lib /usr/local/lib/lualib.a``
+   * - ``--lua-includes <incdir>``
+     - Lua include directory
+     - ``--lua-includes /usr/local/include``
