@@ -932,29 +932,27 @@ following should work on a Linux system:
 Building with different Lua versions
 ------------------------------------
 
+The build is configured to automatically search for an installed version
+of first LuaJIT and then Lua, and failing to find either, to use the bundled
+LuaJIT or Lua version.
+
 If you wish to build Lupa with a specific version of Lua, you can
 configure the following options on setup:
 
 .. list-table::
-   :widths: 20 40 20
+   :widths: 20 35
    :header-rows: 1
 
    * - Option
      - Description
-     - Example
    * - ``--lua-lib <libfile>``
-     - Lua library file path
-     - ``--lua-lib /usr/local/lib/lualib.a``
+     - Lua library file path, e.g. ``--lua-lib /usr/local/lib/lualib.a``
    * - ``--lua-includes <incdir>``
-     - Lua include directory
-     - ``--lua-includes /usr/local/include``
+     - Lua include directory, e.g. ``--lua-includes /usr/local/include``
    * - ``--use-bundle``
      - Use bundled LuaJIT or Lua instead of searching for an installed version.
-     -
    * - ``--no-bundle``
      - Don't use the bundled LuaJIT/Lua, search for an installed version of LuaJIT or Lua,
        e.g. using ``pkg-config``.
-     -
    * - ``--no-lua-jit``
      - Don't use or search for LuaJIT, only use or search Lua instead.
-     -
