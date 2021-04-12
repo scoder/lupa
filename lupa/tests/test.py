@@ -2227,9 +2227,9 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
         lua_func = self.lua.eval("function (f) return f%s end" % call_txt)
         self.assertEqual(lua_func(f), res_txt)
 
-    def assertIncorrect(self, f, call_txt):
+    def assertIncorrect(self, f, call_txt, error=TypeError):
         lua_func = self.lua.eval("function (f) return f%s end" % call_txt)
-        self.assertRaises(TypeError, lua_func, f)
+        self.assertRaises(error, lua_func, f)
 
     def test_many_args(self):
         self.assertResult(self.arg2, "{x=1, y=2}", "x=1, y=2")
@@ -2274,8 +2274,8 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_posargs_kwargs_bad(self):
         self.assertIncorrect(self.arg2, "{5, y=6, z=7}")
-        self.assertIncorrect(self.arg2, "{5, [3]=6}")
-        self.assertIncorrect(self.arg2, "{x=5, [2]=6}")  # I guess it's ok to reject this
+        self.assertIncorrect(self.arg2, "{5, [3]=6}", error=IndexError)
+        self.assertIncorrect(self.arg2, "{x=5, [2]=6}", error=IndexError)
 
         self.assertIncorrect(self.arg3, "{5, z=7}")
         self.assertIncorrect(self.arg3, "{5}")
@@ -2337,9 +2337,9 @@ class MethodKwargsDecoratorTest(KwargsDecoratorTest):
         lua_func = self.lua.eval("function (obj) return obj:meth%s end" % call_txt)
         self.assertEqual(lua_func(f), res_txt)
 
-    def assertIncorrect(self, f, call_txt):
+    def assertIncorrect(self, f, call_txt, error=TypeError):
         lua_func = self.lua.eval("function (obj) return obj:meth%s end" % call_txt)
-        self.assertRaises(TypeError, lua_func, f)
+        self.assertRaises(error, lua_func, f)
 
 
 class NoEncodingKwargsDecoratorTest(KwargsDecoratorTest):
@@ -2625,158 +2625,96 @@ class TestErrorStackTrace(unittest.TestCase):
 ################################################################################
 # tests for keyword arguments
 
-def _get_args_func(*args, **kwargs):
-    return args
+class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
 
-def _get_kwargs_func(*args, **kwargs):
-    return kwargs
+    def __init__(self, *args, **kwargs):
+        super(PythonArgumentsInLuaTest, self).__init__(*args, **kwargs)
+        self.get_args = lambda *args, **kwargs: args
+        self.get_kwargs = lambda *args, **kwargs: kwargs
+        self.get_none = lambda *args, **kwargs: None
 
-class TestKeywordArguments(SetupLuaRuntimeMixin, unittest.TestCase):
-    def _create_caller(self, args_str, kwargs_str):
-        if kwargs_str:
-            # If keyword arguments are present, create a 
-            # python.kwargs table containing it
-            kwargs_str = 'python.kwargs{%s}' % kwargs_str
-            if args_str:
-                # If both positional and keyword arguments
-                # are present, add a comma in between
-                args_str = '%s, ' % args_str
-        return self.lua.eval('function (f) return f(%s%s) end' % (args_str, kwargs_str))
+    def assertResult(self, txt, args, kwargs):
+        lua_func = self.lua.eval('function (f) return f(%s) end' % txt)
+        self.assertEqual(lua_func(self.get_args), args)
+        self.assertEqual(lua_func(self.get_kwargs), kwargs)
 
-    def _get_args_meth(self, *args, **kwargs):
-        return args
-
-    def _get_kwargs_meth(self, *args, **kwargs):
-        return kwargs
+    def assertIncorrect(self, txt, error=TypeError, regex=''):
+        lua_func = self.lua.eval('function (f) return f(%s) end' % txt)
+        self.assertRaisesRegex(error, regex, lua_func, self.get_none)
 
     def test_no_args(self):
-        caller = self._create_caller('', '')
-        self.assertEqual(len(caller(_get_args_func)), 0)
-        self.assertEqual(len(caller(_get_kwargs_func)), 0)
-        self.assertEqual(len(caller(self._get_args_meth)), 0)
-        self.assertEqual(len(caller(self._get_kwargs_meth)), 0)
+        self.assertResult('python.args{}', (), {})
 
-    def test_extra_self_arg_to_meth(self):
-        self.lua.globals().self = self
-        caller = self._create_caller('self', '')
-        self.assertEqual(caller(_get_args_func), (self,))
-        self.assertEqual(len(caller(_get_kwargs_func)), 0)
-        # If we call instance:method(...) in Lua, the instance
-        # argument is removed silently to mimic Lua semantics
-        self.assertEqual(len(caller(self._get_args_meth)), 0)
-        self.assertEqual(len(caller(self._get_kwargs_meth)), 0)
-        self.lua.globals().self = None
+    def test_all_types(self):
+        # Positional arguments
+        args = self.lua.eval('''
+        {
+            42,
+            false,
+            "spam",
+            function() end,
+            coroutine.create(function() end),
+            {1, 2, 3},
+            python.none,
+        }
+        ''')
+        self.lua.globals()['args'] = args
+        self.assertResult('python.args(args)', tuple(args[i+1] for i in range(len(args))), {})
 
-    def test_extra_self_kwarg_to_meth(self):
-        self.lua.globals().self = self
-        caller = self._create_caller('', 'self=self')
-        self.assertEqual(len(caller(_get_args_func)), 0)
-        self.assertEqual(caller(_get_kwargs_func), dict(self=self))
-        # Calling self.meth(self=self) raises a TypeError because
-        # multiple values for the 'self' argument are being passed
-        self.assertRaisesRegex(TypeError, 'multiple values', caller, self._get_args_meth)
-        self.assertRaisesRegex(TypeError, 'multiple values', caller, self._get_kwargs_meth)
-        self.lua.globals().self = None
+        # Keyword arguments
+        kwargs = self.lua.table()
+        self.lua.globals()['kwargs'] = kwargs
+        self.lua.execute('''
+            for _, v in ipairs(args) do
+                kwargs[type(v)] = v
+            end
+        ''')
+        self.assertResult('python.args(kwargs)', (), dict(kwargs.items()))
 
-    def test_extra_self_arg_and_kwarg_to_meth(self):
-        self.lua.globals().self = self
-        caller = self._create_caller('self', 'self=self')
-        self.assertEqual(caller(_get_args_func), (self,))
-        self.assertEqual(caller(_get_kwargs_func), dict(self=self))
-        # Calling self.meth(self=self) raises a TypeError because
-        # multiple values for the 'self' argument are being passed
-        self.assertRaisesRegex(TypeError, 'multiple values', caller, self._get_args_meth)
-        self.assertRaisesRegex(TypeError, 'multiple values', caller, self._get_kwargs_meth)
-        self.lua.globals().self = None
+        # Invalid parameter to python.args
+        for objtype in kwargs:
+            if objtype != 'table':
+                self.assertIncorrect('python.args(kwargs["%s"])' % objtype,
+                        error=lupa.LuaError, regex="bad argument #1 to 'args'")
+        
+        # Invalid table keys
+        self.assertIncorrect('python.args{[0] = true}', error=IndexError, regex='table index out of range')
+        self.assertIncorrect('python.args{[2] = true}', error=IndexError, regex='table index out of range')
+        self.assertIncorrect('python.args{[3.14] = true}', regex='table key is neither an integer nor a string')
+        for objtype in kwargs:
+            if objtype not in {'number', 'string'}:
+                self.assertIncorrect('python.args{[kwargs["%s"]] = true}' % objtype,
+                        regex='table key is neither an integer nor a string')
+ 
+    def test_kwargs_merge(self):
+        self.assertResult('python.args{1, a=1}, python.args{2}, python.args{}, python.args{b=2}', (1, 2), dict(a=1, b=2))
 
-    def test_one_arg(self):
-        caller = self._create_caller('42', '')
-        self.assertEqual(caller(_get_args_func), (42,))
-        self.assertEqual(len(caller(_get_kwargs_func)), 0)
-        self.assertEqual(caller(self._get_args_meth), (42,))
-        self.assertEqual(len(caller(self._get_kwargs_meth)), 0)
-    
-    def test_many_args(self):
-        caller = self._create_caller('1, 4, 9', '')
-        self.assertEqual(caller(_get_args_func), (1, 4, 9))
-        self.assertEqual(len(caller(_get_kwargs_func)), 0)
-        self.assertEqual(caller(self._get_args_meth), (1, 4, 9))
-        self.assertEqual(len(caller(self._get_kwargs_meth)), 0)
+    def test_kwargs_merge_conflict(self):
+        self.assertIncorrect('python.args{a=1}, python.args{a=2}', regex='multiple values')
 
-    def test_one_kwarg(self):
-        caller = self._create_caller('', 'abc=123')
-        self.assertEqual(len(caller(_get_args_func)), 0)
-        self.assertEqual(caller(_get_kwargs_func), dict(abc=123))
-        self.assertEqual(len(caller(self._get_args_meth)), 0)
-        self.assertEqual(caller(self._get_kwargs_meth), dict(abc=123))
+class PythonArgumentsInLuaMethodsTest(PythonArgumentsInLuaTest):
 
-    def test_many_kwargs(self):
-        caller = self._create_caller('', 'abc=123, cde=456, fgh=789')
-        self.assertEqual(len(caller(_get_args_func)), 0)
-        self.assertEqual(caller(_get_kwargs_func), dict(abc=123, cde=456, fgh=789))
-        self.assertEqual(len(caller(self._get_args_meth)), 0)
-        self.assertEqual(caller(self._get_kwargs_meth), dict(abc=123, cde=456, fgh=789))
+    def __init__(self, *args, **kwargs):
+        super(PythonArgumentsInLuaTest, self).__init__(*args, **kwargs)
 
-    def test_args_and_kwargs(self):
-        caller = self._create_caller('5, 65, 32, 76, 33', 'abc=123, cde=456, fgh=789')
-        self.assertEqual(caller(_get_args_func), (5, 65, 32, 76, 33))
-        self.assertEqual(caller(_get_kwargs_func), dict(abc=123, cde=456, fgh=789))
-        self.assertEqual(caller(self._get_args_meth), (5, 65, 32, 76, 33))
-        self.assertEqual(caller(self._get_kwargs_meth), dict(abc=123, cde=456, fgh=789))
+    def get_args(self, *args, **kwargs):
+        return args
 
-    def test_two_kwargs(self):
-        caller = self._create_caller('python.kwargs{a=1}', 'a=2')
-        args = caller(_get_args_func)
-        self.assertEqual(len(args), 1)
-        self.assertIn(('a', 1), args[0].items())
-        self.assertEqual(caller(_get_kwargs_func), dict(a=2))
-        args = caller(self._get_args_meth)
-        self.assertEqual(len(args), 1)
-        self.assertIn(('a', 1), args[0].items())
-        self.assertEqual(caller(self._get_kwargs_meth), dict(a=2))
+    def get_kwargs(self, *args, **kwargs):
+        return kwargs
 
-    def test_kwargs_not_last(self):
-        caller = self._create_caller('python.kwargs{a=1}, 1, 2, 3', '')
-        args = caller(_get_args_func)
-        self.assertEqual(len(args), 4)
-        self.assertIn(('a', 1), args[0].items())
-        self.assertEqual(args[1:], (1, 2, 3))
-        self.assertEqual(len(caller(_get_kwargs_func)), 0)
-        args = caller(self._get_args_meth)
-        self.assertEqual(len(args), 4)
-        self.assertIn(('a', 1), args[0].items())
-        self.assertEqual(args[1:], (1, 2, 3))
-        self.assertEqual(len(caller(self._get_kwargs_meth)), 0)
+    def get_none(self, *args, **kwargs):
+        return None
 
-    def test_table(self):
-        caller = self._create_caller('{a=1}', '')
-        self.assertEqual(len(caller(_get_args_func)), 1)
-        self.assertIn(('a', 1), caller(_get_args_func)[0].items())
-        self.assertEqual(len(caller(_get_kwargs_func)), 0)
-        self.assertEqual(len(caller(self._get_args_meth)), 1)
-        self.assertIn(('a', 1), caller(self._get_args_meth)[0].items())
-        self.assertEqual(len(caller(self._get_kwargs_meth)), 0)
+    def test_self_arg(self):
+        self.lua.globals()['self'] = self
+        self.assertResult('python.args{self}', (), {})
+        self.assertResult('python.args{self, 1, a=2}', (1, ), dict(a=2))
+        self.assertIncorrect('python.args{self=self}', regex='multiple values')
+        self.assertIncorrect('python.args{self, self=self}', regex='multiple values')
 
-    def test_table_with_metatable(self):
-        self.lua.execute('newt = function() local t = {} setmetatable(t, {}) return t end')
-        caller = self._create_caller('newt()', '')
-        self.assertEqual(len(caller(_get_args_func)), 1)
-        self.assertEqual(len(caller(_get_args_func)[0]), 0)
-        self.assertEqual(len(caller(_get_kwargs_func)), 0)
-        self.assertEqual(len(caller(self._get_args_meth)), 1)
-        self.assertEqual(len(caller(self._get_args_meth)[0]), 0)
-        self.assertEqual(len(caller(self._get_kwargs_meth)), 0)
 
-    def test_kwargs_not_table(self):
-        for arg in ['nil', 'true', '123', '"abc"', 'function() end', 'coroutine.create(function() end)', 'python.none']:
-            caller = self._create_caller('python.kwargs(%s)' % arg, '')
-            self.assertRaisesRegex(lupa.LuaError, "bad argument #1 to 'kwargs'", caller, _get_args_func)
-
-    def test_kwargs_non_string_keys(self):
-        for key in ['true', '123', '{}', 'function() end', 'coroutine.create(function() end)', 'python.none']:
-            caller = self._create_caller('', '[%s]=true' % key)
-            self.assertRaisesRegex(TypeError, 'keywords must be strings', caller, _get_args_func)
-
+################################################################################
 # tests for missing reference
 
 class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
@@ -2834,6 +2772,51 @@ class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
         self.testmissingref({}, lupa.as_itemgetter) # item getter protocol
         self.testmissingref({}, lupa.as_attrgetter) # attribute getter protocol
 
+
+################################################################################
+# tests for raw equality between Lua objects
+
+class TestRawEquality(SetupLuaRuntimeMixin, unittest.TestCase):
+
+    def check_object(self, constructor):
+        t = self.lua.table()
+        t.obj = constructor()
+        self.assertEqual(t.obj, t.obj)
+        self.assertNotEqual(constructor(), constructor())
+
+    def test_objects(self):
+        self.check_object(lambda: self.lua.table())
+        self.check_object(lambda: self.lua.eval('function() end'))
+        self.check_object(lambda: self.lua.eval('coroutine.create(function() end)'))
+
+
+class TestRawEqualityDifferentRuntimes(TestRawEquality):
+
+    def setUp(self):
+        super(TestRawEquality, self).setUp()
+        self.other_lua = lupa.LuaRuntime(**self.lua_runtime_kwargs)
+
+    def tearDown(self):
+        self.other_lua = None
+        super(TestRawEquality, self).tearDown()
+
+    def swap_runtime(self):
+        self.lua, self.other_lua = self.other_lua, self.lua
+
+    def check_object(self, constructor):
+        t_1 = self.lua.table()
+        t_1.obj = constructor()
+        obj_1 = t_1.obj
+        self.swap_runtime()
+        t_2 = self.lua.table()
+        t_2.obj = constructor()
+        obj_2 = t_2.obj
+        self.assertNotEqual(obj_1, obj_2)
+        obj_2 = constructor()
+        self.swap_runtime()
+        obj_1 = constructor()
+        self.assertNotEqual(obj_1, obj_2)
+ 
 
 if __name__ == '__main__':
     def print_version():

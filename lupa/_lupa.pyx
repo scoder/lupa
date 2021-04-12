@@ -62,8 +62,9 @@ except ImportError:
     import builtins
 
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
-DEF LUPAKWARGS = b"LUPA_KEYWORD_ARGUMENTS_METATABLE"
 DEF PYREFST = b"LUPA_PYTHON_REFERENCES_TABLE"
+DEF LUART = b"LUPA_LUA_RUNTIME"
+DEF PYARGS = b"LUPA_PYTHON_ARGUMENTS_METATABLE"
 
 cdef extern from *:
     """
@@ -447,9 +448,13 @@ cdef class LuaRuntime:
         luaL_openlib(L, NULL, py_object_lib, 0)
         lua.lua_pop(L, 1)
 
-        # create our Lupa keyword arguments metatable
-        lua.luaL_newmetatable(L, LUPAKWARGS)
-        lua.lua_pop(L, 1)
+        # register the Lua runtime
+        lua.lua_pushlightuserdata(L, <void*><PyObject*>self)
+        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, LUART)
+
+        # register the Python arguments metatable
+        lua.lua_newtable(L)
+        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYARGS)
 
         # create and store the python references table
         lua.lua_newtable(L)                                  # tbl
@@ -524,22 +529,7 @@ cdef tuple _fix_args_kwargs(tuple args):
     if not isinstance(arg, _LuaTable):
         return args, {}
 
-    table = <_LuaTable>arg
-    encoding = table._runtime._source_encoding
-
-    # arguments with keys from 1 to #tbl are passed as positional
-    new_args = [
-        table._getitem(key, is_attr_access=False)
-        for key in range(1, table._len() + 1)
-    ]
-
-    # arguments with non-integer keys are passed as named
-    new_kwargs = {
-        (<bytes>key).decode(encoding) if not IS_PY2 and isinstance(key, bytes) else key: value
-        for key, value in _LuaIter(table, ITEMS)
-        if not isinstance(key, (int, long))
-    }
-    return new_args, new_kwargs
+    return (<_LuaTable>arg)._unpack()
 
 
 ################################################################################
@@ -589,6 +579,23 @@ cdef class _LuaObject:
         if lua.lua_isnil(L, -1):
             lua.lua_pop(L, 1)
             raise LuaError("lost reference")
+
+    def __eq__(self, o):
+        if not isinstance(o, _LuaObject):
+            return False
+        cdef _LuaObject other = <_LuaObject>o
+        if self._state != other._state:
+            return False
+        cdef lua_State* L = self._state
+        old_top = lua.lua_gettop(L)
+        cdef bint equal = False
+        try:
+            self.push_lua_object(L)
+            other.push_lua_object(L)
+            equal = lua.lua_rawequal(L, -1, -2)
+        finally:
+            lua.lua_settop(L, old_top)
+        return equal
 
     def __call__(self, *args):
         assert self._runtime is not None
@@ -823,6 +830,38 @@ cdef class _LuaTable(_LuaObject):
         finally:
             lua.lua_settop(L, old_top)
             unlock_runtime(self._runtime)
+
+    @cython.final
+    cdef tuple _unpack(self):
+        """Unpacks table into a tuple of positional arguments
+        and a dictionary of keyword arguments
+        """
+        assert self._runtime is not None
+        cdef long length = <long>self._len()
+        cdef bytes encoding = self._runtime._source_encoding
+        cdef tuple args = cpython.tuple.PyTuple_New(<Py_ssize_t>length)
+        cdef dict kwargs = {}
+        lock_runtime(self._runtime)
+        try:
+            for key, value in self.items():
+                if isinstance(key, (int, long)) and not isinstance(key, bool):
+                    if key >= 1 and key <= length:
+                        cpython.ref.Py_INCREF(value)
+                        cpython.tuple.PyTuple_SET_ITEM(args, <Py_ssize_t>(key-1), value)
+                    else:
+                        raise IndexError("table index out of range")
+                elif isinstance(key, bytes):
+                    if IS_PY2:
+                        kwargs[key] = value
+                    else:
+                        kwargs[(<bytes>key).decode(encoding)] = value
+                elif isinstance(key, unicode):
+                    kwargs[key] = value
+                else:
+                    raise TypeError("table key is neither an integer nor a string")
+        finally:
+            unlock_runtime(self._runtime)
+        return args, kwargs
 
 
 cdef _LuaTable new_lua_table(LuaRuntime runtime, lua_State* L, int n):
@@ -1492,9 +1531,7 @@ cdef int py_object_gc(lua_State* L) nogil:
 cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) except -1:
     # Callers must assure that py_obj.obj is not NULL, i.e. it points to a valid Python object.
     cdef int i, nargs = lua.lua_gettop(L) - 1
-    cdef _LuaTable table
-    cdef bytes encoding
-    cdef tuple args
+    cdef list args
     cdef dict kwargs
 
     f = <object>py_obj.obj
@@ -1503,34 +1540,18 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
         lua.lua_settop(L, 0)  # FIXME
         result = f()
     else:
+        args = []
         kwargs = {}
         
-        if lua.lua_istable(L, -1) and lua.lua_getmetatable(L, -1):
-            lua.luaL_getmetatable(L, LUPAKWARGS)
-            if lua.lua_rawequal(L, -1, -2):
-                # If the last argument is a table with the same metatable
-                # as the one stored in the LUPAKWARGS registry index, then
-                # we assume it was constructed via the 'kwargs' function.
-                #
-                # Since the keyword argument table is merely used as an
-                # abstraction, we remove it from the positional arguments.
-                encoding = runtime._source_encoding
-                table = new_lua_table(runtime, L, -3)
-                for key, value in table.items():
-                    if IS_PY2 and isinstance(key, bytes):
-                        key = (<bytes>key).decode(encoding)
-                    kwargs[key] = value
-                nargs -= 1
-            lua.lua_pop(L, 2)
-
-        args = cpython.tuple.PyTuple_New(nargs)
-
         for i in range(nargs):
             arg = py_from_lua(runtime, L, i+2)
-            cpython.ref.Py_INCREF(arg)
-            cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
+            if isinstance(arg, _PyArguments):
+                args += (<_PyArguments>arg).args
+                kwargs = dict(**kwargs, **(<_PyArguments>arg).kwargs)
+            else:
+                args.append(arg)
 
-        if nargs > 0 and PyMethod_Check(f) and (<PyObject*>args[0]) is PyMethod_GET_SELF(f):
+        if len(args) > 0 and PyMethod_Check(f) and (<PyObject*>args[0]) is PyMethod_GET_SELF(f):
             # Calling a bound method and self is already the first argument.
             # Lua x:m(a, b) => Python as x.m(x, a, b) but should be x.m(a, b)
             #
@@ -1854,14 +1875,32 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
         try: runtime.store_raised_exception(L, b'error while calling next(iterator)')
         finally: return -1
 
-# keyword argument support for Python objects in Lua
+# support for calling Python objects in Lua with keyword arguments
 
-cdef int py_kwargs(lua_State* L) nogil:
-    lua.luaL_checktype(L, 1, lua.LUA_TTABLE)
-    lua.lua_settop(L, 1)
-    lua.luaL_getmetatable(L, LUPAKWARGS)
-    lua.lua_setmetatable(L, 1)
-    return 1
+cdef class _PyArguments:
+    cdef tuple args
+    cdef dict kwargs
+
+cdef int py_args_with_gil(lua_State* L) with gil:
+    cdef LuaRuntime runtime
+    cdef _PyArguments pyargs
+    try:
+        runtime = luaL_getruntime(L)
+        table = new_lua_table(runtime, L, 1)
+        pyargs = _PyArguments.__new__(_PyArguments)
+        pyargs.args, pyargs.kwargs = table._unpack()
+        return py_to_lua_custom(runtime, L, pyargs, 0)
+    except:
+        try: runtime.store_raised_exception(L, b'error while calling args')
+        finally: return -1
+
+cdef int py_args(lua_State* L) nogil:
+    lua.luaL_checktype(L, 1, lua.LUA_TTABLE)  # tbl ...
+    lua.lua_settop(L, 1)                      # tbl
+    result = py_args_with_gil(L)
+    if result < 0:
+        return lua.lua_error(L) # never returns!
+    return result                             # args
 
 # 'python' module functions in Lua
 
@@ -1872,7 +1911,7 @@ cdef lua.luaL_Reg *py_lib = [
     lua.luaL_Reg(name = "iter",          func = <lua.lua_CFunction> py_iter),
     lua.luaL_Reg(name = "iterex",        func = <lua.lua_CFunction> py_iterex),
     lua.luaL_Reg(name = "enumerate",     func = <lua.lua_CFunction> py_enumerate),
-    lua.luaL_Reg(name = "kwargs",        func = <lua.lua_CFunction> py_kwargs),
+    lua.luaL_Reg(name = "args",          func = <lua.lua_CFunction> py_args),
     lua.luaL_Reg(name = NULL, func = NULL),
 ]
 
@@ -1950,3 +1989,14 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
         luaL_setfuncs(L, l, nup)
     else:
         lua.lua_pop(L, nup)
+
+cdef LuaRuntime luaL_getruntime(lua_State *L):
+    cdef PyObject* runtime
+    lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, LUART)  # luart
+    runtime = <PyObject*>lua.lua_touserdata(L, -1)
+    lua.lua_pop(L, 1)                                  #
+    if not runtime:
+        raise LuaError("could not get Lua runtime")
+    return <LuaRuntime>runtime
+
+
