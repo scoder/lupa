@@ -1267,6 +1267,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
             lua.lua_remove(L, -2)                       # udata
             return 1 # values pushed
         lua.lua_pop(L, 1)                               # tbl
+
     py_obj = <py_object*>lua.lua_newuserdata(L, sizeof(py_object))
     if not py_obj:
         lua.lua_pop(L, 1)                #
