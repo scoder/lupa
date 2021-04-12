@@ -1248,12 +1248,14 @@ cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode u
     lua.lua_pushlstring(L, <char*>bytes_string, len(bytes_string))
     return 1
 
-cdef inline tuple get_pyref_key(PyObject* o, int type_flags):
+
+cdef inline tuple build_pyref_key(PyObject* o, int type_flags):
     return (<object><uintptr_t>o, <object>type_flags)
+
 
 cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_flags):
     cdef py_object* py_obj
-    cdef object refkey = get_pyref_key(<PyObject*>o, type_flags)
+    refkey = build_pyref_key(<PyObject*>o, type_flags)
     cdef _PyReference pyref
 
     lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
@@ -1457,16 +1459,16 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) with gil:
     # now, we keep Python object references in Lua visible to Python in a dict
     runtime = <LuaRuntime>py_obj.runtime
     try:
-        refkey = get_pyref_key(py_obj.obj, py_obj.type_flags)
+        refkey = build_pyref_key(py_obj.obj, py_obj.type_flags)
         pyref = <_PyReference>runtime._pyrefs_in_lua.pop(refkey)
-        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
-        lua.luaL_unref(L, -1, pyref._ref)                    # tbl
     except (TypeError, KeyError):
         return 0  # runtime was already cleared during GC, nothing left to do
     except:
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
         finally: return -1
     else:
+        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
+        lua.luaL_unref(L, -1, pyref._ref)                    # tbl
         return 0
     finally:
         py_obj.obj = NULL
@@ -1483,7 +1485,7 @@ cdef int py_object_gc(lua_State* L) nogil:
 # calling Python objects
 
 cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) except -1:
-    # here we assume that py_obj and py_obj.obj aren't NULL
+    # Callers must assure that py_obj.obj is not NULL, i.e. it points to a valid Python object.
     cdef int i, nargs = lua.lua_gettop(L) - 1
     cdef tuple args
 
