@@ -80,7 +80,6 @@ cdef struct py_object:
     PyObject* obj
     PyObject* runtime
     int type_flags  # or-ed set of WrappedObjectFlags
-    uintptr_t ref_count
 
 
 include "lock.pxi"
@@ -1265,7 +1264,6 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
         lua.lua_rawgeti(L, -1, pyref._ref)              # tbl udata
         py_obj = <py_object*>lua.lua_touserdata(L, -1)
         if py_obj:
-            py_obj.ref_count += 1
             lua.lua_remove(L, -2)                       # udata
             return 1 # values pushed
         else:
@@ -1279,7 +1277,6 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     py_obj.obj = <PyObject*>o            # tbl udata
     py_obj.runtime = <PyObject*>runtime
     py_obj.type_flags = type_flags
-    py_obj.ref_count = 1
     lua.luaL_getmetatable(L, POBJECT)    # tbl udata metatbl
     lua.lua_setmetatable(L, -2)          # tbl udata
     lua.lua_pushvalue(L, -1)             # tbl udata udata
@@ -1454,38 +1451,34 @@ cdef class _PyReference:
     cdef int _ref
 
 
-cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
+cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) with gil:
     cdef _PyReference pyref
     # originally, we just used:
     #cpython.ref.Py_XDECREF(py_obj.obj)
     # now, we keep Python object references in Lua visible to Python in a dict
     runtime = <LuaRuntime>py_obj.runtime
     try:
-        if py_obj.ref_count == 1:
-            try:
-                refkey = get_pyref_key(py_obj.obj, py_obj.type_flags)
-                pyref = runtime._pyrefs_in_lua[refkey]
-                lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
-                lua.luaL_unref(L, -1, pyref._ref)                    # tbl
-                lua.lua_pop(L, 1)                                    #
-                del runtime._pyrefs_in_lua[refkey]
-            except (TypeError, KeyError):
-                return 0  # runtime was already cleared during GC, nothing left to do
-            finally:
-                py_obj.obj = NULL
-        else:
-            py_obj.ref_count -= 1
-        return 0
+        refkey = get_pyref_key(py_obj.obj, py_obj.type_flags)
+        pyref = <_PyReference>runtime._pyrefs_in_lua.pop(refkey)
+        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
+        lua.luaL_unref(L, -1, pyref._ref)                    # tbl
+        lua.lua_pop(L, 1)                                    #
+    except (TypeError, KeyError):
+        return 0  # runtime was already cleared during GC, nothing left to do
     except:
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
         finally: return -1
-
+    else:
+        return 0
+    finally:
+        py_obj.obj = NULL
+    
 cdef int py_object_gc(lua_State* L) nogil:
     if not lua.lua_isuserdata(L, 1):
         return 0
     py_obj = unpack_userdata(L, 1)
     if py_obj is not NULL and py_obj.obj is not NULL:
-        if decref_with_gil(py_obj, L):
+        if py_object_gc_with_gil(py_obj, L):
             return lua.lua_error(L)  # never returns!
     return 0
 
