@@ -63,6 +63,7 @@ except ImportError:
     import builtins
 
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
+DEF PYREFST = b"LUPA_PYTHON_REFERENCES_TABLE"
 
 cdef extern from *:
     """
@@ -80,6 +81,7 @@ cdef struct py_object:
     PyObject* obj
     PyObject* runtime
     int type_flags  # or-ed set of WrappedObjectFlags
+    uintptr_t ref_count
 
 
 include "lock.pxi"
@@ -445,6 +447,14 @@ cdef class LuaRuntime:
         lua.luaL_newmetatable(L, POBJECT)
         luaL_openlib(L, NULL, py_object_lib, 0)
         lua.lua_pop(L, 1)
+
+        # create and store the python references table
+        lua.lua_newtable(L)                                  # tbl
+        lua.lua_createtable(L, 0, 1)                         # tbl metatbl
+        lua.lua_pushlstring(L, "v", 1)                       # tbl metatbl "v"
+        lua.lua_setfield(L, -2, "__mode")                    # tbl metatbl
+        lua.lua_setmetatable(L, -2)                          # tbl
+        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  #
 
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
@@ -1240,28 +1250,46 @@ cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode u
     lua.lua_pushlstring(L, <char*>bytes_string, len(bytes_string))
     return 1
 
+cdef inline tuple get_pyref_key(PyObject* o, int type_flags):
+    return (<object><uintptr_t>o, <object>type_flags)
+
 cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_flags):
-    cdef py_object *py_obj = <py_object*> lua.lua_newuserdata(L, sizeof(py_object))
-    if not py_obj:
-        return 0 # values pushed
-
-    # originally, we just used:
-    #cpython.ref.Py_INCREF(o)
-    # now, we store an owned reference in "runtime._pyrefs_in_lua" to keep it visible to Python
-    # and a borrowed reference in "py_obj.obj" for access from Lua
-    obj_id = <object><uintptr_t><PyObject*>(o)
-    if obj_id in runtime._pyrefs_in_lua:
-        (<_PyReference>runtime._pyrefs_in_lua[obj_id]).refcnt += 1
+    cdef py_object* py_obj
+    cdef object refkey = get_pyref_key(<PyObject*>o, type_flags)
+    cdef _PyReference pyref
+    lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
+    if refkey in runtime._pyrefs_in_lua:
+        pyref = <_PyReference>runtime._pyrefs_in_lua[refkey]
+        lua.lua_rawgeti(L, -1, pyref._ref)              # tbl udata
+        py_obj = <py_object*>lua.lua_touserdata(L, -1)
+        if not py_obj:
+            lua.lua_pop(L, 2)                           #
+            return 0 # values pushed
+        py_obj.ref_count += 1
+        lua.lua_remove(L, -2)                           # udata
+        return 1 # values pushed
     else:
-        runtime._pyrefs_in_lua[obj_id] = _PyReference.__new__(_PyReference, o)
-
-    py_obj.obj = <PyObject*>o
-    py_obj.runtime = <PyObject*>runtime
-    py_obj.type_flags = type_flags
-    lua.luaL_getmetatable(L, POBJECT)
-    lua.lua_setmetatable(L, -2)
-    return 1 # values pushed
-
+        py_obj = <py_object*>lua.lua_newuserdata(L, sizeof(py_object))
+        if not py_obj:
+            lua.lua_pop(L, 1)                #
+            return 0 # values pushed
+        py_obj.obj = <PyObject*>o            # tbl udata
+        py_obj.runtime = <PyObject*>runtime
+        py_obj.type_flags = type_flags
+        py_obj.ref_count = 1
+        lua.luaL_getmetatable(L, POBJECT)    # tbl udata metatbl
+        lua.lua_setmetatable(L, -2)          # tbl udata
+        lua.lua_pushvalue(L, -1)             # tbl udata udata
+        pyref = _PyReference.__new__(_PyReference)
+        pyref._ref = lua.luaL_ref(L, -3)     # tbl udata
+        pyref._obj = o
+        lua.lua_remove(L, -2)                # udata
+        # originally, we just used:
+        #cpython.ref.Py_INCREF(o)
+        # now, we store an owned reference in "runtime._pyrefs_in_lua" to keep it visible to Python
+        # and a borrowed reference in "py_obj.obj" for access from Lua
+        runtime._pyrefs_in_lua[refkey] = pyref
+        return 1  # values pushed
 
 cdef inline int _isascii(unsigned char* s):
     cdef unsigned char c = 0
@@ -1417,33 +1445,31 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 @cython.internal
 @cython.freelist(8)
 cdef class _PyReference:
-    cdef object obj
-    cdef uintptr_t refcnt
-
-    def __cinit__(self, obj):
-        self.obj = obj
-        self.refcnt = 1
-
-    def __init__(self):
-        raise TypeError("Type cannot be instantiated from Python")
+    cdef object _obj
+    cdef int _ref
 
 
 cdef int decref_with_gil(py_object *py_obj, lua_State* L) with gil:
+    cdef _PyReference pyref
     # originally, we just used:
     #cpython.ref.Py_XDECREF(py_obj.obj)
-    # now, we keep Python object references in Lua visible to Python in a dict of _PyReference:
+    # now, we keep Python object references in Lua visible to Python in a dict
     runtime = <LuaRuntime>py_obj.runtime
     try:
-        obj_id = <object><uintptr_t>py_obj.obj
-        try:
-            pyref = <_PyReference>runtime._pyrefs_in_lua[obj_id]
-        except (TypeError, KeyError):
-            return 0  # runtime was already cleared during GC, nothing left to do
-        if pyref.refcnt == 1:
-            del runtime._pyrefs_in_lua[obj_id]
-            py_obj.obj = NULL
+        if py_obj.ref_count == 1:
+            try:
+                refkey = get_pyref_key(py_obj.obj, py_obj.type_flags)
+                pyref = runtime._pyrefs_in_lua[refkey]
+                lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
+                lua.luaL_unref(L, -1, pyref._ref)                    # tbl
+                lua.lua_pop(L, 1)                                    #
+                del runtime._pyrefs_in_lua[refkey]
+            except (TypeError, KeyError):
+                return 0  # runtime was already cleared during GC, nothing left to do
+            finally:
+                py_obj.obj = NULL
         else:
-            pyref.refcnt -= 1
+            py_obj.ref_count -= 1
         return 0
     except:
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
