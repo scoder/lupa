@@ -1258,7 +1258,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
 
     lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
 
-    # check if python object is already referenced in Lua
+    # check if Python object is already referenced in Lua
     if refkey in runtime._pyrefs_in_lua:
         pyref = <_PyReference>runtime._pyrefs_in_lua[refkey]
         lua.lua_rawgeti(L, -1, pyref._ref)              # tbl udata
@@ -1266,9 +1266,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
         if py_obj:
             lua.lua_remove(L, -2)                       # udata
             return 1 # values pushed
-        else:
-            lua.lua_pop(L, 1)                           # tbl
-
+        lua.lua_pop(L, 1)                               # tbl
     py_obj = <py_object*>lua.lua_newuserdata(L, sizeof(py_object))
     if not py_obj:
         lua.lua_pop(L, 1)                #
@@ -1462,7 +1460,6 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) with gil:
         pyref = <_PyReference>runtime._pyrefs_in_lua.pop(refkey)
         lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
         lua.luaL_unref(L, -1, pyref._ref)                    # tbl
-        lua.lua_pop(L, 1)                                    #
     except (TypeError, KeyError):
         return 0  # runtime was already cleared during GC, nothing left to do
     except:
