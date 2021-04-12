@@ -1256,39 +1256,45 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     cdef py_object* py_obj
     cdef object refkey = get_pyref_key(<PyObject*>o, type_flags)
     cdef _PyReference pyref
+
     lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
+
+    # check if python object is already referenced in Lua
     if refkey in runtime._pyrefs_in_lua:
         pyref = <_PyReference>runtime._pyrefs_in_lua[refkey]
         lua.lua_rawgeti(L, -1, pyref._ref)              # tbl udata
         py_obj = <py_object*>lua.lua_touserdata(L, -1)
-        if not py_obj:
-            lua.lua_pop(L, 2)                           #
-            return 0 # values pushed
-        py_obj.ref_count += 1
-        lua.lua_remove(L, -2)                           # udata
-        return 1 # values pushed
-    else:
-        py_obj = <py_object*>lua.lua_newuserdata(L, sizeof(py_object))
-        if not py_obj:
-            lua.lua_pop(L, 1)                #
-            return 0 # values pushed
-        py_obj.obj = <PyObject*>o            # tbl udata
-        py_obj.runtime = <PyObject*>runtime
-        py_obj.type_flags = type_flags
-        py_obj.ref_count = 1
-        lua.luaL_getmetatable(L, POBJECT)    # tbl udata metatbl
-        lua.lua_setmetatable(L, -2)          # tbl udata
-        lua.lua_pushvalue(L, -1)             # tbl udata udata
-        pyref = _PyReference.__new__(_PyReference)
-        pyref._ref = lua.luaL_ref(L, -3)     # tbl udata
-        pyref._obj = o
-        lua.lua_remove(L, -2)                # udata
-        # originally, we just used:
-        #cpython.ref.Py_INCREF(o)
-        # now, we store an owned reference in "runtime._pyrefs_in_lua" to keep it visible to Python
-        # and a borrowed reference in "py_obj.obj" for access from Lua
-        runtime._pyrefs_in_lua[refkey] = pyref
-        return 1  # values pushed
+        if py_obj:
+            py_obj.ref_count += 1
+            lua.lua_remove(L, -2)                       # udata
+            return 1 # values pushed
+        else:
+            lua.lua_pop(L, 1)                           # tbl
+
+    py_obj = <py_object*>lua.lua_newuserdata(L, sizeof(py_object))
+    if not py_obj:
+        lua.lua_pop(L, 1)                #
+        return 0 # values pushed
+
+    py_obj.obj = <PyObject*>o            # tbl udata
+    py_obj.runtime = <PyObject*>runtime
+    py_obj.type_flags = type_flags
+    py_obj.ref_count = 1
+    lua.luaL_getmetatable(L, POBJECT)    # tbl udata metatbl
+    lua.lua_setmetatable(L, -2)          # tbl udata
+    lua.lua_pushvalue(L, -1)             # tbl udata udata
+    pyref = _PyReference.__new__(_PyReference)
+    pyref._ref = lua.luaL_ref(L, -3)     # tbl udata
+    pyref._obj = o
+    lua.lua_remove(L, -2)                # udata
+
+    # originally, we just used:
+    #cpython.ref.Py_INCREF(o)
+    # now, we store an owned reference in "runtime._pyrefs_in_lua" to keep it visible to Python
+    # and a borrowed reference in "py_obj.obj" for access from Lua
+    runtime._pyrefs_in_lua[refkey] = pyref
+
+    return 1  # values pushed
 
 cdef inline int _isascii(unsigned char* s):
     cdef unsigned char c = 0
