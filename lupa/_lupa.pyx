@@ -16,6 +16,7 @@ cimport cpython.ref
 cimport cpython.tuple
 cimport cpython.float
 cimport cpython.long
+from cpython.pyport cimport PY_SSIZE_T_MAX
 from cpython.ref cimport PyObject
 from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
@@ -569,14 +570,16 @@ cdef class _LuaObject:
         if self._runtime is None:
             return
         cdef lua_State* L = self._state
+        locked = False
         try:
             lock_runtime(self._runtime)
             locked = True
         except:
-            locked = False
-        lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
-        if locked:
-            unlock_runtime(self._runtime)
+            pass
+        finally:
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
+            if locked:
+                unlock_runtime(self._runtime)
 
     @cython.final
     cdef inline int push_lua_object(self, lua_State* L) except -1:
@@ -584,6 +587,7 @@ cdef class _LuaObject:
         if lua.lua_isnil(L, -1):
             lua.lua_pop(L, 1)
             raise LuaError("lost reference")
+        return 0
 
     def __call__(self, *args):
         assert self._runtime is not None
@@ -601,7 +605,7 @@ cdef class _LuaObject:
         return self._len()
 
     @cython.final
-    cdef size_t _len(self):
+    cdef Py_ssize_t _len(self) except -1:
         assert self._runtime is not None
         cdef lua_State* L = self._state
         lock_runtime(self._runtime)
@@ -612,7 +616,9 @@ cdef class _LuaObject:
             lua.lua_pop(L, 1)
         finally:
             unlock_runtime(self._runtime)
-        return size
+        if size > <size_t> PY_SSIZE_T_MAX:
+            raise OverflowError(f"Size too large to represent: {size}")
+        return <Py_ssize_t> size
 
     def __nonzero__(self):
         return True
@@ -1253,7 +1259,7 @@ cdef inline tuple build_pyref_key(PyObject* o, int type_flags):
     return (<object><uintptr_t>o, <object>type_flags)
 
 
-cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_flags):
+cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_flags) except -1:
     cdef py_object* py_obj
     refkey = build_pyref_key(<PyObject*>o, type_flags)
     cdef _PyReference pyref
@@ -1534,8 +1540,8 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
             runtime._state = L
         return call_python(runtime, L, py_obj)
     except:
-        runtime.store_raised_exception(L, b'error during Python call')
-        return -1
+        try: runtime.store_raised_exception(L, b'error during Python call')
+        finally: return -1
     finally:
         if stored_state is not NULL:
             runtime._state = stored_state
@@ -1636,8 +1642,8 @@ cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         else:
             return getattr_for_lua(runtime, L, py_obj, 2)
     except:
-        runtime.store_raised_exception(L, b'error reading Python attribute/item')
-        return -1
+        try: runtime.store_raised_exception(L, b'error reading Python attribute/item')
+        finally: return -1
 
 cdef int py_object_getindex(lua_State* L) nogil:
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
@@ -1656,8 +1662,8 @@ cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         else:
             return setattr_for_lua(runtime, L, py_obj, 2, 3)
     except:
-        runtime.store_raised_exception(L, b'error writing Python attribute/item')
-        return -1
+        try: runtime.store_raised_exception(L, b'error writing Python attribute/item')
+        finally: return -1
 
 cdef int py_object_setindex(lua_State* L) nogil:
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
@@ -1774,7 +1780,7 @@ cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with 
         finally: return -1
 
 cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags,
-                          lua.lua_Number initial_value):
+                          lua.lua_Number initial_value) except -2:
     # Lua needs three values: iterator C function + state + control variable (last iter) value
     old_top = lua.lua_gettop(L)
     lua.lua_pushcfunction(L, <lua.lua_CFunction>py_iter_next)
