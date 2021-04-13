@@ -38,8 +38,8 @@ cdef extern from *:
     """
     ctypedef size_t uintptr_t
 
-cdef object exc_info
-from sys import exc_info
+cdef object exc_info, exit
+from sys import exc_info, exit
 
 cdef object Mapping
 try:
@@ -63,7 +63,6 @@ except ImportError:
 
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
 DEF PYREFST = b"LUPA_PYTHON_REFERENCES_TABLE"
-DEF LUART = b"LUPA_LUA_RUNTIME"
 
 cdef extern from *:
     """
@@ -247,8 +246,7 @@ cdef class LuaRuntime:
 
         lua.luaL_openlibs(L)
         self.init_python_lib(register_eval, register_builtins)
-        lua.lua_settop(L, 0)
-        lua.lua_atpanic(L, <lua.lua_CFunction>1)
+        lua.lua_atpanic(L, panic)
 
     def __dealloc__(self):
         if self._state is not NULL:
@@ -441,23 +439,24 @@ cdef class LuaRuntime:
     cdef int init_python_lib(self, bint register_eval, bint register_builtins) except -1:
         cdef lua_State *L = self._state
 
-        # create 'python' lib and register our own object metatable
-        luaL_openlib(L, "python", py_lib, 0)
-        lua.luaL_newmetatable(L, POBJECT)
-        luaL_openlib(L, NULL, py_object_lib, 0)
-        lua.lua_pop(L, 1)
+        # create 'python' lib
+        luaL_openlib(L, "python", py_lib, 0)       # lib
+        lua.lua_pushlightuserdata(L, <void*>self)  # lib udata
+        lua.lua_pushcclosure(L, py_args, 1)        # lib function
+        lua.lua_setfield(L, -2, "args")            # lib 
 
-        # register the Lua runtime
-        lua.lua_pushlightuserdata(L, <void*>self)
-        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, LUART)
+        # register our own object metatable
+        lua.luaL_newmetatable(L, POBJECT)          # lib metatbl
+        luaL_openlib(L, NULL, py_object_lib, 0)
+        lua.lua_pop(L, 1)                          # lib 
 
         # create and store the python references table
-        lua.lua_newtable(L)                                  # tbl
-        lua.lua_createtable(L, 0, 1)                         # tbl metatbl
-        lua.lua_pushlstring(L, "v", 1)                       # tbl metatbl "v"
-        lua.lua_setfield(L, -2, "__mode")                    # tbl metatbl
-        lua.lua_setmetatable(L, -2)                          # tbl
-        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  #
+        lua.lua_newtable(L)                                  # lib tbl
+        lua.lua_createtable(L, 0, 1)                         # lib tbl metatbl
+        lua.lua_pushlstring(L, "v", 1)                       # lib tbl metatbl "v"
+        lua.lua_setfield(L, -2, "__mode")                    # lib tbl metatbl
+        lua.lua_setmetatable(L, -2)                          # lib tbl
+        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # lib 
 
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
@@ -465,6 +464,9 @@ cdef class LuaRuntime:
             self.register_py_object(b'eval',     b'eval', eval)
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', builtins)
+
+        # pop 'python' lib
+        lua.lua_pop(L, 1)
 
         return 0  # nothing left to return on the stack
 
@@ -1882,11 +1884,9 @@ cdef class _PyArguments:
     cdef tuple args
     cdef dict kwargs
 
-cdef int py_args_with_gil(lua_State* L) with gil:
-    cdef LuaRuntime runtime
+cdef int py_args_with_gil(LuaRuntime runtime, lua_State* L) with gil:
     cdef _PyArguments pyargs
     try:
-        runtime = luaL_getruntime(L)
         table = new_lua_table(runtime, L, 1)
         pyargs = _PyArguments.__new__(_PyArguments)
         pyargs.args, pyargs.kwargs = table._unpack()
@@ -1896,8 +1896,13 @@ cdef int py_args_with_gil(lua_State* L) with gil:
         finally: return -1
 
 cdef int py_args(lua_State* L) nogil:
+    cdef PyObject* runtime
+    runtime = <PyObject*>lua.lua_touserdata(L, lua.lua_upvalueindex(1))
+    if not runtime:
+        return lua.luaL_error(L, "missing runtime")
     lua.luaL_checktype(L, 1, lua.LUA_TTABLE)
-    result = py_args_with_gil(L)
+    with gil:
+        result = py_args_with_gil(<LuaRuntime>runtime, L)
     if result < 0:
         return lua.lua_error(L) # never returns!
     return result
@@ -1911,7 +1916,6 @@ cdef lua.luaL_Reg *py_lib = [
     lua.luaL_Reg(name = "iter",          func = <lua.lua_CFunction> py_iter),
     lua.luaL_Reg(name = "iterex",        func = <lua.lua_CFunction> py_iterex),
     lua.luaL_Reg(name = "enumerate",     func = <lua.lua_CFunction> py_enumerate),
-    lua.luaL_Reg(name = "args",          func = <lua.lua_CFunction> py_args),
     lua.luaL_Reg(name = NULL, func = NULL),
 ]
 
@@ -1990,13 +1994,8 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
     else:
         lua.lua_pop(L, nup)
 
-cdef LuaRuntime luaL_getruntime(lua_State *L):
-    cdef PyObject* runtime
-    lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, LUART)  # luart
-    runtime = <PyObject*>lua.lua_touserdata(L, -1)
-    lua.lua_pop(L, 1)                                  #
-    if not runtime:
-        raise LuaError("could not get Lua runtime")
-    return <LuaRuntime>runtime
+
+cdef int panic(lua_State* L) with gil:
+    exit("Lua panicked and exited")
 
 
