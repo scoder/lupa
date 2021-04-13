@@ -1896,14 +1896,14 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
 
 # overflow handler setter
 
-DEF LUPAOFH_LEN = len(LUPAOFH) # FIXME
-
 cdef int py_set_overflow_handler(lua_State* L) nogil:
-    if not lua.lua_isnil(L, 1) and not lua.lua_isfunction(L, 1):
-        return lua.luaL_argerror(L, 1, "expected nil or function")
-    lua.lua_pushlstring(L, LUPAOFH, LUPAOFH_LEN)   # hdl ... name
-    lua.lua_pushvalue(L, 1)                        # hdl ... name hdl
-    lua.lua_rawset(L, lua.LUA_REGISTRYINDEX)       # hdl ...
+    if not lua.lua_isnil(L, 1) and \
+       not lua.lua_isfunction(L, 1) and \
+       not unpack_python_argument_or_jump(L, 1):
+        return lua.luaL_argerror(L, 1, "expected nil, function or Python object")
+                                                         # hdl [...]
+    lua.lua_settop(L, 1)                                 # hdl
+    lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, LUPAOFH)  #
     return 0
 
 # 'python' module functions in Lua

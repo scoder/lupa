@@ -2623,7 +2623,7 @@ class TestErrorStackTrace(unittest.TestCase):
 ################################################################################
 # tests for handling overflow
 
-class TestOverflow(SetupLuaRuntimeMixin):
+class TestOverflowMixin(SetupLuaRuntimeMixin):
     maxinteger = sys.maxsize            # maximum value for C Py_ssize_t
     biginteger = (maxinteger + 1) << 1  # value too big to fit in C size_t
     maxfloat = sys.float_info.max       # maximum value for Python float
@@ -2632,14 +2632,14 @@ class TestOverflow(SetupLuaRuntimeMixin):
     assert biginteger <= maxfloat
 
     def setUp(self):
-        super(TestOverflow, self).setUp()
+        super(TestOverflowMixin, self).setUp()
         self.lua_type = self.lua.eval('type')
         self.lua_math_type = self.lua.eval('math.type')
 
     def tearDown(self):
         self.lua_type = None
         self.lua_math_type = None
-        super(TestOverflow, self).tearDown()
+        super(TestOverflowMixin, self).tearDown()
 
     def test_no_overflow(self):
         self.assertMathType(0, 'integer')
@@ -2661,7 +2661,7 @@ class TestOverflow(SetupLuaRuntimeMixin):
         if self.lua_math_type is not None:
             self.assertEqual(self.lua_math_type(number), math_type)
 
-class TestOverflowWithoutHandler(TestOverflow, unittest.TestCase):
+class TestOverflowWithoutHandler(TestOverflowMixin, unittest.TestCase):
     lua_runtime_kwargs = dict(overflow_handler=None)
 
     def test_overflow(self):
@@ -2669,7 +2669,7 @@ class TestOverflowWithoutHandler(TestOverflow, unittest.TestCase):
         self.assertRaises(OverflowError, self.assertMathType, int(self.maxfloat), 'integer')
         self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'integer')
 
-class TestOverflowWithFloatHandler(TestOverflow, unittest.TestCase):
+class TestOverflowWithFloatHandler(TestOverflowMixin, unittest.TestCase):
     lua_runtime_kwargs = dict(overflow_handler=float)
 
     def test_overflow(self):
@@ -2677,11 +2677,17 @@ class TestOverflowWithFloatHandler(TestOverflow, unittest.TestCase):
         self.assertMathType(int(self.maxfloat), 'float')
         self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
 
-class TestOverflowWithObjectHandler(TestOverflow, unittest.TestCase):
-
+class TestOverflowWithObjectHandler(TestOverflowMixin, unittest.TestCase):
     def test_overflow(self):
         self.lua.execute('python.set_overflow_handler(function(o) return o end)')
         self.assertEqual(self.lua.eval('type')(int(self.maxfloat)), 'userdata')
+
+class TestFloatOverflowHandlerInLua(TestOverflowMixin, unittest.TestCase):
+    def test_overflow(self):
+        self.lua.execute('python.set_overflow_handler(python.builtins.float)')
+        self.assertMathType(self.biginteger, 'float')
+        self.assertMathType(int(self.maxfloat), 'float')
+        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
 
 class TestBadOverflowHandlerInPython(unittest.TestCase):
     def test_error(self):
@@ -2697,9 +2703,6 @@ class TestBadOverflowHandlerInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_table(self):
         self._test_set_overflow_handler('{}')
 
-    def test_userdata(self):
-        self._test_set_overflow_handler('python.builtins.float')
-
     def test_boolean(self):
         self._test_set_overflow_handler('true')
         self._test_set_overflow_handler('false')
@@ -2710,7 +2713,7 @@ class TestBadOverflowHandlerInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_thread(self):
         self._test_set_overflow_handler('coroutine.create(function() end)')
 
-class TestOverflowHandlerOverwrite(TestOverflow, unittest.TestCase):
+class TestOverflowHandlerOverwrite(TestOverflowMixin, unittest.TestCase):
     lua_runtime_kwargs = dict(overflow_handler=float)
 
     def test_overwrite_in_lua(self):
@@ -2738,7 +2741,6 @@ class TestOverflowHandlerOverwrite(TestOverflow, unittest.TestCase):
 # tests for missing reference
 
 class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
-
     def setUp(self):
         super(TestMissingReference, self).setUp()
         self.testmissingref = self.lua.eval('''
