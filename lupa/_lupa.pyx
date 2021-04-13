@@ -64,7 +64,6 @@ except ImportError:
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
 DEF PYREFST = b"LUPA_PYTHON_REFERENCES_TABLE"
 DEF LUART = b"LUPA_LUA_RUNTIME"
-DEF PYARGS = b"LUPA_PYTHON_ARGUMENTS_METATABLE"
 
 cdef extern from *:
     """
@@ -449,12 +448,8 @@ cdef class LuaRuntime:
         lua.lua_pop(L, 1)
 
         # register the Lua runtime
-        lua.lua_pushlightuserdata(L, <void*><PyObject*>self)
+        lua.lua_pushlightuserdata(L, <void*>self)
         lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, LUART)
-
-        # register the Python arguments metatable
-        lua.lua_newtable(L)
-        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYARGS)
 
         # create and store the python references table
         lua.lua_newtable(L)                                  # tbl
@@ -581,12 +576,14 @@ cdef class _LuaObject:
             raise LuaError("lost reference")
 
     def __eq__(self, o):
+        assert self._runtime is not None
         if not isinstance(o, _LuaObject):
             return False
-        cdef _LuaObject other = <_LuaObject>o
-        if self._state != other._state:
-            return False
         cdef lua_State* L = self._state
+        cdef _LuaObject other = <_LuaObject>o
+        if L != other._state:
+            return False
+        lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         cdef bint equal = False
         try:
@@ -595,6 +592,7 @@ cdef class _LuaObject:
             equal = lua.lua_rawequal(L, -1, -2)
         finally:
             lua.lua_settop(L, old_top)
+            unlock_runtime(self._runtime)
         return equal
 
     def __call__(self, *args):
@@ -837,19 +835,22 @@ cdef class _LuaTable(_LuaObject):
         and a dictionary of keyword arguments
         """
         assert self._runtime is not None
-        cdef long length = <long>self._len()
-        cdef bytes encoding = self._runtime._source_encoding
-        cdef tuple args = cpython.tuple.PyTuple_New(<Py_ssize_t>length)
+        cdef tuple args
         cdef dict kwargs = {}
+        cdef bytes encoding
+        cdef Py_ssize_t index, length
         lock_runtime(self._runtime)
         try:
+            encoding = self._runtime._source_encoding
+            length = <Py_ssize_t>self._len()
+            args = cpython.tuple.PyTuple_New(length)
             for key, value in self.items():
                 if isinstance(key, (int, long)) and not isinstance(key, bool):
-                    if key >= 1 and key <= length:
-                        cpython.ref.Py_INCREF(value)
-                        cpython.tuple.PyTuple_SET_ITEM(args, <Py_ssize_t>(key-1), value)
-                    else:
+                    index = <Py_ssize_t>key
+                    if index < 1 or index > length:
                         raise IndexError("table index out of range")
+                    cpython.ref.Py_INCREF(value)
+                    cpython.tuple.PyTuple_SET_ITEM(args, index-1, value)
                 elif isinstance(key, bytes):
                     if IS_PY2:
                         kwargs[key] = value
@@ -1875,7 +1876,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
         try: runtime.store_raised_exception(L, b'error while calling next(iterator)')
         finally: return -1
 
-# support for calling Python objects in Lua with keyword arguments
+# support for calling Python objects in Lua with Python-like arguments
 
 cdef class _PyArguments:
     cdef tuple args
@@ -1895,12 +1896,11 @@ cdef int py_args_with_gil(lua_State* L) with gil:
         finally: return -1
 
 cdef int py_args(lua_State* L) nogil:
-    lua.luaL_checktype(L, 1, lua.LUA_TTABLE)  # tbl ...
-    lua.lua_settop(L, 1)                      # tbl
+    lua.luaL_checktype(L, 1, lua.LUA_TTABLE)
     result = py_args_with_gil(L)
     if result < 0:
         return lua.lua_error(L) # never returns!
-    return result                             # args
+    return result
 
 # 'python' module functions in Lua
 
