@@ -2632,16 +2632,6 @@ class TestTableAccessError(SetupLuaRuntimeMixin, unittest.TestCase):
         lua_t = self.lua.eval('t')
         self.assertRaises(lupa.LuaError, lambda t, k: t[k], lua_t, 'k')
 
-    def test_error_metatable_index_metamethod(self):
-        self.lua.execute('''
-        mt = {}
-        setmetatable(mt, {__index = function() error() end})
-        t = {}
-        setmetatable(t, mt)
-        ''')
-        lua_t = self.lua.eval('t')
-        self.assertRaises(lupa.LuaError, lambda t, k: t[k], lua_t, 'k')
-
 
 ################################################################################
 # tests for missing reference

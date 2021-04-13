@@ -678,47 +678,6 @@ cdef class _LuaObject:
     def __getitem__(self, index_or_name):
         return self._getitem(index_or_name, is_attr_access=False)
 
-    @cython.final
-    cdef int _get_from_table(self, int table, int key):
-        cdef lua_State* L = self._state
-        cdef int top
-        lua.lua_pushvalue(L, key)                     # key
-        if lua.lua_type(L, table) == lua.LUA_TTABLE:
-            lua.lua_rawget(L, table)                  # value
-            if not lua.lua_isnil(L, -1):
-                return 1
-            lua.lua_pop(L, 1)                         #
-            if not lua.lua_getmetatable(L, table):    # mt?
-                lua.lua_pushnil(L)                    # nil
-                return 1
-            lua.lua_pushlstring(L, "__index", 7)      # mt tm
-            top = lua.lua_gettop(L)
-            if not self._get_from_table(top - 1, top):      # mt[tm]
-                return 0                              #
-            if lua.lua_isnil(L, -1):
-                return 1                              # nil
-        else:
-            if not lua.lua_getmetatable(L, table):    # mt?
-                lua.lua_pushnil(L)                    # nil
-                return 1
-            lua.lua_pushlstring(L, "__index", 7)      # mt tm
-            top = lua.lua_gettop(L)
-            if not self._get_from_table(top - 1, top):      # mt[tm]
-                return 0                              #
-            if lua.lua_isnil(L, -1):
-                return 0                              # nil
-
-        if lua.lua_type(L, -1) == lua.LUA_TFUNCTION:
-            lua.lua_pushvalue(L, table)               # h tbl
-            lua.lua_pushvalue(L, key)                 # h tbl key
-            if lua.lua_pcall(L, 2, 1, 0):             # h(tbl, key)
-                lua.lua_pop(L, 1)                     # err
-                return 0                              #
-            return 1                                  # val
-        else:
-            lua.lua_pushvalue(L, key)                 # h key
-            top = lua.lua_gettop(L)
-            return self._get_from_table(top - 1, top)       # h[key]
 
     @cython.final
     cdef _getitem(self, name, bint is_attr_access):
@@ -734,8 +693,7 @@ cdef class _LuaObject:
                     "item/attribute access not supported on functions")
             # table[nil] fails, so map None -> python.none for Lua tables
             py_to_lua(self._runtime, L, name, wrap_none=lua_type == lua.LUA_TTABLE)
-            if not self._get_from_table(old_top + 1, old_top + 2):
-                raise LuaError("table field access error")
+            luaP_gettable(self._runtime, L, -2)
             return py_from_lua(self._runtime, L, -1)
         finally:
             lua.lua_settop(L, old_top)
@@ -1959,3 +1917,35 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
         luaL_setfuncs(L, l, nup)
     else:
         lua.lua_pop(L, nup)
+
+
+# protected calls for manipulating the Lua stack in Python
+
+cdef int luaP_gettable_aux(lua_State* L) nogil:
+    lua.lua_pushvalue(L, lua.lua_upvalueindex(1))  # key
+    lua.lua_gettable(L, lua.lua_upvalueindex(2))   # tbl[key]
+    return 1
+
+
+cdef luaP_gettable(LuaRuntime runtime, lua_State* L, int t):
+    """Protected call to ``lua_gettable``
+
+    Pushes onto the stack the value ``tbl[key]``, where
+    ``tbl`` is the value at the given valid index ``t`` and
+    ``key`` is the value at the top of the stack.
+
+    On failure, an error is raised.
+    """
+    cdef int result
+    if not lua.lua_checkstack(L, 1):
+        raise MemoryError()
+                                                   # key
+    lua.lua_pushvalue(L, t)                        # key tbl
+    lua.lua_pushcclosure(L, luaP_gettable_aux, 2)  # aux
+    result = lua.lua_pcall(L, 0, 1, 0)
+    if result:
+        try:                                       # err
+            raise_lua_error(runtime, L, result)
+        finally:
+            lua.lua_pop(L, 1)                      #
+                                                   # tbl[key]
