@@ -685,18 +685,17 @@ cdef class _LuaObject:
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
-            self.push_lua_object(L)
+            lua.lua_pushcfunction(L, luaP_gettable)                                  # gettable
+            self.push_lua_object(L)                                                  # gettable obj
             lua_type = lua.lua_type(L, -1)
             if lua_type == lua.LUA_TFUNCTION or lua_type == lua.LUA_TTHREAD:
-                lua.lua_pop(L, 1)
                 raise (AttributeError if is_attr_access else TypeError)(
                     "item/attribute access not supported on functions")
             # table[nil] fails, so map None -> python.none for Lua tables
-            py_to_lua(self._runtime, L, name, wrap_none=lua_type == lua.LUA_TTABLE)
-            luaP_gettable(self._runtime, L, -2)
-            return py_from_lua(self._runtime, L, -1)
+            py_to_lua(self._runtime, L, name, wrap_none=(lua_type==lua.LUA_TTABLE))  # gettable obj key
+            return execute_lua_call(self._runtime, L, 2)                             # obj[key]
         finally:
-            lua.lua_settop(L, old_top)
+            lua.lua_settop(L, old_top)                                               #
             unlock_runtime(self._runtime)
 
 
@@ -1921,31 +1920,11 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
 
 # protected calls for manipulating the Lua stack in Python
 
-cdef int luaP_gettable_aux(lua_State* L) nogil:
-    lua.lua_pushvalue(L, lua.lua_upvalueindex(1))  # key
-    lua.lua_gettable(L, lua.lua_upvalueindex(2))   # tbl[key]
-    return 1
-
-
-cdef luaP_gettable(LuaRuntime runtime, lua_State* L, int t):
+cdef int luaP_gettable(lua_State* L) nogil:
     """Protected call to ``lua_gettable``
-
-    Pushes onto the stack the value ``tbl[key]``, where
-    ``tbl`` is the value at the given valid index ``t`` and
-    ``key`` is the value at the top of the stack.
-
-    On failure, an error is raised.
+    Equivalent to function(tbl, key) return tbl[key] end
     """
-    cdef int result
-    if not lua.lua_checkstack(L, 1):
-        raise MemoryError()
-                                                   # key
-    lua.lua_pushvalue(L, t)                        # key tbl
-    lua.lua_pushcclosure(L, luaP_gettable_aux, 2)  # aux
-    result = lua.lua_pcall(L, 0, 1, 0)
-    if result:
-        try:                                       # err
-            raise_lua_error(runtime, L, result)
-        finally:
-            lua.lua_pop(L, 1)                      #
-                                                   # tbl[key]
+                            # tbl key [...]
+    lua.lua_settop(L, 2)    # tbl key
+    lua.lua_gettable(L, 1)  # tbl tbl[key]
+    return 1
