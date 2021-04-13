@@ -1,2 +1,2 @@
-Cython>=0.29.3
+Cython>=0.29.22
 setuptools
