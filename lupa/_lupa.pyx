@@ -672,7 +672,7 @@ cdef class _LuaObject:
         return self._getitem(index_or_name, is_attr_access=False)
 
     @cython.final
-    cdef int _gettable(self, int table, int key):
+    cdef int _get_from_table(self, int table, int key):
         cdef lua_State* L = self._state
         cdef int top
         lua.lua_pushvalue(L, key)                     # key
@@ -686,7 +686,7 @@ cdef class _LuaObject:
                 return 1
             lua.lua_pushlstring(L, "__index", 7)      # mt tm
             top = lua.lua_gettop(L)
-            if not self._gettable(top - 1, top):      # mt[tm]
+            if not self._get_from_table(top - 1, top):      # mt[tm]
                 return 0                              #
             if lua.lua_isnil(L, -1):
                 return 1                              # nil
@@ -696,10 +696,11 @@ cdef class _LuaObject:
                 return 1
             lua.lua_pushlstring(L, "__index", 7)      # mt tm
             top = lua.lua_gettop(L)
-            if not self._gettable(top - 1, top):      # mt[tm]
+            if not self._get_from_table(top - 1, top):      # mt[tm]
                 return 0                              #
             if lua.lua_isnil(L, -1):
                 return 0                              # nil
+
         if lua.lua_type(L, -1) == lua.LUA_TFUNCTION:
             lua.lua_pushvalue(L, table)               # h tbl
             lua.lua_pushvalue(L, key)                 # h tbl key
@@ -710,7 +711,7 @@ cdef class _LuaObject:
         else:
             lua.lua_pushvalue(L, key)                 # h key
             top = lua.lua_gettop(L)
-            return self._gettable(top - 1, top)       # h[key]
+            return self._get_from_table(top - 1, top)       # h[key]
 
     @cython.final
     cdef _getitem(self, name, bint is_attr_access):
@@ -726,7 +727,7 @@ cdef class _LuaObject:
                     "item/attribute access not supported on functions")
             # table[nil] fails, so map None -> python.none for Lua tables
             py_to_lua(self._runtime, L, name, wrap_none=lua_type == lua.LUA_TTABLE)
-            if not self._gettable(old_top + 1, old_top + 2):
+            if not self._get_from_table(old_top + 1, old_top + 2):
                 raise LuaError("table field access error")
             return py_from_lua(self._runtime, L, -1)
         finally:
