@@ -1268,15 +1268,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
     elif type(o) is float:
         lua.lua_pushnumber(L, <lua.lua_Number>cpython.float.PyFloat_AS_DOUBLE(o))
         pushed_values_count = 1
-    elif isinstance(o, long):
-        try:
-            lua.lua_pushinteger(L, <lua.lua_Integer>o)
-            pushed_values_count = 1
-        except OverflowError:
-            pushed_values_count = py_to_lua_handle_overflow(runtime, L, o)
-            if pushed_values_count <= 0:
-                raise
-    elif IS_PY2 and isinstance(o, int):
+    elif isinstance(o, (long, int)):
         try:
             lua.lua_pushinteger(L, <lua.lua_Integer>o)
             pushed_values_count = 1
