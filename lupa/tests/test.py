@@ -2621,10 +2621,133 @@ class TestErrorStackTrace(unittest.TestCase):
 
 
 ################################################################################
+# tests for handling overflow
+
+class TestOverflowMixin(SetupLuaRuntimeMixin):
+    maxinteger = sys.maxsize            # maximum value for C Py_ssize_t
+    biginteger = (maxinteger + 1) << 1  # value too big to fit in C size_t
+    maxfloat = sys.float_info.max       # maximum value for Python float
+    bigfloat = int(maxfloat) * 2        # value too big to fit in Python float
+
+    assert biginteger <= maxfloat
+
+    def setUp(self):
+        super(TestOverflowMixin, self).setUp()
+        self.lua_type = self.lua.eval('type')
+        self.lua_math_type = self.lua.eval('math.type')
+
+    def tearDown(self):
+        self.lua_type = None
+        self.lua_math_type = None
+        super(TestOverflowMixin, self).tearDown()
+
+    def test_no_overflow(self):
+        self.assertMathType(0, 'integer')
+        self.assertMathType(10, 'integer')
+        self.assertMathType(-10, 'integer')
+        self.assertMathType(self.maxinteger, 'integer')
+        self.assertMathType(-self.maxinteger, 'integer')
+        self.assertMathType(0.0, 'float')
+        self.assertMathType(-0.0, 'float')
+        self.assertMathType(10.0, 'float')
+        self.assertMathType(-10.0, 'float')
+        self.assertMathType(3.14, 'float')
+        self.assertMathType(-3.14, 'float')
+        self.assertMathType(self.maxfloat, 'float')
+        self.assertMathType(-self.maxfloat, 'float')
+
+    def assertMathType(self, number, math_type):
+        self.assertEqual(self.lua_type(number), 'number')
+        if self.lua_math_type is not None:
+            self.assertEqual(self.lua_math_type(number), math_type)
+
+
+class TestOverflowWithoutHandler(TestOverflowMixin, unittest.TestCase):
+    lua_runtime_kwargs = dict(overflow_handler=None)
+
+    def test_overflow(self):
+        self.assertRaises(OverflowError, self.assertMathType, self.biginteger, 'integer')
+        self.assertRaises(OverflowError, self.assertMathType, int(self.maxfloat), 'integer')
+        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'integer')
+
+
+class TestOverflowWithFloatHandler(TestOverflowMixin, unittest.TestCase):
+    lua_runtime_kwargs = dict(overflow_handler=float)
+
+    def test_overflow(self):
+        self.assertMathType(self.biginteger, 'float')
+        self.assertMathType(int(self.maxfloat), 'float')
+        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
+
+
+class TestOverflowWithObjectHandler(TestOverflowMixin, unittest.TestCase):
+    def test_overflow(self):
+        self.lua.execute('python.set_overflow_handler(function(o) return o end)')
+        self.assertEqual(self.lua.eval('type')(int(self.maxfloat)), 'userdata')
+
+
+class TestFloatOverflowHandlerInLua(TestOverflowMixin, unittest.TestCase):
+    def test_overflow(self):
+        self.lua.execute('python.set_overflow_handler(python.builtins.float)')
+        self.assertMathType(self.biginteger, 'float')
+        self.assertMathType(int(self.maxfloat), 'float')
+        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
+
+
+class TestBadOverflowHandlerInPython(unittest.TestCase):
+    def test_error(self):
+        self.assertRaises(ValueError, lupa.LuaRuntime, overflow_handler=123)
+
+
+class TestBadOverflowHandlerInLua(SetupLuaRuntimeMixin, unittest.TestCase):
+    def _test_set_overflow_handler(self, overflow_handler_code):
+        self.assertRaises(lupa.LuaError, self.lua.execute, 'python.set_overflow_handler(%s)' % overflow_handler_code)
+
+    def test_number(self):
+        self._test_set_overflow_handler('123')
+
+    def test_table(self):
+        self._test_set_overflow_handler('{}')
+
+    def test_boolean(self):
+        self._test_set_overflow_handler('true')
+        self._test_set_overflow_handler('false')
+
+    def test_string(self):
+        self._test_set_overflow_handler('"abc"')
+
+    def test_thread(self):
+        self._test_set_overflow_handler('coroutine.create(function() end)')
+
+
+class TestOverflowHandlerOverwrite(TestOverflowMixin, unittest.TestCase):
+    lua_runtime_kwargs = dict(overflow_handler=float)
+
+    def test_overwrite_in_lua(self):
+        self.lua.execute('python.set_overflow_handler(nil)')
+        self.assertRaises(OverflowError, self.assertMathType, self.biginteger, 'integer')
+        self.assertRaises(OverflowError, self.assertMathType, int(self.maxfloat), 'integer')
+        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'integer')
+        self.lua.set_overflow_handler(float)
+        self.assertMathType(self.biginteger, 'float')
+        self.assertMathType(int(self.maxfloat), 'float')
+        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
+
+    def test_overwrite_in_python(self):
+        self.lua.set_overflow_handler(None)
+        self.assertRaises(OverflowError, self.assertMathType, self.biginteger, 'integer')
+        self.assertRaises(OverflowError, self.assertMathType, int(self.maxfloat), 'integer')
+        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'integer')
+        self.lua.execute('python.set_overflow_handler(function(o) return python.builtins.float(o) end)')
+        self.assertMathType(self.biginteger, 'float')
+        self.assertMathType(int(self.maxfloat), 'float')
+        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
+
+
+################################################################################
 # tests for missing reference
 
 class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
-
     def setUp(self):
         super(TestMissingReference, self).setUp()
         self.testmissingref = self.lua.eval('''

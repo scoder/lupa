@@ -63,6 +63,7 @@ except ImportError:
     import builtins
 
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
+DEF LUPAOFH = b"LUPA_NUMBER_OVERFLOW_CALLBACK_FUNCTION"
 DEF PYREFST = b"LUPA_PYTHON_REFERENCES_TABLE"
 
 cdef extern from *:
@@ -187,6 +188,14 @@ cdef class LuaRuntime:
       gives the former.
       (default: False, new in Lupa 0.21)
 
+    * ``overflow_handler``: function for handling Python integers overflowing
+      Lua integers. Must have the signature ``func(obj)``. If provided, the
+      function will be called when a Python integer (possibly of arbitrary
+      precision type) is too large to fit in a fixed-precision Lua integer.
+      Normally, it should return the now well-behaved object that can be
+      converted/wrapped to a Lua type. If the object cannot be precisely
+      represented in Lua, it should raise an ``OverflowError``.
+
     Example usage::
 
       >>> from lupa import LuaRuntime
@@ -215,7 +224,7 @@ cdef class LuaRuntime:
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
-                  bint register_builtins=True):
+                  bint register_builtins=True, overflow_handler=None):
         cdef lua_State* L = lua.luaL_newstate()
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
@@ -249,6 +258,8 @@ cdef class LuaRuntime:
         self.init_python_lib(register_eval, register_builtins)
         lua.lua_settop(L, 0)
         lua.lua_atpanic(L, <lua.lua_CFunction>1)
+
+        self.set_overflow_handler(overflow_handler)
 
     def __dealloc__(self):
         if self._state is not NULL:
@@ -424,17 +435,33 @@ cdef class LuaRuntime:
             lua.lua_settop(L, old_top)
             unlock_runtime(self)
 
+    def set_overflow_handler(self, overflow_handler):
+        """Set the overflow handler function that is called on failures to pass large numbers to Lua.
+        """
+        cdef lua_State *L = self._state
+
+        if overflow_handler is not None and not callable(overflow_handler):
+            raise ValueError("overflow_handler must be callable")
+        
+        lua.lua_pushlstring(L, LUPAOFH, len(LUPAOFH))
+
+        if not py_to_lua(self, L, overflow_handler):
+            lua.lua_pop(L, 1)
+            raise LuaError("failed to convert overflow_handler")
+        
+        lua.lua_rawset(L, lua.LUA_REGISTRYINDEX)
+
     @cython.final
     cdef int register_py_object(self, bytes cname, bytes pyname, object obj) except -1:
-        cdef lua_State *L = self._state
-        lua.lua_pushlstring(L, cname, len(cname))
-        if not py_to_lua_custom(self, L, obj, 0):
+        cdef lua_State *L = self._state             # tbl
+        lua.lua_pushlstring(L, cname, len(cname))   # tbl cname
+        if not py_to_lua_custom(self, L, obj, 0):   # tbl cname obj
             lua.lua_pop(L, 1)
             raise LuaError("failed to convert %s object" % pyname)
-        lua.lua_pushlstring(L, pyname, len(pyname))
-        lua.lua_pushvalue(L, -2)
-        lua.lua_rawset(L, -5)
-        lua.lua_rawset(L, lua.LUA_REGISTRYINDEX)
+        lua.lua_pushlstring(L, pyname, len(pyname)) # tbl cname obj pyname
+        lua.lua_pushvalue(L, -2)                    # tbl cname obj pyname obj
+        lua.lua_rawset(L, -5)                       # tbl cname obj
+        lua.lua_rawset(L, lua.LUA_REGISTRYINDEX)    # tbl
         return 0
 
     @cython.final
@@ -1138,17 +1165,25 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     cdef size_t size = 0
     cdef const char *s
     cdef lua.lua_Number number
+    cdef lua.lua_Integer integer
     cdef py_object* py_obj
     cdef int lua_type = lua.lua_type(L, n)
 
     if lua_type == lua.LUA_TNIL:
         return None
     elif lua_type == lua.LUA_TNUMBER:
-        number = lua.lua_tonumber(L, n)
-        if number != <long>number:
-            return <double>number
+        if lua.LUA_VERSION_NUM >= 503:
+            if lua.lua_isinteger(L, n):
+                return lua.lua_tointeger(L, n)
+            else:
+                return lua.lua_tonumber(L, n)
         else:
-            return <long>number
+            number = lua.lua_tonumber(L, n)
+            integer = <lua.lua_Integer>number
+            if number == integer:
+                return integer
+            else:
+                return number
     elif lua_type == lua.LUA_TSTRING:
         s = lua.lua_tolstring(L, n, &size)
         if runtime._encoding is not None:
@@ -1197,6 +1232,23 @@ cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) e
          return len(<tuple>o)
      return py_to_lua(runtime, L, o)
 
+cdef int py_to_lua_handle_overflow(LuaRuntime runtime, lua_State *L, object o) except -1:
+    cdef int nargs
+
+    lua.lua_pushlstring(L, LUPAOFH, len(LUPAOFH))
+    lua.lua_rawget(L, lua.LUA_REGISTRYINDEX)
+    if lua.lua_isnil(L, -1):
+        lua.lua_pop(L, 1)
+        return 0
+    nargs = py_to_lua_custom(runtime, L, o, 0)
+    if nargs <= 0:
+        lua.lua_pop(L, 1)
+        return 0
+    if lua.lua_pcall(L, nargs, 1, 0):
+        lua.lua_pop(L, 1)
+        return 0
+    return 1
+
 cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False) except -1:
     cdef int pushed_values_count = 0
     cdef int type_flags = 0
@@ -1220,12 +1272,14 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
     elif type(o) is float:
         lua.lua_pushnumber(L, <lua.lua_Number>cpython.float.PyFloat_AS_DOUBLE(o))
         pushed_values_count = 1
-    elif isinstance(o, long):
-        lua.lua_pushnumber(L, <lua.lua_Number>cpython.long.PyLong_AsDouble(o))
-        pushed_values_count = 1
-    elif IS_PY2 and isinstance(o, int):
-        lua.lua_pushnumber(L, <lua.lua_Number><long>o)
-        pushed_values_count = 1
+    elif isinstance(o, (long, int)):
+        try:
+            lua.lua_pushinteger(L, <lua.lua_Integer>o)
+            pushed_values_count = 1
+        except OverflowError:
+            pushed_values_count = py_to_lua_handle_overflow(runtime, L, o)
+            if pushed_values_count <= 0:
+                raise
     elif isinstance(o, bytes):
         lua.lua_pushlstring(L, <char*>(<bytes>o), len(<bytes>o))
         pushed_values_count = 1
@@ -1836,15 +1890,28 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
         try: runtime.store_raised_exception(L, b'error while calling next(iterator)')
         finally: return -1
 
+# overflow handler setter
+
+cdef int py_set_overflow_handler(lua_State* L) nogil:
+    if (not lua.lua_isnil(L, 1)
+            and not lua.lua_isfunction(L, 1)
+            and not unpack_python_argument_or_jump(L, 1)):
+        return lua.luaL_argerror(L, 1, "expected nil, a Lua function or a callable Python object")
+                                                         # hdl [...]
+    lua.lua_settop(L, 1)                                 # hdl
+    lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, LUPAOFH)  #
+    return 0
+
 # 'python' module functions in Lua
 
 cdef lua.luaL_Reg *py_lib = [
-    lua.luaL_Reg(name = "as_attrgetter", func = <lua.lua_CFunction> py_as_attrgetter),
-    lua.luaL_Reg(name = "as_itemgetter", func = <lua.lua_CFunction> py_as_itemgetter),
-    lua.luaL_Reg(name = "as_function",   func = <lua.lua_CFunction> py_as_function),
-    lua.luaL_Reg(name = "iter",          func = <lua.lua_CFunction> py_iter),
-    lua.luaL_Reg(name = "iterex",        func = <lua.lua_CFunction> py_iterex),
-    lua.luaL_Reg(name = "enumerate",     func = <lua.lua_CFunction> py_enumerate),
+    lua.luaL_Reg(name = "as_attrgetter",        func = <lua.lua_CFunction> py_as_attrgetter),
+    lua.luaL_Reg(name = "as_itemgetter",        func = <lua.lua_CFunction> py_as_itemgetter),
+    lua.luaL_Reg(name = "as_function",          func = <lua.lua_CFunction> py_as_function),
+    lua.luaL_Reg(name = "iter",                 func = <lua.lua_CFunction> py_iter),
+    lua.luaL_Reg(name = "iterex",               func = <lua.lua_CFunction> py_iterex),
+    lua.luaL_Reg(name = "enumerate",            func = <lua.lua_CFunction> py_enumerate),
+    lua.luaL_Reg(name = "set_overflow_handler", func = <lua.lua_CFunction> py_set_overflow_handler),
     lua.luaL_Reg(name = NULL, func = NULL),
 ]
 
