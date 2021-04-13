@@ -1231,19 +1231,17 @@ cdef int py_to_lua_handle_overflow(LuaRuntime runtime, lua_State *L, object o) e
 
     lua.lua_pushlstring(L, LUPAOFH, len(LUPAOFH))
     lua.lua_rawget(L, lua.LUA_REGISTRYINDEX)
-    if not lua.lua_isnil(L, -1):
-        nargs = py_to_lua_custom(runtime, L, o, 0)
-        if nargs <= 0:
-            lua.lua_pop(L, 1)
-            return 0
-        if lua.lua_pcall(L, nargs, 1, 0):
-            lua.lua_pop(L, 1)
-            return 0
-        else:
-            return 1
-    else:
+    if lua.lua_isnil(L, -1):
         lua.lua_pop(L, 1)
         return 0
+    nargs = py_to_lua_custom(runtime, L, o, 0)
+    if nargs <= 0:
+        lua.lua_pop(L, 1)
+        return 0
+    if lua.lua_pcall(L, nargs, 1, 0):
+        lua.lua_pop(L, 1)
+        return 0
+    return 1
 
 cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False) except -1:
     cdef int pushed_values_count = 0
@@ -1889,10 +1887,10 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
 # overflow handler setter
 
 cdef int py_set_overflow_handler(lua_State* L) nogil:
-    if not lua.lua_isnil(L, 1) and \
-       not lua.lua_isfunction(L, 1) and \
-       not unpack_python_argument_or_jump(L, 1):
-        return lua.luaL_argerror(L, 1, "expected nil, function or Python object")
+    if (not lua.lua_isnil(L, 1)
+            and not lua.lua_isfunction(L, 1)
+            and not unpack_python_argument_or_jump(L, 1)):
+        return lua.luaL_argerror(L, 1, "expected nil, a Lua function or a callable Python object")
                                                          # hdl [...]
     lua.lua_settop(L, 1)                                 # hdl
     lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, LUPAOFH)  #

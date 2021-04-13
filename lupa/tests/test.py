@@ -2661,6 +2661,7 @@ class TestOverflowMixin(SetupLuaRuntimeMixin):
         if self.lua_math_type is not None:
             self.assertEqual(self.lua_math_type(number), math_type)
 
+
 class TestOverflowWithoutHandler(TestOverflowMixin, unittest.TestCase):
     lua_runtime_kwargs = dict(overflow_handler=None)
 
@@ -2668,6 +2669,7 @@ class TestOverflowWithoutHandler(TestOverflowMixin, unittest.TestCase):
         self.assertRaises(OverflowError, self.assertMathType, self.biginteger, 'integer')
         self.assertRaises(OverflowError, self.assertMathType, int(self.maxfloat), 'integer')
         self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'integer')
+
 
 class TestOverflowWithFloatHandler(TestOverflowMixin, unittest.TestCase):
     lua_runtime_kwargs = dict(overflow_handler=float)
@@ -2677,10 +2679,12 @@ class TestOverflowWithFloatHandler(TestOverflowMixin, unittest.TestCase):
         self.assertMathType(int(self.maxfloat), 'float')
         self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
 
+
 class TestOverflowWithObjectHandler(TestOverflowMixin, unittest.TestCase):
     def test_overflow(self):
         self.lua.execute('python.set_overflow_handler(function(o) return o end)')
         self.assertEqual(self.lua.eval('type')(int(self.maxfloat)), 'userdata')
+
 
 class TestFloatOverflowHandlerInLua(TestOverflowMixin, unittest.TestCase):
     def test_overflow(self):
@@ -2689,9 +2693,11 @@ class TestFloatOverflowHandlerInLua(TestOverflowMixin, unittest.TestCase):
         self.assertMathType(int(self.maxfloat), 'float')
         self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
 
+
 class TestBadOverflowHandlerInPython(unittest.TestCase):
     def test_error(self):
         self.assertRaises(ValueError, lupa.LuaRuntime, overflow_handler=123)
+
 
 class TestBadOverflowHandlerInLua(SetupLuaRuntimeMixin, unittest.TestCase):
     def _test_set_overflow_handler(self, overflow_handler_code):
@@ -2712,6 +2718,7 @@ class TestBadOverflowHandlerInLua(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_thread(self):
         self._test_set_overflow_handler('coroutine.create(function() end)')
+
 
 class TestOverflowHandlerOverwrite(TestOverflowMixin, unittest.TestCase):
     lua_runtime_kwargs = dict(overflow_handler=float)
