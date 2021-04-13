@@ -16,7 +16,6 @@ cimport cpython.ref
 cimport cpython.tuple
 cimport cpython.float
 cimport cpython.long
-from cpython.pyport cimport PY_SSIZE_T_MAX
 from cpython.ref cimport PyObject
 from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
@@ -38,6 +37,7 @@ cdef extern from *:
     #endif
     """
     ctypedef size_t uintptr_t
+    cdef Py_ssize_t PY_SSIZE_T_MAX
 
 cdef object exc_info
 from sys import exc_info
