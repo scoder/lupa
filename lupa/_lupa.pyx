@@ -37,6 +37,7 @@ cdef extern from *:
     #endif
     """
     ctypedef size_t uintptr_t
+    cdef Py_ssize_t PY_SSIZE_T_MAX
 
 cdef object exc_info, exit
 from sys import exc_info, exit
@@ -96,6 +97,11 @@ class LuaError(Exception):
 
 class LuaSyntaxError(LuaError):
     """Syntax error in Lua code.
+    """
+
+
+class LuaMemoryError(LuaError):
+    """Memory error in Lua code.
     """
 
 
@@ -246,7 +252,7 @@ cdef class LuaRuntime:
 
         lua.luaL_openlibs(L)
         self.init_python_lib(register_eval, register_builtins)
-        lua.lua_atpanic(L, panic)
+        lua.lua_atpanic(L, <lua.lua_CFunction>1)
 
     def __dealloc__(self):
         if self._state is not NULL:
@@ -513,6 +519,88 @@ def unpacks_lua_table_method(meth):
     return wrapper
 
 
+cdef void check_lua_stack(lua_State* L, int extra):
+    """Wrapper around lua_checkstack
+    On failure, a LuaMemoryError is raised
+    """
+    if not lua.lua_checkstack(L, extra):
+        raise LuaMemoryError("could not ensure %d free extra slots"
+                             " in the Lua stack" % (extra, ))
+
+
+cdef int get_object_length_aux(lua_State* L) nogil:
+    cdef size_t length = lua.lua_objlen(L, lua.lua_upvalueindex(1))
+    lua.lua_pushlightuserdata(L, <void*>length)
+    return 1
+
+
+cdef Py_ssize_t get_object_length(LuaRuntime runtime, lua_State* L, int index):
+    """Obtains the length of the object at the given valid index
+    If Lua raises an error, a LuaError is raised
+    If the object length doesn't fit Py_ssize_t, an OverflowError is raised
+    """
+    cdef int result
+    cdef size_t length
+    check_lua_stack(L, 1)
+    lua.lua_pushvalue(L, index)                        # index
+    lua.lua_pushcclosure(L, get_object_length_aux, 1)  # closure
+    result = lua.lua_pcall(L, 0, 1, 0)
+    if result:
+                                                       # err
+        raise_lua_error(runtime, L, result)            #
+                                                       # length
+    length = <size_t>lua.lua_touserdata(L, -1)
+    lua.lua_pop(L, 1)                                  #
+    if length > <size_t> PY_SSIZE_T_MAX:
+        raise OverflowError(f"Size too large to represent: {length}")
+    return length
+
+
+cdef tuple unpack_lua_table(LuaRuntime runtime):
+    """Unpacks table at the top of the stack into
+        - a tuple of positional arguments
+        - a dictionary of keyword arguments
+    """
+    assert runtime is not None
+    cdef tuple args
+    cdef dict kwargs = {}
+    cdef bytes source_encoding = runtime._source_encoding
+    cdef int old_top
+    cdef Py_ssize_t index, length
+    cdef lua_State* L = runtime._state
+    check_lua_stack(L, 2)
+    lock_runtime(runtime)
+    old_top = lua.lua_gettop(L)
+    try:
+        length = get_object_length(runtime, L, -1)
+        args = cpython.tuple.PyTuple_New(length)
+        lua.lua_pushnil(L)            # nil (first key)
+        while lua.lua_next(L, -2):
+                                      # key value
+            key = py_from_lua(runtime, L, -2)
+            value = py_from_lua(runtime, L, -1)
+            if isinstance(key, (int, long)) and not isinstance(key, bool):
+                index = <Py_ssize_t>key
+                if index < 1 or index > length:
+                    raise IndexError("table index out of range")
+                cpython.ref.Py_INCREF(value)
+                cpython.tuple.PyTuple_SET_ITEM(args, index-1, value)
+            elif isinstance(key, bytes):
+                if IS_PY2:
+                    kwargs[key] = value
+                else:
+                    kwargs[(<bytes>key).decode(source_encoding)] = value
+            elif isinstance(key, unicode):
+                kwargs[key] = value
+            else:
+                raise TypeError("table key is neither an integer nor a string")
+            lua.lua_pop(L, 1)         # key
+    finally:
+        lua.lua_settop(L, old_top)
+        unlock_runtime(runtime)
+    return args, kwargs
+
+
 cdef tuple _fix_args_kwargs(tuple args):
     """
     Extract named arguments from args passed to a Python function by Lua
@@ -526,7 +614,9 @@ cdef tuple _fix_args_kwargs(tuple args):
     if not isinstance(arg, _LuaTable):
         return args, {}
 
-    return (<_LuaTable>arg)._unpack()
+    cdef _LuaTable table = <_LuaTable>arg
+    table.push_lua_object(table._state)
+    return unpack_lua_table(table._runtime)
 
 
 ################################################################################
@@ -613,14 +703,14 @@ cdef class _LuaObject:
         return self._len()
 
     @cython.final
-    cdef size_t _len(self):
+    cdef Py_ssize_t _len(self):
         assert self._runtime is not None
         cdef lua_State* L = self._state
         lock_runtime(self._runtime)
         size = 0
         try:
             self.push_lua_object(L)
-            size = lua.lua_objlen(L, -1)
+            size = get_object_length(self._runtime, L, -1)
             lua.lua_pop(L, 1)
         finally:
             unlock_runtime(self._runtime)
@@ -830,41 +920,6 @@ cdef class _LuaTable(_LuaObject):
         finally:
             lua.lua_settop(L, old_top)
             unlock_runtime(self._runtime)
-
-    @cython.final
-    cdef tuple _unpack(self):
-        """Unpacks table into a tuple of positional arguments
-        and a dictionary of keyword arguments
-        """
-        assert self._runtime is not None
-        cdef tuple args
-        cdef dict kwargs = {}
-        cdef bytes encoding
-        cdef Py_ssize_t index, length
-        lock_runtime(self._runtime)
-        try:
-            encoding = self._runtime._source_encoding
-            length = <Py_ssize_t>self._len()
-            args = cpython.tuple.PyTuple_New(length)
-            for key, value in self.items():
-                if isinstance(key, (int, long)) and not isinstance(key, bool):
-                    index = <Py_ssize_t>key
-                    if index < 1 or index > length:
-                        raise IndexError("table index out of range")
-                    cpython.ref.Py_INCREF(value)
-                    cpython.tuple.PyTuple_SET_ITEM(args, index-1, value)
-                elif isinstance(key, bytes):
-                    if IS_PY2:
-                        kwargs[key] = value
-                    else:
-                        kwargs[(<bytes>key).decode(encoding)] = value
-                elif isinstance(key, unicode):
-                    kwargs[key] = value
-                else:
-                    raise TypeError("table key is neither an integer nor a string")
-        finally:
-            unlock_runtime(self._runtime)
-        return args, kwargs
 
 
 cdef _LuaTable new_lua_table(LuaRuntime runtime, lua_State* L, int n):
@@ -1369,11 +1424,14 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
     if result == 0:
         return 0
     elif result == lua.LUA_ERRMEM:
-        raise MemoryError()
+        raise LuaMemoryError()
     else:
-        raise LuaError( build_lua_error_message(runtime, L, None, -1) )
+        raise LuaError(build_lua_error_message(runtime, L, None, -1))
 
 cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message, int n):
+    """Removes the string at the given stack index ``n`` to build an error message
+    which can be composed in a format given by err_message
+    """
     cdef size_t size = 0
     cdef const char *s = lua.lua_tolstring(L, n, &size)
     if runtime._encoding is not None:
@@ -1383,6 +1441,7 @@ cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_messa
             py_ustring = s[:size].decode('ISO-8859-1') # safe 'fake' decoding
     else:
         py_ustring = s[:size].decode('ISO-8859-1')
+    lua.lua_remove(L, n)
     if err_message is None:
         return py_ustring
     else:
@@ -1534,7 +1593,7 @@ cdef int py_object_gc(lua_State* L) nogil:
 cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) except -1:
     # Callers must assure that py_obj.obj is not NULL, i.e. it points to a valid Python object.
     cdef int i, nargs = lua.lua_gettop(L) - 1
-    cdef list args
+    cdef tuple args
     cdef dict kwargs
 
     f = <object>py_obj.obj
@@ -1543,7 +1602,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
         lua.lua_settop(L, 0)  # FIXME
         result = f()
     else:
-        args = []
+        args = ()
         kwargs = {}
         
         for i in range(nargs):
@@ -1552,9 +1611,9 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
                 args += (<_PyArguments>arg).args
                 kwargs = dict(**kwargs, **(<_PyArguments>arg).kwargs)
             else:
-                args.append(arg)
+                args += (arg, )
 
-        if len(args) > 0 and PyMethod_Check(f) and (<PyObject*>args[0]) is PyMethod_GET_SELF(f):
+        if args and PyMethod_Check(f) and (<PyObject*>args[0]) is PyMethod_GET_SELF(f):
             # Calling a bound method and self is already the first argument.
             # Lua x:m(a, b) => Python as x.m(x, a, b) but should be x.m(a, b)
             #
@@ -1884,12 +1943,13 @@ cdef class _PyArguments:
     cdef tuple args
     cdef dict kwargs
 
-cdef int py_args_with_gil(LuaRuntime runtime, lua_State* L) with gil:
+cdef int py_args_with_gil(PyObject* runtime_obj, lua_State* L) with gil:
     cdef _PyArguments pyargs
+    cdef LuaRuntime runtime
     try:
-        table = new_lua_table(runtime, L, 1)
+        runtime = <LuaRuntime?>runtime_obj
         pyargs = _PyArguments.__new__(_PyArguments)
-        pyargs.args, pyargs.kwargs = table._unpack()
+        pyargs.args, pyargs.kwargs = unpack_lua_table(runtime)
         return py_to_lua_custom(runtime, L, pyargs, 0)
     except:
         try: runtime.store_raised_exception(L, b'error while calling args')
@@ -1901,8 +1961,7 @@ cdef int py_args(lua_State* L) nogil:
     if not runtime:
         return lua.luaL_error(L, "missing runtime")
     lua.luaL_checktype(L, 1, lua.LUA_TTABLE)
-    with gil:
-        result = py_args_with_gil(<LuaRuntime>runtime, L)
+    result = py_args_with_gil(runtime, L)
     if result < 0:
         return lua.lua_error(L) # never returns!
     return result
@@ -1993,9 +2052,5 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
         luaL_setfuncs(L, l, nup)
     else:
         lua.lua_pop(L, nup)
-
-
-cdef int panic(lua_State* L) with gil:
-    exit("Lua panicked and exited")
 
 
