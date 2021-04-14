@@ -2624,7 +2624,7 @@ class TestErrorStackTrace(unittest.TestCase):
 # tests for handling overflow
 
 class TestOverflowMixin(SetupLuaRuntimeMixin):
-    maxinteger = sys.maxsize            # maximum value for C Py_ssize_t
+    maxinteger = sys.maxint if IS_PYTHON2 else sys.maxsize  # maximum value for C Py_ssize_t
     biginteger = (maxinteger + 1) << 1  # value too big to fit in C size_t
     maxfloat = sys.float_info.max       # maximum value for Python float
     bigfloat = int(maxfloat) * 2        # value too big to fit in Python float
