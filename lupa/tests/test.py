@@ -11,7 +11,7 @@ import gc
 
 import lupa
 
-IS_PYTHON3 = sys.version_info[0] >= 3
+IS_PYTHON2 = sys.version_info[0] < 3
 
 try:
     _next = next
@@ -19,7 +19,7 @@ except NameError:
     def _next(o):
         return o.next()
 
-unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
+unicode_type = type('abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
 
 
 class SetupLuaRuntimeMixin(object):
@@ -118,11 +118,11 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         try:
             self.lua.eval('require "UNKNOWNöMODULEäNAME"')
         except lupa.LuaError:
-            error = (IS_PYTHON3 and '%s' or '%s'.decode('ASCII')) % sys.exc_info()[1]
+            error = ('%s'.decode('ASCII') if IS_PYTHON2 else '%s') % sys.exc_info()[1]
         else:
             self.fail('expected error not raised')
         expected_message = 'module \'UNKNOWNöMODULEäNAME\' not found'
-        if not IS_PYTHON3:
+        if IS_PYTHON2:
             expected_message = expected_message.decode('UTF-8')
         self.assertTrue(expected_message in error,
                         '"%s" not found in "%s"' % (expected_message, error))
@@ -1662,7 +1662,7 @@ class TestLuaRuntimeEncoding(unittest.TestCase):
         gc.collect()
 
     test_string = '"abcüöä"'
-    if not IS_PYTHON3:
+    if IS_PYTHON2:
         test_string = test_string.decode('UTF-8')
 
     def _encoding_test(self, encoding, expected_length):
@@ -1923,10 +1923,10 @@ class TestThreading(unittest.TestCase):
         # plausability checks - make sure it's not all white or all black
         self.assertEqual('\0'.encode('ASCII')*(image_size//8//2),
                          result_bytes[:image_size//8//2])
-        if IS_PYTHON3:
-            self.assertTrue('\xFF'.encode('ISO-8859-1') in result_bytes)
-        else:
+        if IS_PYTHON2:
             self.assertTrue('\xFF' in result_bytes)
+        else:
+            self.assertTrue('\xFF'.encode('ISO-8859-1') in result_bytes)
 
         # if we have PIL, check that it can read the image
         ## try:
