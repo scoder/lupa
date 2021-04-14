@@ -38,6 +38,7 @@ cdef extern from *:
     """
     ctypedef size_t uintptr_t
     cdef Py_ssize_t PY_SSIZE_T_MAX
+    cdef long LONG_MIN, LONG_MAX
 
 cdef object exc_info
 from sys import exc_info
@@ -1174,7 +1175,11 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TNUMBER:
         if lua.LUA_VERSION_NUM >= 503:
             if lua.lua_isinteger(L, n):
-                return lua.lua_tointeger(L, n)
+                integer = lua.lua_tointeger(L, n)
+                if IS_PY2 and (sizeof(lua.lua_Integer) <= sizeof(long) or LONG_MIN <= integer <= LONG_MAX):
+                    return <long>integer
+                else:
+                    return integer
             else:
                 return lua.lua_tonumber(L, n)
         else:
