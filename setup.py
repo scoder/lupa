@@ -304,9 +304,11 @@ source_extension = ".c"
 if use_cython:
     try:
         import Cython.Compiler.Version
+        import Cython.Compiler.Errors as CythonErrors
         from Cython.Build import cythonize
         print("building with Cython " + Cython.Compiler.Version.version)
         source_extension = ".pyx"
+        CythonErrors.LEVEL = 0
     except ImportError:
         print("WARNING: trying to build with Cython, but it is not installed")
 else:
