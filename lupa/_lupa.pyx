@@ -678,21 +678,20 @@ cdef class _LuaObject:
     def __getitem__(self, index_or_name):
         return self._getitem(index_or_name, is_attr_access=False)
 
-
     @cython.final
     cdef _getitem(self, name, bint is_attr_access):
         cdef lua_State* L = self._state
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
-            lua.lua_pushcfunction(L, luaP_gettable)                                  # gettable
-            self.push_lua_object(L)                                                  # gettable obj
+            lua.lua_pushcfunction(L, get_from_lua_table)                             # func
+            self.push_lua_object(L)                                                  # func obj
             lua_type = lua.lua_type(L, -1)
             if lua_type == lua.LUA_TFUNCTION or lua_type == lua.LUA_TTHREAD:
                 raise (AttributeError if is_attr_access else TypeError)(
                     "item/attribute access not supported on functions")
             # table[nil] fails, so map None -> python.none for Lua tables
-            py_to_lua(self._runtime, L, name, wrap_none=(lua_type==lua.LUA_TTABLE))  # gettable obj key
+            py_to_lua(self._runtime, L, name, wrap_none=(lua_type==lua.LUA_TTABLE))  # func obj key
             return execute_lua_call(self._runtime, L, 2)                             # obj[key]
         finally:
             lua.lua_settop(L, old_top)                                               #
@@ -1917,12 +1916,11 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
     else:
         lua.lua_pop(L, nup)
 
+# internal Lua functions meant to be called on protected mode
 
-# protected calls for manipulating the Lua stack in Python
-
-cdef int luaP_gettable(lua_State* L) nogil:
-    """Protected call to ``lua_gettable``
-    Equivalent to function(tbl, key) return tbl[key] end
+cdef int get_from_lua_table(lua_State* L) nogil:
+    """Equivalent to the following Lua function:
+    function(t, k) return t[k] end
     """
                             # tbl key [...]
     lua.lua_settop(L, 2)    # tbl key
