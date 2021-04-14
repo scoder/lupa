@@ -1186,7 +1186,10 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
             number = lua.lua_tonumber(L, n)
             integer = <lua.lua_Integer>number
             if number == integer:
-                return integer
+                if IS_PY2 and (sizeof(lua.lua_Integer) <= sizeof(long) or LONG_MIN <= integer <= LONG_MAX):
+                    return <long>integer
+                else:
+                    return integer
             else:
                 return number
     elif lua_type == lua.LUA_TSTRING:
