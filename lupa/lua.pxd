@@ -455,3 +455,16 @@ cdef extern from *:
     """
     int read_lua_version(lua_State *L)
     int lua_isinteger(lua_State *L, int idx)
+
+
+cdef extern from "stdint.h":
+    # Limits for Lua integers
+    """
+    #if LUA_VERSION_NUM < 503
+    #define LUA_MAXINTEGER PTRDIFF_MAX
+    #define LUA_MININTEGER PTRDIFF_MIN
+    #endif
+    """
+    lua_Integer LUA_MAXINTEGER
+    lua_Integer LUA_MININTEGER
+

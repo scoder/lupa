@@ -53,7 +53,8 @@ cdef object wraps
 from functools import wraps
 
 
-__all__ = ['LUA_VERSION', 'LuaRuntime', 'LuaError', 'LuaSyntaxError',
+__all__ = ['LUA_VERSION', 'LUA_MAXINTEGER', 'LUA_MININTEGER',
+            'LuaRuntime', 'LuaError', 'LuaSyntaxError',
            'as_itemgetter', 'as_attrgetter', 'lua_type',
            'unpacks_lua_table', 'unpacks_lua_table_method']
 
@@ -90,6 +91,8 @@ include "lock.pxi"
 
 cdef int _LUA_VERSION = lua.read_lua_version(NULL)
 LUA_VERSION = (_LUA_VERSION // 100, _LUA_VERSION % 100)
+LUA_MININTEGER = lua.LUA_MININTEGER
+LUA_MAXINTEGER = lua.LUA_MAXINTEGER
 
 
 class LuaError(Exception):
