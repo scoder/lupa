@@ -91,7 +91,18 @@ include "lock.pxi"
 
 cdef int _LUA_VERSION = lua.read_lua_version(NULL)
 LUA_VERSION = (_LUA_VERSION // 100, _LUA_VERSION % 100)
-LUA_MININTEGER, LUA_MAXINTEGER = (lua.LUA_MININTEGER, lua.LUA_MAXINTEGER)
+
+cdef extern from *:
+    const int INT_MIN, INT_MAX
+    const long LONG_MIN, LONG_MAX
+    const long long PY_LLONG_MIN, PY_LLONG_MAX
+
+LUA_MININTEGER, LUA_MAXINTEGER = (
+    (lua.LUA_MININTEGER, lua.LUA_MAXINTEGER) if lua.LUA_VERSION_NUM >= 504 else
+    (PY_LLONG_MIN, PY_LLONG_MAX) if sizeof(lua.lua_Integer) >= sizeof(long long) else  # probably not going to be larger
+    (LONG_MIN, LONG_MAX) if sizeof(lua.lua_Integer) == sizeof(long) else
+    (INT_MIN, INT_MAX)  # probably not going to be smaller
+)
 
 
 class LuaError(Exception):
