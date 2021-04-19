@@ -458,7 +458,7 @@ cdef extern from *:
 
 
 cdef extern from *:
-    # Limits for Lua integers (in Lua<5.4: PTRDIFF_MIN, PTRDIFF_MAX)
+    # Limits for Lua integers (in Lua<5.3: PTRDIFF_MIN, PTRDIFF_MAX)
     """
     #if LUA_VERSION_NUM < 503
     #define LUA_MAXINTEGER 0

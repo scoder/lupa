@@ -37,8 +37,10 @@ cdef extern from *:
     #endif
     """
     ctypedef size_t uintptr_t
-    cdef Py_ssize_t PY_SSIZE_T_MAX
-    cdef long LONG_MIN, LONG_MAX
+    cdef const Py_ssize_t PY_SSIZE_T_MAX
+    cdef const int INT_MIN, INT_MAX
+    cdef const long LONG_MIN, LONG_MAX
+    cdef const long long PY_LLONG_MIN, PY_LLONG_MAX
 
 cdef object exc_info
 from sys import exc_info
@@ -91,17 +93,11 @@ include "lock.pxi"
 
 cdef int _LUA_VERSION = lua.read_lua_version(NULL)
 LUA_VERSION = (_LUA_VERSION // 100, _LUA_VERSION % 100)
-
-cdef extern from *:
-    const int INT_MIN, INT_MAX
-    const long LONG_MIN, LONG_MAX
-    const long long PY_LLONG_MIN, PY_LLONG_MAX
-
 LUA_MININTEGER, LUA_MAXINTEGER = (
-    (lua.LUA_MININTEGER, lua.LUA_MAXINTEGER) if lua.LUA_VERSION_NUM >= 504 else
-    (PY_LLONG_MIN, PY_LLONG_MAX) if sizeof(lua.lua_Integer) >= sizeof(long long) else  # probably not going to be larger
-    (LONG_MIN, LONG_MAX) if sizeof(lua.lua_Integer) == sizeof(long) else
-    (INT_MIN, INT_MAX)  # probably not going to be smaller
+    (lua.LUA_MININTEGER, lua.LUA_MAXINTEGER) if lua.LUA_VERSION_NUM >= 503 else
+    (<lua.lua_Integer>PY_LLONG_MIN, <lua.lua_Integer>PY_LLONG_MAX) if sizeof(lua.lua_Integer) >= sizeof(long long) else  # probably not going to be larger
+    (<lua.lua_Integer>LONG_MIN, <lua.lua_Integer>LONG_MAX) if sizeof(lua.lua_Integer) >= sizeof(long) else
+    (<lua.lua_Integer>INT_MIN, <lua.lua_Integer>INT_MAX)  # probably not going to be smaller
 )
 
 
