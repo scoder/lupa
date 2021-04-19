@@ -458,11 +458,24 @@ cdef extern from *:
 
 
 cdef extern from *:
-    # Limits for Lua integers (in Lua<5.4: PTRDIFF_MIN, PTRDIFF_MAX)
+    # Limits for Lua integers (in Lua<5.3: PTRDIFF_MIN, PTRDIFF_MAX)
     """
     #if LUA_VERSION_NUM < 503
-    #define LUA_MAXINTEGER 0
-    #define LUA_MININTEGER 0
+    #   if sizeof(lua_Integer) >= sizeof(long long)
+    #       define LUA_MAXINTEGER PY_LLONG_MAX
+    #       define LUA_MININTEGER PY_LLONG_MIN
+    #   elif sizeof(lua_Integer) >= sizeof(long)
+    #       define LUA_MAXINTEGER LONG_MAX
+    #       define LUA_MININTEGER LONG_MIN
+    #   elif sizeof(lua_Integer) >= sizeof(int)
+    #       define LUA_MAXINTEGER INT_MAX
+    #       define LUA_MININTEGER INT_MIN
+    #   elif sizeof(lua_Integer) >= sizeof(char)
+    #       define LUA_MAXINTEGER CHAR_MAX
+    #       define LUA_MININTEGER CHAR_MIN
+    #   else
+    #       error "lua_Integer can't be smaller than char"
+    #   endif
     #endif
     """
     lua_Integer LUA_MAXINTEGER
