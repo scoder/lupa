@@ -40,8 +40,8 @@ cdef extern from *:
     cdef Py_ssize_t PY_SSIZE_T_MAX
     cdef long LONG_MIN, LONG_MAX
 
-cdef object exc_info, exit
-from sys import exc_info, exit
+cdef object exc_info
+from sys import exc_info
 
 cdef object Mapping
 try:
@@ -547,13 +547,14 @@ def unpacks_lua_table_method(meth):
     return wrapper
 
 
-cdef void check_lua_stack(lua_State* L, int extra):
+cdef int check_lua_stack(lua_State* L, int extra) except -1:
     """Wrapper around lua_checkstack
     On failure, a LuaMemoryError is raised
     """
     if not lua.lua_checkstack(L, extra):
         raise LuaMemoryError("could not ensure %d free extra slots"
                              " in the Lua stack" % (extra, ))
+    return 0
 
 
 cdef int get_object_length_aux(lua_State* L) nogil:
@@ -562,7 +563,7 @@ cdef int get_object_length_aux(lua_State* L) nogil:
     return 1
 
 
-cdef Py_ssize_t get_object_length(LuaRuntime runtime, lua_State* L, int index):
+cdef Py_ssize_t get_object_length(LuaRuntime runtime, lua_State* L, int index) except -1:
     """Obtains the length of the object at the given valid index
     If Lua raises an error, a LuaError is raised
     If the object length doesn't fit Py_ssize_t, an OverflowError is raised
@@ -570,7 +571,7 @@ cdef Py_ssize_t get_object_length(LuaRuntime runtime, lua_State* L, int index):
     cdef int result
     cdef size_t length
     check_lua_stack(L, 1)
-    lua.lua_pushvalue(L, index)                        # index
+    lua.lua_pushvalue(L, index)                        # value
     lua.lua_pushcclosure(L, get_object_length_aux, 1)  # closure
     result = lua.lua_pcall(L, 0, 1, 0)
     if result:
@@ -581,7 +582,7 @@ cdef Py_ssize_t get_object_length(LuaRuntime runtime, lua_State* L, int index):
     lua.lua_pop(L, 1)                                  #
     if length > <size_t> PY_SSIZE_T_MAX:
         raise OverflowError(f"Size too large to represent: {length}")
-    return length
+    return <Py_ssize_t>length
 
 
 cdef tuple unpack_lua_table(LuaRuntime runtime):

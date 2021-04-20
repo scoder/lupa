@@ -21,7 +21,7 @@ except NameError:
 
 unicode_type = type('abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
 
-if sys.version_info[:2] == (2, 7):
+if IS_PYTHON2:
     unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
 
 class SetupLuaRuntimeMixin(object):
