@@ -35,10 +35,10 @@ Major features
 * frees the GIL and supports threading in separate runtimes when
   calling into Lua
 
-* tested with Python 2.6/3.2 and later
+* tested with Python 2.7/3.5 and later
 
 * written for LuaJIT2 (tested with LuaJIT 2.0.2), but also works
-  with the normal Lua interpreter (5.1 and 5.2)
+  with the normal Lua interpreter (5.1 and later)
 
 * easy to hack on and extend as it is written in Cython, not C
 
@@ -927,3 +927,32 @@ following should work on a Linux system:
       >>> posix_module = lua.require('posix')     # doctest: +SKIP
 
 .. _luaposix: http://git.alpinelinux.org/cgit/luaposix
+
+
+Building with different Lua versions
+------------------------------------
+
+The build is configured to automatically search for an installed version
+of first LuaJIT and then Lua, and failing to find either, to use the bundled
+LuaJIT or Lua version.
+
+If you wish to build Lupa with a specific version of Lua, you can
+configure the following options on setup:
+
+.. list-table::
+   :widths: 20 35
+   :header-rows: 1
+
+   * - Option
+     - Description
+   * - ``--lua-lib <libfile>``
+     - Lua library file path, e.g. ``--lua-lib /usr/local/lib/lualib.a``
+   * - ``--lua-includes <incdir>``
+     - Lua include directory, e.g. ``--lua-includes /usr/local/include``
+   * - ``--use-bundle``
+     - Use bundled LuaJIT or Lua instead of searching for an installed version.
+   * - ``--no-bundle``
+     - Don't use the bundled LuaJIT/Lua, search for an installed version of LuaJIT or Lua,
+       e.g. using ``pkg-config``.
+   * - ``--no-lua-jit``
+     - Don't use or search for LuaJIT, only use or search Lua instead.
