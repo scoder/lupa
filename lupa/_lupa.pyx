@@ -744,7 +744,7 @@ cdef class _LuaObject:
                 raise (AttributeError if is_attr_access else TypeError)(
                     "item/attribute access not supported on functions")
             # table[nil] fails, so map None -> python.none for Lua tables
-            py_to_lua(self._runtime, L, name, wrap_none=(lua_type==lua.LUA_TTABLE))  # func obj key
+            py_to_lua(self._runtime, L, name, wrap_none=(lua_type == lua.LUA_TTABLE))  # func obj key
             return execute_lua_call(self._runtime, L, 2)                             # obj[key]
         finally:
             lua.lua_settop(L, old_top)                                               #
@@ -2016,7 +2016,7 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
     else:
         lua.lua_pop(L, nup)
 
-# internal Lua functions meant to be called on protected mode
+# internal Lua functions meant to be called in protected mode
 
 cdef int get_from_lua_table(lua_State* L) nogil:
     """Equivalent to the following Lua function:
