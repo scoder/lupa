@@ -10,6 +10,8 @@ Upcoming release
 * The Lua implementation name and version string is provided as
   ``LuaRuntime.lua_implementation``.
 
+* GH#177: Tables that are not sequences raise ``IndexError`` when unpacked.
+
 
 1.9 (2019-12-21)
 ----------------
