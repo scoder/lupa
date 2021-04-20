@@ -548,25 +548,25 @@ def unpacks_lua_table_method(meth):
 
 
 cdef int check_lua_stack(lua_State* L, int extra) except -1:
-    """Wrapper around lua_checkstack
-    On failure, a LuaMemoryError is raised
+    """Wrapper around lua_checkstack.
+    On failure, a LuaMemoryError is raised.
     """
     if not lua.lua_checkstack(L, extra):
-        raise LuaMemoryError("could not ensure %d free extra slots"
-                             " in the Lua stack" % (extra, ))
+        raise LuaMemoryError(f"could not reserve memory for {extra} free extra slots on the Lua stack")
     return 0
 
 
-cdef int get_object_length_aux(lua_State* L) nogil:
+cdef int get_object_length_from_lua(lua_State* L) nogil:
     cdef size_t length = lua.lua_objlen(L, lua.lua_upvalueindex(1))
     lua.lua_pushlightuserdata(L, <void*>length)
     return 1
 
 
 cdef Py_ssize_t get_object_length(LuaRuntime runtime, lua_State* L, int index) except -1:
-    """Obtains the length of the object at the given valid index
-    If Lua raises an error, a LuaError is raised
-    If the object length doesn't fit Py_ssize_t, an OverflowError is raised
+    """Obtains the length of the object at the given valid index.
+    
+    If Lua raises an error, a LuaError is raised.
+    If the object length doesn't fit into Py_ssize_t, an OverflowError is raised.
     """
     cdef int result
     cdef size_t length
@@ -586,9 +586,8 @@ cdef Py_ssize_t get_object_length(LuaRuntime runtime, lua_State* L, int index) e
 
 
 cdef tuple unpack_lua_table(LuaRuntime runtime):
-    """Unpacks table at the top of the stack into
-        - a tuple of positional arguments
-        - a dictionary of keyword arguments
+    """Unpacks the table at the top of the stack into a tuple of positional arguments
+        and a dictionary of keyword arguments.
     """
     assert runtime is not None
     cdef tuple args
@@ -1475,8 +1474,8 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
         raise LuaError(build_lua_error_message(runtime, L, None, -1))
 
 cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message, int n):
-    """Removes the string at the given stack index ``n`` to build an error message
-    which can be composed in a format given by err_message
+    """Removes the string at the given stack index ``n`` to build an error message.
+    If ``err_message`` is provided, it is used as a %-format string to build the error message.
     """
     cdef size_t size = 0
     cdef const char *s = lua.lua_tolstring(L, n, &size)
@@ -1998,7 +1997,7 @@ cdef int py_args_with_gil(PyObject* runtime_obj, lua_State* L) with gil:
         pyargs.args, pyargs.kwargs = unpack_lua_table(runtime)
         return py_to_lua_custom(runtime, L, pyargs, 0)
     except:
-        try: runtime.store_raised_exception(L, b'error while calling args')
+        try: runtime.store_raised_exception(L, b'error while calling python.args()')
         finally: return -1
 
 cdef int py_args(lua_State* L) nogil:
@@ -2111,5 +2110,3 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
         luaL_setfuncs(L, l, nup)
     else:
         lua.lua_pop(L, nup)
-
-

@@ -2712,6 +2712,7 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_kwargs_merge_conflict(self):
         self.assertIncorrect('python.args{a=1}, python.args{a=2}', regex='multiple values')
 
+
 class PythonArgumentsInLuaMethodsTest(PythonArgumentsInLuaTest):
 
     def __init__(self, *args, **kwargs):
@@ -2914,7 +2915,6 @@ class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
         self.testmissingref({}, enumerate)          # enumerate
         self.testmissingref({}, lupa.as_itemgetter) # item getter protocol
         self.testmissingref({}, lupa.as_attrgetter) # attribute getter protocol
- 
 
 if __name__ == '__main__':
     def print_version():
