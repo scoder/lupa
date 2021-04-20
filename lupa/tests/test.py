@@ -2736,15 +2736,34 @@ class PythonArgumentsInLuaMethodsTest(PythonArgumentsInLuaTest):
 
 
 ################################################################################
+# tests for table access error
+
+class TestTableAccessError(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_error_index_metamethod(self):
+        self.lua.execute('''
+        t = {}
+        called = 0
+        setmetatable(t, {__index = function()
+            called = called + 1
+            error('my error message')
+        end})
+        ''')
+        lua_t = self.lua.eval('t')
+        self.assertRaisesRegex(lupa.LuaError, 'my error message', lambda t, k: t[k], lua_t, 'k')
+        self.assertEqual(self.lua.eval('called'), 1)
+
+
+################################################################################
 # tests for handling overflow
 
 class TestOverflowMixin(SetupLuaRuntimeMixin):
-    maxinteger = sys.maxint if IS_PYTHON2 else sys.maxsize  # maximum value for C Py_ssize_t
-    biginteger = (maxinteger + 1) << 1  # value too big to fit in C size_t
+    maxinteger = lupa.LUA_MAXINTEGER    # maximum value for Lua integer
+    mininteger = lupa.LUA_MININTEGER    # minimum value for Lua integer
+    biginteger = (maxinteger + 1) << 1  # value too big to fit in a Lua integer
     maxfloat = sys.float_info.max       # maximum value for Python float
     bigfloat = int(maxfloat) * 2        # value too big to fit in Python float
 
-    assert biginteger <= maxfloat
+    assert biginteger <= maxfloat, "%d can't be cast to float" % biginteger
 
     def setUp(self):
         super(TestOverflowMixin, self).setUp()
@@ -2761,7 +2780,7 @@ class TestOverflowMixin(SetupLuaRuntimeMixin):
         self.assertMathType(10, 'integer')
         self.assertMathType(-10, 'integer')
         self.assertMathType(self.maxinteger, 'integer')
-        self.assertMathType(-self.maxinteger, 'integer')
+        self.assertMathType(self.mininteger, 'integer')
         self.assertMathType(0.0, 'float')
         self.assertMathType(-0.0, 'float')
         self.assertMathType(10.0, 'float')
@@ -2798,7 +2817,7 @@ class TestOverflowWithFloatHandler(TestOverflowMixin, unittest.TestCase):
 class TestOverflowWithObjectHandler(TestOverflowMixin, unittest.TestCase):
     def test_overflow(self):
         self.lua.execute('python.set_overflow_handler(function(o) return o end)')
-        self.assertEqual(self.lua.eval('type')(int(self.maxfloat)), 'userdata')
+        self.assertEqual(self.lua.eval('type')(self.biginteger), 'userdata')
 
 
 class TestFloatOverflowHandlerInLua(TestOverflowMixin, unittest.TestCase):
