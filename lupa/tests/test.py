@@ -2627,11 +2627,17 @@ class TestErrorStackTrace(unittest.TestCase):
 
 class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
 
-    def __init__(self, *args, **kwargs):
-        super(PythonArgumentsInLuaTest, self).__init__(*args, **kwargs)
-        self.get_args = lambda *args, **kwargs: args
-        self.get_kwargs = lambda *args, **kwargs: kwargs
-        self.get_none = lambda *args, **kwargs: None
+    @staticmethod
+    def get_args(*args, **kwargs):
+        return args
+
+    @staticmethod
+    def get_kwargs(*args, **kwargs):
+        return kwargs
+
+    @staticmethod
+    def get_none(*args, **kwargs):
+        return None
 
     def assertEqualInLua(self, a, b):
         lua_type_a = lupa.lua_type(a)
@@ -2714,9 +2720,6 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
 
 
 class PythonArgumentsInLuaMethodsTest(PythonArgumentsInLuaTest):
-
-    def __init__(self, *args, **kwargs):
-        super(PythonArgumentsInLuaTest, self).__init__(*args, **kwargs)
 
     def get_args(self, *args, **kwargs):
         return args

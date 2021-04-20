@@ -121,11 +121,6 @@ class LuaSyntaxError(LuaError):
     """
 
 
-class LuaMemoryError(LuaError):
-    """Memory error in Lua code.
-    """
-
-
 def lua_type(obj):
     """
     Return the Lua type name of a wrapped object as string, as provided
@@ -568,10 +563,10 @@ def unpacks_lua_table_method(meth):
 
 cdef int check_lua_stack(lua_State* L, int extra) except -1:
     """Wrapper around lua_checkstack.
-    On failure, a LuaMemoryError is raised.
+    On failure, a MemoryError is raised.
     """
     if not lua.lua_checkstack(L, extra):
-        raise LuaMemoryError(f"could not reserve memory for {extra} free extra slots on the Lua stack")
+        raise MemoryError(f"could not reserve memory for {extra} free extra slots on the Lua stack")
     return 0
 
 
@@ -590,15 +585,13 @@ cdef Py_ssize_t get_object_length(LuaRuntime runtime, lua_State* L, int index) e
     cdef int result
     cdef size_t length
     check_lua_stack(L, 1)
-    lua.lua_pushvalue(L, index)                        # value
-    lua.lua_pushcclosure(L, get_object_length_aux, 1)  # closure
+    lua.lua_pushvalue(L, index)                             # value
+    lua.lua_pushcclosure(L, get_object_length_from_lua, 1)  # closure
     result = lua.lua_pcall(L, 0, 1, 0)
-    if result:
-                                                       # err
-        raise_lua_error(runtime, L, result)            #
-                                                       # length
-    length = <size_t>lua.lua_touserdata(L, -1)
-    lua.lua_pop(L, 1)                                  #
+    if result:                                              # err
+        raise_lua_error(runtime, L, result)                 #
+    length = <size_t>lua.lua_touserdata(L, -1)              # length
+    lua.lua_pop(L, 1)                                       #
     if length > <size_t> PY_SSIZE_T_MAX:
         raise OverflowError(f"Size too large to represent: {length}")
     return <Py_ssize_t>length
@@ -622,8 +615,7 @@ cdef tuple unpack_lua_table(LuaRuntime runtime):
         length = get_object_length(runtime, L, -1)
         args = cpython.tuple.PyTuple_New(length)
         lua.lua_pushnil(L)            # nil (first key)
-        while lua.lua_next(L, -2):
-                                      # key value
+        while lua.lua_next(L, -2):    # key value
             key = py_from_lua(runtime, L, -2)
             value = py_from_lua(runtime, L, -1)
             if isinstance(key, (int, long)) and not isinstance(key, bool):
@@ -1487,7 +1479,7 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
     if result == 0:
         return 0
     elif result == lua.LUA_ERRMEM:
-        raise LuaMemoryError()
+        raise MemoryError()
     else:
         raise LuaError(build_lua_error_message(runtime, L, None, -1))
 
