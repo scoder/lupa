@@ -37,8 +37,12 @@ cdef extern from *:
     #endif
     """
     ctypedef size_t uintptr_t
-    cdef Py_ssize_t PY_SSIZE_T_MAX
-    cdef long LONG_MIN, LONG_MAX
+    cdef const Py_ssize_t PY_SSIZE_T_MAX
+    cdef const char CHAR_MIN, CHAR_MAX
+    cdef const short SHRT_MIN, SHRT_MAX
+    cdef const int INT_MIN, INT_MAX
+    cdef const long LONG_MIN, LONG_MAX
+    cdef const long long PY_LLONG_MIN, PY_LLONG_MAX
 
 cdef object exc_info
 from sys import exc_info
@@ -53,7 +57,8 @@ cdef object wraps
 from functools import wraps
 
 
-__all__ = ['LUA_VERSION', 'LuaRuntime', 'LuaError', 'LuaSyntaxError',
+__all__ = ['LUA_VERSION', 'LUA_MAXINTEGER', 'LUA_MININTEGER',
+            'LuaRuntime', 'LuaError', 'LuaSyntaxError',
            'as_itemgetter', 'as_attrgetter', 'lua_type',
            'unpacks_lua_table', 'unpacks_lua_table_method']
 
@@ -90,6 +95,20 @@ include "lock.pxi"
 
 cdef int _LUA_VERSION = lua.read_lua_version(NULL)
 LUA_VERSION = (_LUA_VERSION // 100, _LUA_VERSION % 100)
+
+
+if lua.LUA_MAXINTEGER > 0:
+    LUA_MININTEGER, LUA_MAXINTEGER = (lua.LUA_MININTEGER, lua.LUA_MAXINTEGER)
+elif sizeof(lua.lua_Integer) >= sizeof(long long):  # probably not larger
+    LUA_MININTEGER, LUA_MAXINTEGER = (PY_LLONG_MIN, PY_LLONG_MAX)
+elif sizeof(lua.lua_Integer) >= sizeof(long):
+    LUA_MININTEGER, LUA_MAXINTEGER = (LONG_MIN, LONG_MAX)
+elif sizeof(lua.lua_Integer) >= sizeof(int):
+    LUA_MININTEGER, LUA_MAXINTEGER = (INT_MIN, INT_MAX)
+elif sizeof(lua.lua_Integer) >= sizeof(short):
+    LUA_MININTEGER, LUA_MAXINTEGER = (SHRT_MIN, SHRT_MAX)
+else:  # probably not smaller
+    LUA_MININTEGER, LUA_MAXINTEGER = (CHAR_MIN, CHAR_MAX)
 
 
 class LuaError(Exception):
