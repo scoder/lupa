@@ -1509,6 +1509,15 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
             result.append(_next(gen))
         self.assertEqual([0,1,0,1,0,1], result)
 
+    def test_coroutine_reraises_python_error(self):
+        lua_code = '''\
+        function(test)
+            test()
+        end'''
+        f = self.lua.eval(lua_code)
+        gen = f.coroutine(lambda: int('hello'))
+        self.assertRaises(ValueError, lambda: gen.send(None))
+
 
 class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
 

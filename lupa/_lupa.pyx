@@ -1411,7 +1411,11 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
     elif result == lua.LUA_ERRMEM:
         raise MemoryError()
     else:
-        raise LuaError( build_lua_error_message(runtime, L, None, -1) )
+        error = py_from_lua(runtime, L, 1)
+        if isinstance(error, BaseException):
+            runtime.reraise_on_exception()
+        else:
+            raise LuaError( build_lua_error_message(runtime, L, None, -1) )
 
 cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message, int n):
     cdef size_t size = 0
