@@ -5,7 +5,7 @@ from cpython.exc cimport PyErr_NoMemory
 cdef extern from *:
     # Compatibility definitions for Python
     """
-    #if PY_VERSION_HEX >= 0x03070000
+    #if PY_VERSION_HEX >= 0x030700a2
     typedef unsigned long pythread_t;
     #else
     typedef long pythread_t;
@@ -14,7 +14,7 @@ cdef extern from *:
     
     # Just let Cython understand that pythread_t is
     # a long type, but be aware that it is actually
-    # signed for versions of Python prior to 3.7 and
+    # signed for versions of Python prior to 3.7.0a2 and
     # unsigned for later versions
     ctypedef unsigned long pythread_t
 
@@ -28,10 +28,10 @@ cdef class FastRLock:
     wonderful GIL.
     """
     cdef pythread.PyThread_type_lock _real_lock
-    cdef pythread_t _owner      # ID of thread owning the lock
-    cdef int _count             # re-entry count
-    cdef int _pending_requests  # number of pending requests for real lock
-    cdef bint _is_locked        # whether the real lock is acquired
+    cdef pythread_t _owner               # ID of thread owning the lock
+    cdef unsigned int _count             # re-entry count
+    cdef unsigned int _pending_requests  # number of pending requests for real lock
+    cdef bint _is_locked                 # whether the real lock is acquired
 
     def __cinit__(self):
         self._owner = 0
@@ -81,7 +81,7 @@ cdef inline bint lock_lock(FastRLock lock, pythread_t current_thread, bint block
         if current_thread == lock._owner:
             lock._count += 1
             return 1
-    elif not lock._pending_requests:
+    elif lock._pending_requests == 0:
         # not locked, not requested - go!
         lock._owner = current_thread
         lock._count = 1
@@ -96,7 +96,7 @@ cdef bint _acquire_lock(FastRLock lock, pythread_t current_thread, int wait) nog
     # We just use 'nogil' in the signature to make sure that no Python
     # code execution slips in that might free the GIL
 
-    if not lock._is_locked and not lock._pending_requests:
+    if not lock._is_locked and lock._pending_requests == 0:
         # someone owns it but didn't acquire the real lock - do that
         # now and tell the owner to release it when done. Note that we
         # do not release the GIL here as we must absolutely be the one
