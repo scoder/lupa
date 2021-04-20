@@ -699,26 +699,6 @@ cdef class _LuaObject:
             raise LuaError("lost reference")
         return 0
 
-    def __eq__(self, o):
-        assert self._runtime is not None
-        if not isinstance(o, _LuaObject):
-            return False
-        cdef lua_State* L = self._state
-        cdef _LuaObject other = <_LuaObject>o
-        if L != other._state:
-            return False
-        lock_runtime(self._runtime)
-        old_top = lua.lua_gettop(L)
-        cdef bint equal = False
-        try:
-            self.push_lua_object(L)
-            other.push_lua_object(L)
-            equal = lua.lua_rawequal(L, -1, -2)
-        finally:
-            lua.lua_settop(L, old_top)
-            unlock_runtime(self._runtime)
-        return equal
-
     def __call__(self, *args):
         assert self._runtime is not None
         cdef lua_State* L = self._state

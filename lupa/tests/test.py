@@ -2633,10 +2633,27 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
         self.get_kwargs = lambda *args, **kwargs: kwargs
         self.get_none = lambda *args, **kwargs: None
 
+    def assertEqualInLua(self, a, b):
+        lua_type_a = lupa.lua_type(a)
+        lua_type_b = lupa.lua_type(b)
+        if lua_type_a and lua_type_b and lua_type_a == lua_type_b:
+            return self.lua.eval('function(a, b) return a == b end')(a, b)
+        return self.assertEqual(a, b)
+
     def assertResult(self, txt, args, kwargs):
         lua_func = self.lua.eval('function (f) return f(%s) end' % txt)
-        self.assertEqual(lua_func(self.get_args), args)
-        self.assertEqual(lua_func(self.get_kwargs), kwargs)
+
+        # FIXME: lupa._LuaObject.__eq__ might make this function simpler
+
+        obtained_args = lua_func(self.get_args)
+        self.assertEqual(len(obtained_args), len(args))
+        for a, b in zip(obtained_args, args):
+            self.assertEqualInLua(a, b)
+
+        obtained_kwargs = lua_func(self.get_kwargs)
+        self.assertEqual(len(obtained_kwargs), len(kwargs))
+        for key in kwargs:
+            self.assertEqualInLua(obtained_kwargs[key], kwargs[key])
 
     def assertIncorrect(self, txt, error=TypeError, regex=''):
         lua_func = self.lua.eval('function (f) return f(%s) end' % txt)
@@ -2894,51 +2911,6 @@ class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
         self.testmissingref({}, enumerate)          # enumerate
         self.testmissingref({}, lupa.as_itemgetter) # item getter protocol
         self.testmissingref({}, lupa.as_attrgetter) # attribute getter protocol
-
-
-################################################################################
-# tests for raw equality between Lua objects
-
-class TestRawEquality(SetupLuaRuntimeMixin, unittest.TestCase):
-
-    def check_object(self, constructor):
-        t = self.lua.table()
-        t.obj = constructor()
-        self.assertEqual(t.obj, t.obj)
-        self.assertNotEqual(constructor(), constructor())
-
-    def test_objects(self):
-        self.check_object(lambda: self.lua.table())
-        self.check_object(lambda: self.lua.eval('function() end'))
-        self.check_object(lambda: self.lua.eval('coroutine.create(function() end)'))
-
-
-class TestRawEqualityDifferentRuntimes(TestRawEquality):
-
-    def setUp(self):
-        super(TestRawEquality, self).setUp()
-        self.other_lua = lupa.LuaRuntime(**self.lua_runtime_kwargs)
-
-    def tearDown(self):
-        self.other_lua = None
-        super(TestRawEquality, self).tearDown()
-
-    def swap_runtime(self):
-        self.lua, self.other_lua = self.other_lua, self.lua
-
-    def check_object(self, constructor):
-        t_1 = self.lua.table()
-        t_1.obj = constructor()
-        obj_1 = t_1.obj
-        self.swap_runtime()
-        t_2 = self.lua.table()
-        t_2.obj = constructor()
-        obj_2 = t_2.obj
-        self.assertNotEqual(obj_1, obj_2)
-        obj_2 = constructor()
-        self.swap_runtime()
-        obj_1 = constructor()
-        self.assertNotEqual(obj_1, obj_2)
  
 
 if __name__ == '__main__':
