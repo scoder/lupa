@@ -21,6 +21,8 @@ except NameError:
 
 unicode_type = type('abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
 
+if IS_PYTHON2:
+    unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
 
 class SetupLuaRuntimeMixin(object):
     lua_runtime_kwargs = {}
@@ -2618,6 +2620,24 @@ class TestErrorStackTrace(unittest.TestCase):
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
             self.assertNotIn("stack traceback:", e.args[0])
+
+
+################################################################################
+# tests for table access error
+
+class TestTableAccessError(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_error_index_metamethod(self):
+        self.lua.execute('''
+        t = {}
+        called = 0
+        setmetatable(t, {__index = function()
+            called = called + 1
+            error('my error message')
+        end})
+        ''')
+        lua_t = self.lua.eval('t')
+        self.assertRaisesRegex(lupa.LuaError, 'my error message', lambda t, k: t[k], lua_t, 'k')
+        self.assertEqual(self.lua.eval('called'), 1)
 
 
 ################################################################################

@@ -737,18 +737,17 @@ cdef class _LuaObject:
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
-            self.push_lua_object(L)
+            lua.lua_pushcfunction(L, get_from_lua_table)                             # func
+            self.push_lua_object(L)                                                  # func obj
             lua_type = lua.lua_type(L, -1)
             if lua_type == lua.LUA_TFUNCTION or lua_type == lua.LUA_TTHREAD:
-                lua.lua_pop(L, 1)
                 raise (AttributeError if is_attr_access else TypeError)(
                     "item/attribute access not supported on functions")
             # table[nil] fails, so map None -> python.none for Lua tables
-            py_to_lua(self._runtime, L, name, wrap_none=lua_type == lua.LUA_TTABLE)
-            lua.lua_gettable(L, -2)
-            return py_from_lua(self._runtime, L, -1)
+            py_to_lua(self._runtime, L, name, wrap_none=(lua_type == lua.LUA_TTABLE))  # func obj key
+            return execute_lua_call(self._runtime, L, 2)                             # obj[key]
         finally:
-            lua.lua_settop(L, old_top)
+            lua.lua_settop(L, old_top)                                               #
             unlock_runtime(self._runtime)
 
 
@@ -2016,3 +2015,14 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
         luaL_setfuncs(L, l, nup)
     else:
         lua.lua_pop(L, nup)
+
+# internal Lua functions meant to be called in protected mode
+
+cdef int get_from_lua_table(lua_State* L) nogil:
+    """Equivalent to the following Lua function:
+    function(t, k) return t[k] end
+    """
+                            # tbl key [...]
+    lua.lua_settop(L, 2)    # tbl key
+    lua.lua_gettable(L, 1)  # tbl tbl[key]
+    return 1
