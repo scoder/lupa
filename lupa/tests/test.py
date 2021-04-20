@@ -2659,6 +2659,9 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
         lua_func = self.lua.eval('function (f) return f(%s) end' % txt)
         self.assertRaisesRegex(error, regex, lua_func, self.get_none)
 
+    def test_no_table(self):
+        self.assertIncorrect('python.args()', error=lupa.LuaError)
+
     def test_no_args(self):
         self.assertResult('python.args{}', (), {})
 
