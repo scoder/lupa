@@ -21,6 +21,8 @@ except NameError:
 
 unicode_type = type('abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
 
+if IS_PYTHON2:
+    unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
 
 class SetupLuaRuntimeMixin(object):
     lua_runtime_kwargs = {}
@@ -2627,10 +2629,15 @@ class TestTableAccessError(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_error_index_metamethod(self):
         self.lua.execute('''
         t = {}
-        setmetatable(t, {__index = function() error() end})
+        called = 0
+        setmetatable(t, {__index = function()
+            called = called + 1
+            error('my error message')
+        end})
         ''')
         lua_t = self.lua.eval('t')
-        self.assertRaises(lupa.LuaError, lambda t, k: t[k], lua_t, 'k')
+        self.assertRaisesRegex(lupa.LuaError, 'my error message', lambda t, k: t[k], lua_t, 'k')
+        self.assertEqual(self.lua.eval('called'), 1)
 
 
 ################################################################################
