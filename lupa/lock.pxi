@@ -1,6 +1,6 @@
 
 from cpython cimport pythread
-from cpython.exc cimport PyErr_NoMemory
+
 
 cdef class FastRLock:
     """Fast, re-entrant locking.
@@ -24,7 +24,7 @@ cdef class FastRLock:
         self._pending_requests = 0
         self._real_lock = pythread.PyThread_allocate_lock()
         if self._real_lock is NULL:
-            PyErr_NoMemory()
+            raise MemoryError
 
     def __dealloc__(self):
         if self._real_lock is not NULL:
