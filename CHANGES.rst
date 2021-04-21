@@ -4,17 +4,35 @@ Lupa change log
 Upcoming release
 ----------------
 
+* Lua 5.4 and Python 3.9 are supported.
+
+* GH#171: Python references in Lua are not more safely reference counted
+  to prevent garbage collection glitches.
+  (patch by Guilherme Dantas)
+
+* GH#146: Lua integers in Lua 5.3+ are converted from and to Python integers.
+  (patch by Guilherme Dantas)
+
+* GH#178: The Lua integer limits can be read from the module as
+  ``LUA_MAXINTEGER`` and ``LUA_MININTEGER``.
+  (patch by Guilherme Dantas)
+
+* GH#174: Failures while calling the ``__index`` method in Lua during a
+  table index lookup from Python could crash Python.
+  (patch by Guilherme Dantas)
+
 * The runtime version of the Lua library as a tuple (e.g. ``(5,3)``)
   is provided via ``lupa.LUA_VERSION`` and ``LuaRuntime.lua_version``.
 
 * The Lua implementation name and version string is provided as
   ``LuaRuntime.lua_implementation``.
 
-* GH#177: A new function ``python.args(*args, **kwargs)`` was added to help with building
-  Python argument tuples and keyword argument dicts for Python function calls from Lua code.
+* GH#176: A new function ``python.args(*args, **kwargs)`` was added
+  to help with building Python argument tuples and keyword argument dicts
+  for Python function calls from Lua code.
 
-* GH#177: Tables that are not sequences raise ``IndexError`` when unpacked.
-  They previously raised a ``TypeError``.
+* GH#177: Tables that are not sequences raise ``IndexError`` when unpacking
+  them.  Previously, non-sequential items were simply ignored.
 
 
 1.9 (2019-12-21)
