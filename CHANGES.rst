@@ -10,6 +10,12 @@ Upcoming release
 * The Lua implementation name and version string is provided as
   ``LuaRuntime.lua_implementation``.
 
+* GH#177: A new function ``python.args(*args, **kwargs)`` was added to help with building
+  Python argument tuples and keyword argument dicts for Python function calls from Lua code.
+
+* GH#177: Tables that are not sequences raise ``IndexError`` when unpacked.
+  They previously raised a ``TypeError``.
+
 
 1.9 (2019-12-21)
 ----------------

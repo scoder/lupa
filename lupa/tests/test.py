@@ -2227,9 +2227,9 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
         lua_func = self.lua.eval("function (f) return f%s end" % call_txt)
         self.assertEqual(lua_func(f), res_txt)
 
-    def assertIncorrect(self, f, call_txt):
+    def assertIncorrect(self, f, call_txt, error=TypeError):
         lua_func = self.lua.eval("function (f) return f%s end" % call_txt)
-        self.assertRaises(TypeError, lua_func, f)
+        self.assertRaises(error, lua_func, f)
 
     def test_many_args(self):
         self.assertResult(self.arg2, "{x=1, y=2}", "x=1, y=2")
@@ -2274,8 +2274,8 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_posargs_kwargs_bad(self):
         self.assertIncorrect(self.arg2, "{5, y=6, z=7}")
-        self.assertIncorrect(self.arg2, "{5, [3]=6}")
-        self.assertIncorrect(self.arg2, "{x=5, [2]=6}")  # I guess it's ok to reject this
+        self.assertIncorrect(self.arg2, "{5, [3]=6}", error=IndexError)
+        self.assertIncorrect(self.arg2, "{x=5, [2]=6}", error=IndexError)
 
         self.assertIncorrect(self.arg3, "{5, z=7}")
         self.assertIncorrect(self.arg3, "{5}")
@@ -2337,9 +2337,9 @@ class MethodKwargsDecoratorTest(KwargsDecoratorTest):
         lua_func = self.lua.eval("function (obj) return obj:meth%s end" % call_txt)
         self.assertEqual(lua_func(f), res_txt)
 
-    def assertIncorrect(self, f, call_txt):
+    def assertIncorrect(self, f, call_txt, error=TypeError):
         lua_func = self.lua.eval("function (obj) return obj:meth%s end" % call_txt)
-        self.assertRaises(TypeError, lua_func, f)
+        self.assertRaises(error, lua_func, f)
 
 
 class NoEncodingKwargsDecoratorTest(KwargsDecoratorTest):
@@ -2620,6 +2620,122 @@ class TestErrorStackTrace(unittest.TestCase):
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
             self.assertNotIn("stack traceback:", e.args[0])
+
+
+################################################################################
+# tests for keyword arguments
+
+class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
+
+    @staticmethod
+    def get_args(*args, **kwargs):
+        return args
+
+    @staticmethod
+    def get_kwargs(*args, **kwargs):
+        return kwargs
+
+    @staticmethod
+    def get_none(*args, **kwargs):
+        return None
+
+    def assertEqualInLua(self, a, b):
+        lua_type_a = lupa.lua_type(a)
+        lua_type_b = lupa.lua_type(b)
+        if lua_type_a and lua_type_b and lua_type_a == lua_type_b:
+            return self.lua.eval('function(a, b) return a == b end')(a, b)
+        return self.assertEqual(a, b)
+
+    def assertResult(self, txt, args, kwargs):
+        lua_func = self.lua.eval('function (f) return f(%s) end' % txt)
+
+        # FIXME: lupa._LuaObject.__eq__ might make this function simpler
+
+        obtained_args = lua_func(self.get_args)
+        self.assertEqual(len(obtained_args), len(args))
+        for a, b in zip(obtained_args, args):
+            self.assertEqualInLua(a, b)
+
+        obtained_kwargs = lua_func(self.get_kwargs)
+        self.assertEqual(len(obtained_kwargs), len(kwargs))
+        for key in kwargs:
+            self.assertEqualInLua(obtained_kwargs[key], kwargs[key])
+
+    def assertIncorrect(self, txt, error=TypeError, regex=''):
+        lua_func = self.lua.eval('function (f) return f(%s) end' % txt)
+        self.assertRaisesRegex(error, regex, lua_func, self.get_none)
+
+    def test_no_table(self):
+        self.assertIncorrect('python.args()', error=lupa.LuaError)
+
+    def test_no_args(self):
+        self.assertResult('python.args{}', (), {})
+
+    def test_all_types(self):
+        # Positional arguments
+        args = self.lua.eval('''
+        {
+            42,
+            false,
+            "spam",
+            function() end,
+            coroutine.create(function() end),
+            {1, 2, 3},
+            python.none,
+        }
+        ''')
+        self.lua.globals()['args'] = args
+        self.assertResult('python.args(args)', tuple(args[i+1] for i in range(len(args))), {})
+
+        # Keyword arguments
+        kwargs = self.lua.table()
+        self.lua.globals()['kwargs'] = kwargs
+        self.lua.execute('''
+            for _, v in ipairs(args) do
+                kwargs[type(v)] = v
+            end
+        ''')
+        self.assertResult('python.args(kwargs)', (), dict(kwargs.items()))
+
+        # Invalid parameter to python.args
+        for objtype in kwargs:
+            if objtype != 'table':
+                self.assertIncorrect('python.args(kwargs["%s"])' % objtype,
+                        error=lupa.LuaError, regex="bad argument #1 to 'args'")
+        
+        # Invalid table keys
+        self.assertIncorrect('python.args{[0] = true}', error=IndexError, regex='table index out of range')
+        self.assertIncorrect('python.args{[2] = true}', error=IndexError, regex='table index out of range')
+        self.assertIncorrect('python.args{[3.14] = true}', regex='table key is neither an integer nor a string')
+        for objtype in kwargs:
+            if objtype not in {'number', 'string'}:
+                self.assertIncorrect('python.args{[kwargs["%s"]] = true}' % objtype,
+                        regex='table key is neither an integer nor a string')
+ 
+    def test_kwargs_merge(self):
+        self.assertResult('python.args{1, a=1}, python.args{2}, python.args{}, python.args{b=2}', (1, 2), dict(a=1, b=2))
+
+    def test_kwargs_merge_conflict(self):
+        self.assertIncorrect('python.args{a=1}, python.args{a=2}', regex='multiple values')
+
+
+class PythonArgumentsInLuaMethodsTest(PythonArgumentsInLuaTest):
+
+    def get_args(self, *args, **kwargs):
+        return args
+
+    def get_kwargs(self, *args, **kwargs):
+        return kwargs
+
+    def get_none(self, *args, **kwargs):
+        return None
+
+    def test_self_arg(self):
+        self.lua.globals()['self'] = self
+        self.assertResult('python.args{self}', (), {})
+        self.assertResult('python.args{self, 1, a=2}', (1, ), dict(a=2))
+        self.assertIncorrect('python.args{self=self}', regex='multiple values')
+        self.assertIncorrect('python.args{self, self=self}', regex='multiple values')
 
 
 ################################################################################
