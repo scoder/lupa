@@ -2712,11 +2712,27 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
                 self.assertIncorrect('python.args{[kwargs["%s"]] = true}' % objtype,
                         regex='table key is neither an integer nor a string')
  
-    def test_kwargs_merge(self):
-        self.assertResult('python.args{1, a=1}, python.args{2}, python.args{}, python.args{b=2}', (1, 2), dict(a=1, b=2))
+    def test_args_merge(self):
+        self.assertResult('1, 2, python.args{a=5, b=6}', (1, 2), dict(a=5, b=6))
+        self.assertResult('1, 2, python.args{3, 4, a=5, b=6}', (1, 2, 3, 4), dict(a=5, b=6))
 
-    def test_kwargs_merge_conflict(self):
-        self.assertIncorrect('python.args{a=1}, python.args{a=2}', regex='multiple values')
+
+    def test_multiple_args(self):
+        _G = self.lua.globals()
+
+        x = self.lua.eval('python.args{1, 2, a=5, b=6}')
+        _G.x = x
+        self.assertEqual(_G.x, x)
+
+        y = self.lua.eval('python.args{11, c=13}')
+        _G.y = y
+        self.assertEqual(_G.y, y)
+
+        callfxy = self.lua.eval('function(f) return f(x, y) end')
+
+        # contrary to y, x will not be unpacked
+        self.assertEqual(callfxy(self.get_args), (x, 11))
+        self.assertEqual(callfxy(self.get_kwargs), dict(c=13))
 
 
 class PythonArgumentsInLuaMethodsTest(PythonArgumentsInLuaTest):

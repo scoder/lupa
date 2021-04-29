@@ -1648,6 +1648,7 @@ cdef int py_object_gc(lua_State* L) nogil:
 cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) except -1:
     # Callers must assure that py_obj.obj is not NULL, i.e. it points to a valid Python object.
     cdef int i, nargs = lua.lua_gettop(L) - 1
+    cdef Py_ssize_t j
     cdef tuple args
     cdef dict kwargs
 
@@ -1657,16 +1658,31 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
         lua.lua_settop(L, 0)  # FIXME
         result = f()
     else:
-        args = ()
-        kwargs = {}
-        
-        for i in range(nargs):
-            arg = py_from_lua(runtime, L, i+2)
-            if isinstance(arg, _PyArguments):
-                args += (<_PyArguments>arg).args
-                kwargs = dict(**kwargs, **(<_PyArguments>arg).kwargs)
-            else:
-                args += (arg, )
+        # Special treatment for the last argument
+        last_arg = py_from_lua(runtime, L, nargs + 1)
+
+        if isinstance(last_arg, _PyArguments):
+            # Calling a function and _PyArguments is the last argument
+            # Lua f(..., python.args{a, b, c=1, d=2}) => Python as f(..., a, b, c=1, d=2)
+            kwargs = (<_PyArguments>last_arg).kwargs
+            moreargs = (<_PyArguments>last_arg).args
+            args = cpython.tuple.PyTuple_New(nargs - 1 + cpython.tuple.PyTuple_Size(moreargs))
+            for j, arg in enumerate(moreargs):
+                cpython.ref.Py_INCREF(arg)
+                cpython.tuple.PyTuple_SET_ITEM(args, nargs - 1 + j, arg)
+        else:
+            # Calling a function normally
+            # Lua f(...) => Python as f(...)
+            kwargs = None
+            args = cpython.tuple.PyTuple_New(nargs)
+            cpython.ref.Py_INCREF(last_arg)
+            cpython.tuple.PyTuple_SET_ITEM(args, nargs - 1, last_arg)
+            
+        # Process the rest of the arguments
+        for i in range(nargs - 1):
+            arg = py_from_lua(runtime, L, i + 2)
+            cpython.ref.Py_INCREF(arg)
+            cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
 
         if args and PyMethod_Check(f) and (<PyObject*>args[0]) is PyMethod_GET_SELF(f):
             # Calling a bound method and self is already the first argument.
@@ -1681,7 +1697,11 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
             f = <object>PyMethod_GET_FUNCTION(f)
 
         lua.lua_settop(L, 0)  # FIXME
-        result = f(*args, **kwargs)
+
+        if kwargs:
+            result = f(*args, **kwargs)
+        else:
+            result = f(*args)
 
     return py_function_result_to_lua(runtime, L, result)
 
