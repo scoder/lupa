@@ -1904,11 +1904,27 @@ cdef int py_iterex(lua_State* L) nogil:
         return lua.lua_error(L)  # never returns!
     return result
 
+cdef int convert_to_lua_Integer(lua_State* L, int idx, lua.lua_Integer* integer) nogil:
+    cdef int isnum
+    cdef lua.lua_Integer temp
+    temp = lua.lua_tointegerx(L, idx, &isnum)
+    if isnum:
+        integer[0] = temp
+        return 0
+    else:
+        lua.lua_pushfstring(L, "Could not convert %s to string", lua.luaL_typename(L, idx))
+        return -1
+
 cdef int py_enumerate(lua_State* L) nogil:
     if lua.lua_gettop(L) > 2:
         lua.luaL_argerror(L, 3, "invalid arguments")   # never returns!
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1)
-    cdef lua.lua_Integer start = lua.lua_tointeger(L, -1) if lua.lua_gettop(L) == 2 else 0
+    cdef lua.lua_Integer start
+    if lua.lua_gettop(L) == 2:
+        if convert_to_lua_Integer(L, -1, &start) < 0:
+            return lua.lua_error(L)  # never returns
+    else:
+        start = 0
     result = py_enumerate_with_gil(L, py_obj, start)
     if result < 0:
         return lua.lua_error(L)  # never returns!

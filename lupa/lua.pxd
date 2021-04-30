@@ -418,7 +418,7 @@ cdef extern from "lualib.h":
     void luaL_openlibs(lua_State *L)
 
 
-cdef extern from *:
+cdef extern from * nogil:
     # Compatibility definitions for Lupa.
     """
     #if LUA_VERSION_NUM >= 504
@@ -443,6 +443,10 @@ cdef extern from *:
     #define lua_isinteger(L, i) (((void) i), 0)
     #endif
 
+    #if LUA_VERSION_NUM < 502
+    #define lua_tointegerx(L, i, isnum) (*(isnum) = lua_isnumber(L, i), lua_tointeger(L, i))
+    #endif
+
     #if LUA_VERSION_NUM >= 504
     #define read_lua_version(L)  ((int) lua_version(L))
     #elif LUA_VERSION_NUM >= 502
@@ -455,6 +459,7 @@ cdef extern from *:
     """
     int read_lua_version(lua_State *L)
     int lua_isinteger(lua_State *L, int idx)
+    lua_Integer lua_tointegerx (lua_State *L, int idx, int *isnum)
 
 
 cdef extern from *:
