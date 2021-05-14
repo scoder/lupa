@@ -485,7 +485,6 @@ cdef class LuaRuntime:
         with self.stack(4):                             # lib
             lua.lua_pushlstring(L, cname, len(cname))   # lib cname
             if not py_to_lua_custom(self, L, obj, 0):   # lib cname obj
-                lua.lua_pop(L, 1)
                 raise LuaError("failed to convert %s object" % pyname)
             lua.lua_pushlstring(L, pyname, len(pyname)) # lib cname obj pyname
             lua.lua_pushvalue(L, -2)                    # lib cname obj pyname obj
@@ -1260,7 +1259,7 @@ cdef py_object* unpack_userdata(lua_State *L, int n) nogil:
 cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) except -1:
      if runtime._unpack_returned_tuples and isinstance(o, tuple):
          py_tuple_to_lua(runtime, L, <tuple>o)
-         return <int>len(<tuple>o)
+         return len(<tuple>o)
      check_lua_stack(L, 1)
      return py_to_lua(runtime, L, o)
 
