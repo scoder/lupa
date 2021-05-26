@@ -1205,6 +1205,13 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
         ''')
         self.assertEqual([5,6,1,2,3], list(values([1,2,3]).values()))
 
+    def test_python_enumerate_list_start_invalid(self):
+        python_enumerate = self.lua.globals().python.enumerate
+        iterator = range(10)
+        self.assertRaises(lupa.LuaError, python_enumerate, iterator, "abc")
+        self.assertRaises(lupa.LuaError, python_enumerate, iterator, self.lua.table())
+        self.assertRaises(lupa.LuaError, python_enumerate, iterator, python_enumerate)
+
     def test_python_iter_dict_items(self):
         values = self.lua.eval('''
             function(d)

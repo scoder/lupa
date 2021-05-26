@@ -1904,23 +1904,39 @@ cdef int py_iterex(lua_State* L) nogil:
         return lua.lua_error(L)  # never returns!
     return result
 
+cdef int convert_to_lua_Integer(lua_State* L, int idx, lua.lua_Integer* integer) nogil:
+    cdef int isnum
+    cdef lua.lua_Integer temp
+    temp = lua.lua_tointegerx(L, idx, &isnum)
+    if isnum:
+        integer[0] = temp
+        return 0
+    else:
+        lua.lua_pushfstring(L, "Could not convert %s to string", lua.luaL_typename(L, idx))
+        return -1
+
 cdef int py_enumerate(lua_State* L) nogil:
     if lua.lua_gettop(L) > 2:
         lua.luaL_argerror(L, 3, "invalid arguments")   # never returns!
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1)
-    cdef double start = lua.lua_tonumber(L, -1) if lua.lua_gettop(L) == 2 else 0.0
+    cdef lua.lua_Integer start
+    if lua.lua_gettop(L) == 2:
+        if convert_to_lua_Integer(L, -1, &start) < 0:
+            return lua.lua_error(L)  # never returns
+    else:
+        start = 0
     result = py_enumerate_with_gil(L, py_obj, start)
     if result < 0:
         return lua.lua_error(L)  # never returns!
     return result
 
 
-cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj, double start) with gil:
+cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj, lua.lua_Integer start) with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         obj = iter(<object>py_obj.obj)
-        return py_push_iterator(runtime, L, obj, OBJ_ENUMERATOR, start - 1.0)
+        return py_push_iterator(runtime, L, obj, OBJ_ENUMERATOR, start - 1)
     except:
         try: runtime.store_raised_exception(L, b'error creating an iterator with enumerate()')
         finally: return -1
@@ -1930,13 +1946,13 @@ cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with 
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         obj = iter(<object>py_obj.obj)
-        return py_push_iterator(runtime, L, obj, type_flags, 0.0)
+        return py_push_iterator(runtime, L, obj, type_flags, 0)
     except:
         try: runtime.store_raised_exception(L, b'error creating an iterator')
         finally: return -1
 
 cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags,
-                          lua.lua_Number initial_value) except -2:
+                          lua.lua_Integer initial_value) except -2:
     # Lua needs three values: iterator C function + state + control variable (last iter) value
     old_top = lua.lua_gettop(L)
     lua.lua_pushcfunction(L, <lua.lua_CFunction>py_iter_next)
@@ -1948,7 +1964,7 @@ cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_f
         return -1
     # push either enumerator index or nil as control variable value
     if type_flags & OBJ_ENUMERATOR:
-        lua.lua_pushnumber(L, initial_value)
+        lua.lua_pushinteger(L, initial_value)
     else:
         lua.lua_pushnil(L)
     return 3
@@ -1975,7 +1991,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
         # as Lua interprets it as end of the iterator
         allow_nil = False
         if py_iter.type_flags & OBJ_ENUMERATOR:
-            lua.lua_pushnumber(L, lua.lua_tonumber(L, -1) + 1.0)
+            lua.lua_pushinteger(L, lua.lua_tointeger(L, -1) + 1)
             allow_nil = True
         if (py_iter.type_flags & OBJ_UNPACK_TUPLE) and isinstance(obj, tuple):
             # special case: when the iterable returns a tuple, unpack it
