@@ -715,22 +715,6 @@ Python space:
       >>> list(lua_gen)
       []
 
-      >>> # an uninitialised coroutine:
-
-      >>> gen = co(4)
-      >>> list(enumerate(gen))
-      [(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]
-
-      >>> gen = co(2)
-      >>> list(enumerate(gen))
-      [(0, 0), (1, 1), (2, 0)]
-
-      >>> # a plain function:
-
-      >>> gen = f.coroutine(4)
-      >>> list(enumerate(gen))
-      [(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]
-
 
 Threading
 ---------

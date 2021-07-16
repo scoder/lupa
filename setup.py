@@ -322,7 +322,7 @@ ext_modules = [
     )]
 
 if cythonize is not None:
-    ext_modules = cythonize(ext_modules)
+    ext_modules = cythonize(ext_modules, gdb_debug=has_option('--gdb-debug'))
 
 
 def read_file(filename):

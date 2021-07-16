@@ -261,6 +261,52 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         lua = lupa.LuaRuntime(register_eval=False)
         self.assertEqual(True, lua.eval('python.eval == nil'))
 
+    def test_python_exec(self):
+        lua_exec = self.lua.eval('function() return python.exec end')()
+        local_scope = dict(y=3, z=7)
+        lua_exec('x = y * 5 + z', locals=local_scope)
+        self.assertEqual(local_scope['x'], 22)
+
+    def test_python_exec_disabled(self):
+        lua = lupa.LuaRuntime(register_exec=False)
+        self.assertEqual(True, lua.eval('python.exec == nil'))
+
+    def test_python_version(self):
+        version = self.lua.eval('python.PYTHON_VERSION')
+        self.assertEqual(version, sys.version_info)
+
+    def test_python_pack(self):
+        self.assertEqual(self.lua.eval('python.pack()'), ())
+        self.assertEqual(self.lua.eval('python.pack(nil)'), (None, ))
+        self.assertEqual(self.lua.eval('python.pack(nil, nil)'), (None, None))
+        self.assertEqual(self.lua.eval('python.pack(1)'), (1, ))
+        self.assertEqual(self.lua.eval('python.pack(1, 2, 3)'), (1, 2, 3))
+
+    def test_python_unpack_not_tuple(self):
+        self.lua.execute('''
+        local function unpackerror(s, ...)
+            local ok, ret = pcall(python.unpack, ...)
+            assert(not ok)
+            assert(type(ret) == 'string')
+            assert(ret:find(s))
+        end
+        unpackerror('not a python object')
+        unpackerror('not a python object', nil)
+        unpackerror('not a python object', 123)
+        unpackerror('not a python object', true)
+        unpackerror('not a python object', {})
+        unpackerror('not a tuple', python.builtins.tuple)
+        unpackerror('not a tuple', python.builtins.list())
+        unpackerror('not a tuple', python.builtins.dict())
+        ''')
+
+    def test_python_unpack_pack(self):
+        aux = self.lua.eval('function(tup) return python.pack(python.unpack(tup)) end')
+        for tup in [(), (None,), (None, None, None), (1,), (1, 2, 3), tuple(range(100))]:
+            other_tup = aux(tup)
+            if tup: self.assertIsNot(tup, other_tup)  # empty tuple may be cached
+            self.assertEqual(tup, other_tup)
+
     def test_len_table_array(self):
         table = self.lua.eval('{1,2,3,4,5}')
         self.assertEqual(5, len(table))
@@ -770,16 +816,13 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertRaises(ValueError, function, test)
 
     def test_reraise_pcall(self):
+        def raiseme(o): raise o
+        lua_pcall = self.lua.eval('pcall')
         exception = Exception('test')
-        def py_function():
-            raise exception
-        function = self.lua.eval(
-            'function(p) local r, err = pcall(p); return r, err end'
-        )
-        self.assertEqual(
-            function(py_function),
-            (False, exception)
-        )
+        ok, ret = lua_pcall(raiseme, exception)
+        self.assertFalse(ok)
+        self.assertEqual(ret.etype, type(exception))
+        self.assertEqual(ret.value, exception)
 
     def test_lua_error_after_intercepted_python_exception(self):
         function = self.lua.eval('''
@@ -861,12 +904,11 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
         create_thread = lua.eval('''
         function(func)
-           local thread = coroutine.create(function()
-               coroutine.yield(func());
-           end);
-           return thread;
+           return coroutine.create(function()
+               coroutine.yield(func())
+           end)
         end''')
-        t = create_thread(f)()
+        t = create_thread(f)
         self.assertEqual(lua.eval('coroutine.resume(...)', t), (True, '()'))
 
     def test_call_from_coroutine2(self):
@@ -1290,19 +1332,35 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         lua_code = '''\
             function(N)
                 for i=0,N do
-                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                    coroutine.yield(i%2)
                 end
             end
         '''
         f = self.lua.eval(lua_code)
         gen = f.coroutine(5)
+        self.assertEqual([0,1,0,1,0,1], list(gen))
+
+    def test_coroutine_iter_pycall(self):
+        lua_code = '''\
+            function(pyfunc, N)
+                for i=0,N do
+                    coroutine.yield(pyfunc(i))
+                end
+            end
+        '''
+        f = self.lua.eval(lua_code)
+
+        def pyfunc(i):
+            return i%2
+
+        gen = f.coroutine(pyfunc, 5)
         self.assertEqual([0,1,0,1,0,1], list(gen))
 
     def test_coroutine_iter_repeat(self):
         lua_code = '''\
             function(N)
                 for i=0,N do
-                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                    coroutine.yield(i%2)
                 end
             end
         '''
@@ -1314,41 +1372,6 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual([0,1,0,1,0,1], list(gen))
 
         gen = f.coroutine(5)
-        self.assertEqual([0,1,0,1,0,1], list(gen))
-
-    def test_coroutine_create_iter(self):
-        lua_code = '''\
-        coroutine.create(
-            function(N)
-                for i=0,N do
-                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
-                end
-            end
-            )
-        '''
-        co = self.lua.eval(lua_code)
-        gen = co(5)
-        self.assertEqual([0,1,0,1,0,1], list(gen))
-
-    def test_coroutine_create_iter_repeat(self):
-        lua_code = '''\
-        coroutine.create(
-            function(N)
-                for i=0,N do
-                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
-                end
-            end
-            )
-        '''
-        co = self.lua.eval(lua_code)
-
-        gen = co(5)
-        self.assertEqual([0,1,0,1,0,1], list(gen))
-
-        gen = co(5)
-        self.assertEqual([0,1,0,1,0,1], list(gen))
-
-        gen = co(5)
         self.assertEqual([0,1,0,1,0,1], list(gen))
 
     def test_coroutine_lua_iter(self):
@@ -1356,7 +1379,7 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         co = coroutine.create(
             function(N)
                 for i=0,N do
-                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                    coroutine.yield(i%2)
                 end
             end
             )
@@ -1371,49 +1394,23 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         lua_code = '''\
             function f(N)
               for i=0,N do
-                  coroutine.yield( i%2 )
+                  coroutine.yield(i%2)
               end
-            end ;
-            co1 = coroutine.create(f) ;
-            co2 = coroutine.create(f) ;
-
-            status, first_value = coroutine.resume(co2, 5) ;   -- starting!
-
-            return f, co1, co2, status, first_value
+            end
+            co = coroutine.create(f)
+            status, first_value = coroutine.resume(co, 5)
+            return f, co, status, first_value
         '''
-        f, co, lua_gen, status, first_value = self.lua.execute(lua_code)
+        f, lua_gen, status, first_value = self.lua.execute(lua_code)
 
         # f
         gen = f.coroutine(5)
-        self.assertEqual([0,1,0,1,0,1], list(gen))
-
-        # co
-        gen = co(5)
-        self.assertEqual([0,1,0,1,0,1], list(gen))
-        gen = co(5)
         self.assertEqual([0,1,0,1,0,1], list(gen))
 
         # lua_gen
         self.assertTrue(status)
         self.assertEqual([0,1,0,1,0,1], [first_value] + list(lua_gen))
         self.assertEqual([], list(lua_gen))
-
-    def test_coroutine_iter_pycall(self):
-        lua_code = '''\
-        coroutine.create(
-            function(pyfunc, N)
-                for i=0,N do
-                    if pyfunc(i) then coroutine.yield(0) else coroutine.yield(1) end
-                end
-            end
-            )
-        '''
-        co = self.lua.eval(lua_code)
-
-        def pyfunc(i):
-            return i%2 == 0
-        gen = co(pyfunc, 5)
-        self.assertEqual([0,1,0,1,0,1], list(gen))
 
     def test_coroutine_send(self):
         lua_code = '''\
@@ -1450,17 +1447,15 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_coroutine_status(self):
         lua_code = '''\
-        coroutine.create(
             function(N)
                 for i=0,N do
-                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                    coroutine.yield(i%2)
                 end
             end
-            )
         '''
-        co = self.lua.eval(lua_code)
-        self.assertTrue(bool(co)) # 1
-        gen = co(1)
+        f = self.lua.eval(lua_code)
+        gen = f.coroutine(1)
+        self.assertTrue(bool(gen)) # 1
         self.assertTrue(bool(gen)) # 2
         self.assertEqual(0, _next(gen))
         self.assertTrue(bool(gen)) # 3
@@ -1474,19 +1469,16 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_coroutine_terminate_return(self):
         lua_code = '''\
-        coroutine.create(
             function(N)
                 for i=0,N do
-                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                    coroutine.yield(i%2)
                 end
                 return 99
             end
-            )
         '''
-        co = self.lua.eval(lua_code)
-
-        self.assertTrue(bool(co)) # 1
-        gen = co(1)
+        f = self.lua.eval(lua_code)
+        gen = f.coroutine(1)
+        self.assertTrue(bool(gen)) # 1
         self.assertTrue(bool(gen)) # 2
         self.assertEqual(0, _next(gen))
         self.assertTrue(bool(gen)) # 3
@@ -1502,7 +1494,7 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         lua_code = '''\
             function(N)
                 for i=0,N-1 do
-                    if i%2 == 0 then coroutine.yield(0) else coroutine.yield(1) end
+                    coroutine.yield(i%2)
                 end
                 if N < 0 then return nil end
                 if N%2 == 0 then return 0 else return 1 end
@@ -2608,25 +2600,25 @@ class TestErrorStackTrace(unittest.TestCase):
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertIn("stack traceback:", e.args[0])
+            self.assertIn("abc", e.args[0])
 
     def test_nil_debug(self):
         lua = lupa.LuaRuntime()
+        lua.execute("debug = nil")
         try:
-            lua.execute("debug = nil")
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertNotIn("stack traceback:", e.args[0])
+            self.assertIn("abc", e.args[0])
 
     def test_nil_debug_traceback(self):
         lua = lupa.LuaRuntime()
+        lua.execute("debug.traceback = nil")
         try:
-            lua.execute("debug = nil")
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertNotIn("stack traceback:", e.args[0])
+            self.assertIn("abc", e.args[0])
 
 
 ################################################################################
@@ -2719,11 +2711,27 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
                 self.assertIncorrect('python.args{[kwargs["%s"]] = true}' % objtype,
                         regex='table key is neither an integer nor a string')
  
-    def test_kwargs_merge(self):
-        self.assertResult('python.args{1, a=1}, python.args{2}, python.args{}, python.args{b=2}', (1, 2), dict(a=1, b=2))
+    def test_args_merge(self):
+        self.assertResult('1, 2, python.args{a=5, b=6}', (1, 2), dict(a=5, b=6))
+        self.assertResult('1, 2, python.args{3, 4, a=5, b=6}', (1, 2, 3, 4), dict(a=5, b=6))
 
-    def test_kwargs_merge_conflict(self):
-        self.assertIncorrect('python.args{a=1}, python.args{a=2}', regex='multiple values')
+
+    def test_multiple_args(self):
+        _G = self.lua.globals()
+
+        x = self.lua.eval('python.args{1, 2, a=5, b=6}')
+        _G.x = x
+        self.assertEqual(_G.x, x)
+
+        y = self.lua.eval('python.args{11, c=13}')
+        _G.y = y
+        self.assertEqual(_G.y, y)
+
+        callfxy = self.lua.eval('function(f) return f(x, y) end')
+
+        # contrary to y, x will not be unpacked
+        self.assertEqual(callfxy(self.get_args), (x, 11))
+        self.assertEqual(callfxy(self.get_kwargs), dict(c=13))
 
 
 class PythonArgumentsInLuaMethodsTest(PythonArgumentsInLuaTest):
@@ -2810,9 +2818,7 @@ class TestOverflowWithoutHandler(TestOverflowMixin, unittest.TestCase):
     lua_runtime_kwargs = dict(overflow_handler=None)
 
     def test_overflow(self):
-        self.assertRaises(OverflowError, self.assertMathType, self.biginteger, 'integer')
-        self.assertRaises(OverflowError, self.assertMathType, int(self.maxfloat), 'integer')
-        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'integer')
+        self.assertEqual(self.lua_type(self.biginteger), 'userdata')
 
 
 class TestOverflowWithFloatHandler(TestOverflowMixin, unittest.TestCase):
@@ -2824,10 +2830,17 @@ class TestOverflowWithFloatHandler(TestOverflowMixin, unittest.TestCase):
         self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
 
 
-class TestOverflowWithObjectHandler(TestOverflowMixin, unittest.TestCase):
+def overflow_error_raiser(o):
+    raise OverflowError(o)
+
+
+class TestOverflowWithError(TestOverflowMixin, unittest.TestCase):
+    lua_runtime_kwargs = dict(overflow_handler=overflow_error_raiser)
+
     def test_overflow(self):
-        self.lua.execute('python.set_overflow_handler(function(o) return o end)')
-        self.assertEqual(self.lua.eval('type')(self.biginteger), 'userdata')
+        self.assertRaises(OverflowError, self.assertMathType, self.biginteger, 'integer')
+        self.assertRaises(OverflowError, self.assertMathType, int(self.maxfloat), 'integer')
+        self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'integer')
 
 
 class TestFloatOverflowHandlerInLua(TestOverflowMixin, unittest.TestCase):
@@ -2869,6 +2882,8 @@ class TestOverflowHandlerOverwrite(TestOverflowMixin, unittest.TestCase):
 
     def test_overwrite_in_lua(self):
         self.lua.execute('python.set_overflow_handler(nil)')
+        self.assertEqual(self.lua_type(self.biginteger), 'userdata')
+        self.lua.execute('python.set_overflow_handler(function() error("overflow") end)')
         self.assertRaises(OverflowError, self.assertMathType, self.biginteger, 'integer')
         self.assertRaises(OverflowError, self.assertMathType, int(self.maxfloat), 'integer')
         self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'integer')
@@ -2879,10 +2894,12 @@ class TestOverflowHandlerOverwrite(TestOverflowMixin, unittest.TestCase):
 
     def test_overwrite_in_python(self):
         self.lua.set_overflow_handler(None)
+        self.assertEqual(self.lua_type(self.biginteger), 'userdata')
+        self.lua.set_overflow_handler(overflow_error_raiser)
         self.assertRaises(OverflowError, self.assertMathType, self.biginteger, 'integer')
         self.assertRaises(OverflowError, self.assertMathType, int(self.maxfloat), 'integer')
         self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'integer')
-        self.lua.execute('python.set_overflow_handler(function(o) return python.builtins.float(o) end)')
+        self.lua.execute('python.set_overflow_handler(python.builtins.float)')
         self.assertMathType(self.biginteger, 'float')
         self.assertMathType(int(self.maxfloat), 'float')
         self.assertRaises(OverflowError, self.assertMathType, self.bigfloat, 'float')
@@ -2944,6 +2961,121 @@ class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
         self.testmissingref({}, enumerate)          # enumerate
         self.testmissingref({}, lupa.as_itemgetter) # item getter protocol
         self.testmissingref({}, lupa.as_attrgetter) # attribute getter protocol
+
+
+################################################################################
+# tests for equality between Lua objects in Python
+
+class TestLuaObjectEquality(SetupLuaRuntimeMixin, unittest.TestCase):
+    def check_eq(self, code):
+        self.lua.execute('val = %s' % code)
+        self.assertEqual(self.lua.eval('val'), self.lua.globals().val)
+
+    def test_object_equality(self):
+        self.check_eq('{}')
+        self.check_eq('function() end')
+        self.check_eq('coroutine.create(function() end)')
+
+
+################################################################################
+# tests for error conversion between Python and Lua
+
+class TestLuaErrorToPython(SetupLuaRuntimeMixin, unittest.TestCase):
+    def assertRaisesEqual(self, expected_exception, callable, *args, **kwargs):
+        raised = False
+        try:
+            callable(*args, **kwargs)
+        except BaseException as obtained_exception:
+            self.assertEqual(type(expected_exception), type(obtained_exception))
+            self.assertEqual(expected_exception.args, obtained_exception.args)
+            raised = True
+        if not raised:
+            raise AssertionError("expected error to be raised")
+
+    def test_assert_raises_equal(self):
+        def raiseme(o): raise Exception(o)
+        def noop(): pass
+        self.assertRaisesEqual(Exception('abc'), raiseme, 'abc')
+        self.assertRaisesRegex(AssertionError, "expected error to be raised",
+                self.assertRaisesEqual, Exception('abc'), noop)
+        self.assertRaises(AssertionError, self.assertRaisesEqual, Exception('abc'), raiseme, 'cde')
+        self.assertRaises(AssertionError, self.assertRaisesEqual, BaseException('abc'), raiseme, 'abc')
+
+    def test_error_base_exception(self):
+        self.assertRaisesRegex(ZeroDivisionError, 'xyz',
+                self.lua.eval, 'error(python.builtins.ZeroDivisionError("xyz"))')
+
+    def test_error_py_exception(self):
+        code = '''
+            local ok, err = pcall(python.eval, "0/0")
+            assert(not ok, "expected to raise an error")
+            assert(python.is_error(err), "expected exception info")
+            error(err)
+        '''
+        self.assertRaises(ZeroDivisionError, self.lua.execute, code)
+
+    def test_error_other_lua_objects(self):
+        self.assertRaisesEqual(lupa.LuaError(), self.lua.eval, 'error()')
+        self.assertRaisesEqual(lupa.LuaError(), self.lua.eval, 'error(nil)')
+        self.assertRaisesRegex(lupa.LuaError, 'xyz', self.lua.eval, 'error("xyz")')
+        self.assertRaisesRegex(lupa.LuaError, '123', self.lua.eval, 'error(123)')
+        self.assertRaisesEqual(lupa.LuaError(False), self.lua.eval, 'error(false)')
+        self.lua.execute('t = {}')
+        t = self.lua.eval('t')
+        self.assertRaisesEqual(lupa.LuaError(t), self.lua.eval, 'error(t)')
+
+
+class TestPythonErrorToLua(SetupLuaRuntimeMixin, unittest.TestCase):
+    def pcall(self, f, *args):
+        return self.lua.eval('pcall')(f, *args)
+
+    def raiseme(self, exctype, excobj):
+        raise exctype(excobj)
+
+    def test_lua_error(self):
+        ok, ret = self.pcall(self.lua.eval('error'), 'xyz')
+        self.assertFalse(ok)
+        self.assertEqual(ret, 'xyz')
+
+    def test_other_exceptions(self):
+        ok, ret = self.pcall(self.raiseme, Exception, 'abc')
+        self.assertFalse(ok)
+        self.assertTrue(self.lua.eval('python.is_error')(ret))
+        self.assertEqual(ret.etype, Exception)
+        self.assertIsInstance(ret.value, Exception)
+        self.assertEqual(ret.value.args, ('abc',))
+        self.assertIsNotNone(ret.traceback)
+
+################################################################################
+# tests for checking Python objects in Lua
+
+class TestIsPythonObjectInLua(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_is_object(self):
+        self.lua.execute('''
+        for _, object in ipairs{
+            42,
+            false,
+            "spam",
+            function() end,
+            coroutine.create(function() end),
+            {1, 2, 3},
+        } do
+            if python.is_object(object) then
+                error(tostring(object) .. ' is not a Python object')
+            end
+        end
+        assert(not python.is_object(nil))
+        for _, object in ipairs{
+            python.none,
+            python.builtins,
+            python.eval,
+            python.as_function(python.eval),
+        } do
+            if not python.is_object(object) then
+                error(tostring(object) .. ' is a Python object')
+            end
+        end
+        ''')
 
 
 if __name__ == '__main__':

@@ -456,11 +456,15 @@ cdef extern from * nogil:
     #else
     #error Lupa requires at least Lua 5.1 or LuaJIT 2.x
     #endif
+
+    #if LUA_VERSION_NUM < 502
+    #define lua_pushglobaltable(L)  lua_pushvalue(L, LUA_GLOBALSINDEX)
+    #endif
     """
     int read_lua_version(lua_State *L)
     int lua_isinteger(lua_State *L, int idx)
     lua_Integer lua_tointegerx (lua_State *L, int idx, int *isnum)
-
+    void lua_pushglobaltable (lua_State *L)
 
 cdef extern from *:
     # Limits for Lua integers (in Lua<5.3: PTRDIFF_MIN, PTRDIFF_MAX)
