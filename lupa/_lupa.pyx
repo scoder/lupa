@@ -1666,7 +1666,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
             # Lua f(..., python.args{a, b, c=1, d=2}) => Python as f(..., a, b, c=1, d=2)
             kwargs = (<_PyArguments>last_arg).kwargs
             moreargs = (<_PyArguments>last_arg).args
-            args = cpython.tuple.PyTuple_New(nargs - 1 + cpython.tuple.PyTuple_Size(moreargs))
+            args = cpython.tuple.PyTuple_New(nargs - 1 + len(moreargs))
             for j, arg in enumerate(moreargs):
                 cpython.ref.Py_INCREF(arg)
                 cpython.tuple.PyTuple_SET_ITEM(args, nargs - 1 + j, arg)
