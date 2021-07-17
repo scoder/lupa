@@ -409,6 +409,7 @@ cdef class LuaRuntime:
         top = getstacktop(self, L, 5)
         try:
             # FIXME: how to check for failure?
+            lua.lua_newtable(L)
             for obj in args:
                 if isinstance(obj, dict):
                     for key, value in obj.iteritems():
@@ -1335,8 +1336,8 @@ cdef int py_to_lua_handle_overflow(LuaRuntime runtime, lua_State *L, object o) e
         Returns 0 if cannot convert Python object to Lua (handler not registered or failed)
         Returns 1 if the Python object was converted successfully and pushed onto the stack
     """
-    top = lua.lua_gettop(L)
     check_lua_stack(L, 2)
+    top = lua.lua_gettop(L)
     try:
         lua.lua_pushlstring(L, LUPAOFH, len(LUPAOFH))
         lua.lua_rawget(L, lua.LUA_REGISTRYINDEX)
@@ -1999,6 +2000,7 @@ cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_f
     """Pushes iterator function, invariant state variable and control variable
     Preconditions:
         3 extra slots in the Lua stack
+        LuaRuntime is locked
     Postconditions:
         Pushes py_iter_next, iterator and the control variable
         Returns the number of pushed values
