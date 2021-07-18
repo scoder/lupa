@@ -278,6 +278,11 @@ cdef extern from "lauxlib.h" nogil:
     enum:
         LUA_ERRFILE #     (LUA_ERRERR+1)
 
+    # pre-defined references
+    enum:
+        LUA_NOREF   # -2
+        LUA_REFNIL  # -1
+
     ctypedef struct luaL_Reg:
         char *name
         lua_CFunction func

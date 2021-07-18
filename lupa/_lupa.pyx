@@ -132,6 +132,7 @@ def lua_type(obj):
         return None
     lua_object = <_LuaObject>obj
     assert lua_object._runtime is not None
+    assert lua_object._runtime._state is not NULL
     lock_runtime(lua_object._runtime)
     L = lua_object._state
     old_top = lua.lua_gettop(L)
@@ -291,6 +292,7 @@ cdef class LuaRuntime:
         """
         The Lua runtime/language version as tuple, e.g. (5, 3) for Lua 5.3.
         """
+        assert self._state is not NULL
         cdef int version = lua.read_lua_version(self._state)
         return (version // 100, version % 100)
 
@@ -343,6 +345,7 @@ cdef class LuaRuntime:
     def compile(self, lua_code):
         """Compile a Lua program into a callable Lua function.
         """
+        assert self._state is not NULL
         cdef const char *err
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
@@ -460,6 +463,7 @@ cdef class LuaRuntime:
     def set_overflow_handler(self, overflow_handler):
         """Set the overflow handler function that is called on failures to pass large numbers to Lua.
         """
+        assert self._state is not NULL
         cdef lua_State *L = self._state
         if overflow_handler is not None and not callable(overflow_handler):
             raise ValueError("overflow_handler must be callable")
@@ -670,6 +674,8 @@ cdef tuple _fix_args_kwargs(tuple args):
         return args, {}
 
     cdef _LuaTable table = <_LuaTable>arg
+    assert table._runtime is not None
+    assert table._runtime._state is not NULL
     cdef LuaRuntime runtime = table._runtime
     cdef lua_State* L = table._state
     lock_runtime(runtime)
@@ -706,6 +712,9 @@ cdef class _LuaObject:
     cdef lua_State* _state
     cdef int _ref
 
+    def __cinit__(self):
+        self._ref = lua.LUA_NOREF
+
     def __init__(self):
         raise TypeError("Type cannot be instantiated manually")
 
@@ -713,10 +722,14 @@ cdef class _LuaObject:
         if self._runtime is None:
             return
         cdef lua_State* L = self._state
-        locked = lock_runtime(self._runtime)
-        lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
-        if locked:
-            unlock_runtime(self._runtime)
+        if L is not NULL and self._ref != lua.LUA_NOREF:
+            locked = lock_runtime(self._runtime)
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
+            self._ref = lua.LUA_NOREF
+            runtime = self._runtime
+            self._runtime = None
+            if locked:
+                unlock_runtime(runtime)
 
     @cython.final
     cdef inline int push_lua_object(self, lua_State* L) except -1:
@@ -727,6 +740,8 @@ cdef class _LuaObject:
         Postconditions:
             Lua object (not nil) is pushed onto of the stack
         """
+        if self._ref == lua.LUA_NOREF:
+            raise LuaError("lost reference")
         lua.lua_rawgeti(L, lua.LUA_REGISTRYINDEX, self._ref)
         if lua.lua_isnil(L, -1):
             lua.lua_pop(L, 1)
@@ -797,14 +812,19 @@ cdef class _LuaObject:
             self.push_lua_object(L)                         # obj
             if lua.luaL_getmetafield(L, -1, "__tostring"):  # obj tostr
                 lua.lua_insert(L, -2)                       # tostr obj
-                if lua.lua_pcall(L, 1, 1, 0) == 0:          # str
+                status = lua.lua_pcall(L, 1, 1, 0)
+                if status == 0:                             # str
                     string = lua.lua_tolstring(L, -1, &size)
-                    if string:
-                        try:
-                            return string[:size].decode(encoding)
-                        except UnicodeDecodeError:
-                            return string[:size].decode('ISO-8859-1')
-            return repr(self)
+                    if string is NULL:
+                        raise TypeError("__tostring returned non-string object")
+                    try:
+                        return string[:size].decode(encoding)
+                    except UnicodeDecodeError:
+                        return string[:size].decode('ISO-8859-1')
+                else:
+                    raise_lua_error(self._runtime, L, status)
+            else:
+                return lua_object_repr(L, encoding)
         finally:
             lua.lua_settop(L, old_top)
             unlock_runtime(self._runtime)
@@ -825,6 +845,7 @@ cdef class _LuaObject:
 
     @cython.final
     cdef _getitem(self, name, bint is_attr_access):
+        assert self._runtime is not None
         cdef lua_State* L = self._state
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
@@ -922,6 +943,7 @@ cdef class _LuaTable(_LuaObject):
 
     @cython.final
     cdef int _setitem(self, name, value) except -1:
+        assert self._runtime is not None
         cdef lua_State* L = self._state
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
@@ -954,6 +976,7 @@ cdef class _LuaTable(_LuaObject):
 
     @cython.final
     cdef _delitem(self, name):
+        assert self._runtime is not None
         cdef lua_State* L = self._state
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
@@ -1104,6 +1127,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
     cdef lua_State* co = thread._co_state
     cdef lua_State* L = thread._state
     cdef int status, i, nargs = 0, nres = 0
+    assert thread._runtime is not None
     lock_runtime(thread._runtime)
     old_top = lua.lua_gettop(L)
     try:
@@ -1158,18 +1182,21 @@ cdef class _LuaIter:
         self._runtime = obj._runtime
         self._obj = obj
         self._state = obj._state
-        self._refiter = 0
+        self._refiter = lua.LUA_REFNIL
         self._what = what
 
     def __dealloc__(self):
         if self._runtime is None:
             return
         cdef lua_State* L = self._state
-        if L is not NULL and self._refiter:
+        if L is not NULL and self._refiter != lua.LUA_NOREF:
             locked = lock_runtime(self._runtime)
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
+            self._refiter = lua.LUA_NOREF
+            runtime = self._runtime
+            self._runtime = None
             if locked:
-                unlock_runtime(self._runtime)
+                unlock_runtime(runtime)
 
     def __repr__(self):
         return u"LuaIter(%r)" % (self._obj)
@@ -1181,6 +1208,7 @@ cdef class _LuaIter:
         if self._obj is None:
             raise StopIteration
         cdef lua_State* L = self._obj._state
+        assert self._runtime is not None
         lock_runtime(self._runtime)
         old_top = lua.lua_gettop(L)
         try:
@@ -1191,7 +1219,10 @@ cdef class _LuaIter:
             self._obj.push_lua_object(L)
             if not lua.lua_istable(L, -1):
                 raise TypeError("cannot iterate over non-table (found %r)" % self._obj)
-            if not self._refiter:
+            if self._refiter == lua.LUA_NOREF:
+                # no key
+                raise StopIteration
+            elif self._refiter == lua.LUA_REFNIL:
                 # initial key
                 lua.lua_pushnil(L)
             else:
@@ -1209,15 +1240,15 @@ cdef class _LuaIter:
                     # pop value
                     lua.lua_pop(L, 1)
                     # pop and store key
-                    if not self._refiter:
+                    if self._refiter == lua.LUA_REFNIL:
                         self._refiter = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
                     else:
                         lua.lua_rawseti(L, lua.LUA_REGISTRYINDEX, self._refiter)
                 return retval
             # iteration done, clean up
-            if self._refiter:
+            if self._refiter != lua.LUA_REFNIL:
                 lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
-                self._refiter = 0
+                self._refiter = lua.LUA_NOREF
             self._obj = None
             raise StopIteration
         finally:
