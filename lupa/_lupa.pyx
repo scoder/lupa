@@ -131,11 +131,11 @@ def lua_type(obj):
     if not isinstance(obj, _LuaObject):
         return None
     lua_object = <_LuaObject>obj
+    assert lua_object._runtime is not None
+    lock_runtime(lua_object._runtime)
     L = lua_object._state
-    runtime = lua_object._runtime
-    assert runtime is not None
-    lock_runtime(runtime)
     old_top = lua.lua_gettop(L)
+    cdef const char* lua_type_name
     try:
         check_lua_stack(L, 1)
         lua_object.push_lua_object(L)
@@ -153,7 +153,7 @@ def lua_type(obj):
             return lua_type_name if IS_PY2 else lua_type_name.decode('ascii')
     finally:
         lua.lua_settop(L, old_top)
-        unlock_runtime(runtime)
+        unlock_runtime(lua_object._runtime)
 
 
 @cython.no_gc_clear
@@ -347,9 +347,9 @@ cdef class LuaRuntime:
         if isinstance(lua_code, unicode):
             lua_code = (<unicode>lua_code).encode(self._source_encoding)
         L = self._state
-        cdef size_t size
         lock_runtime(self)
         old_top = lua.lua_gettop(L)
+        cdef size_t size
         try:
             check_lua_stack(L, 1)
             status = lua.luaL_loadbuffer(L, lua_code, len(lua_code), b'<python>')
