@@ -655,9 +655,9 @@ cdef tuple unpack_lua_table(LuaRuntime runtime, lua_State* L):
             else:
                 raise TypeError("table key is neither an integer nor a string")
             lua.lua_pop(L, 1)         # key
-        return args, kwargs
     finally:
         lua.lua_settop(L, old_top)
+    return args, kwargs
 
 
 cdef tuple _fix_args_kwargs(tuple args):
@@ -851,7 +851,6 @@ cdef class _LuaObject:
         old_top = lua.lua_gettop(L)
         try:
             check_lua_stack(L, 3)
-            # table[nil] fails, so map None -> python.none for Lua tables
             lua.lua_pushcfunction(L, get_from_lua_table)                               # func
             self.push_lua_object(L)                                                    # func obj
             lua_type = lua.lua_type(L, -1)
@@ -954,10 +953,10 @@ cdef class _LuaTable(_LuaObject):
             py_to_lua(self._runtime, L, name, wrap_none=True)
             py_to_lua(self._runtime, L, value)
             lua.lua_settable(L, -3)
-            return 0
         finally:
             lua.lua_settop(L, old_top)
             unlock_runtime(self._runtime)
+        return 0
 
     def __delattr__(self, item):
         assert self._runtime is not None
@@ -1250,10 +1249,10 @@ cdef class _LuaIter:
                 lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
                 self._refiter = lua.LUA_NOREF
             self._obj = None
-            raise StopIteration
         finally:
             lua.lua_settop(L, old_top)
             unlock_runtime(self._runtime)
+        raise StopIteration
 
 # type conversions and protocol adaptations
 
@@ -1496,16 +1495,15 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     check_lua_stack(L, 3)
     old_top = lua.lua_gettop(L)
     try:
-        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
-
         # check if Python object is already referenced in Lua
+        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
         if refkey in runtime._pyrefs_in_lua:
             pyref = <_PyReference>runtime._pyrefs_in_lua[refkey]
             lua.lua_rawgeti(L, -1, pyref._ref)              # tbl udata
             py_obj = <py_object*>lua.lua_touserdata(L, -1)
             if py_obj:
                 lua.lua_remove(L, -2)                       # udata
-                return 1 # values pushed
+                return 1  # values pushed
             lua.lua_pop(L, 1)                               # tbl
 
         # create new wrapper for Python object
@@ -1526,11 +1524,11 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
         # now, we store an owned reference in "runtime._pyrefs_in_lua" to keep it visible to Python
         # and a borrowed reference in "py_obj.obj" for access from Lua
         runtime._pyrefs_in_lua[refkey] = pyref
-
-        return 1  # values pushed
     except:
         lua.lua_settop(L, old_top)
         raise
+
+    return 1  # values pushed
 
 cdef inline int _isascii(unsigned char* s):
     cdef unsigned char c = 0
