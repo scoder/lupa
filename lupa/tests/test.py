@@ -417,6 +417,16 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         func = self.lua.eval('function() return 1 end')
         self.assertRaises(TypeError, list, func)
 
+    def test_iter_table_exaust(self):
+        table = self.lua.table(1, 2, 3)
+        tableiter = iter(table)
+        self.assertEqual(next(tableiter), 1)
+        self.assertEqual(next(tableiter), 2)
+        self.assertEqual(next(tableiter), 3)
+        self.assertRaises(StopIteration, next, tableiter)
+        self.assertRaises(StopIteration, next, tableiter)
+        self.assertRaises(StopIteration, next, tableiter)
+
     def test_string_values(self):
         function = self.lua.eval('function(s) return s .. "abc" end')
         self.assertEqual('ABCabc', function('ABC'))
@@ -2944,6 +2954,23 @@ class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
         self.testmissingref({}, enumerate)          # enumerate
         self.testmissingref({}, lupa.as_itemgetter) # item getter protocol
         self.testmissingref({}, lupa.as_attrgetter) # attribute getter protocol
+
+
+################################################################################
+# test Lua object __str__ method
+
+class TestLuaObjectString(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_normal_string(self):
+        self.assertIn('Lua table', str(self.lua.eval('{}')))
+        self.assertIn('Lua function', str(self.lua.eval('print')))
+        self.assertIn('Lua thread', str(self.lua.execute('local t = coroutine.create(function() end); coroutine.resume(t); return t')))
+
+    def test_bad_tostring(self):
+        self.assertRaisesRegex(TypeError, '__tostring returned non-string object',
+                str, self.lua.eval('setmetatable({}, {__tostring = function() end})'))
+
+    def test_tostring_err(self):
+        self.assertRaises(lupa.LuaError, str, self.lua.eval('setmetatable({}, {__tostring = function() error() end})'))
 
 
 if __name__ == '__main__':
