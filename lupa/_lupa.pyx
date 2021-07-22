@@ -246,7 +246,6 @@ cdef class LuaRuntime:
     cdef lua_State *_state
     cdef FastRLock _lock
     cdef dict _pyrefs_in_lua
-    cdef tuple _raised_exception
     cdef bytes _encoding
     cdef bytes _source_encoding
     cdef object _attribute_filter
