@@ -780,16 +780,13 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertRaises(ValueError, function, test)
 
     def test_reraise_pcall(self):
+        def raiseme(o): raise o
+        lua_pcall = self.lua.eval('pcall')
         exception = Exception('test')
-        def py_function():
-            raise exception
-        function = self.lua.eval(
-            'function(p) local r, err = pcall(p); return r, err end'
-        )
-        self.assertEqual(
-            function(py_function),
-            (False, exception)
-        )
+        ok, ret = lua_pcall(raiseme, exception)
+        self.assertFalse(ok)
+        self.assertEqual(ret.etype, type(exception))
+        self.assertEqual(ret.value, exception)
 
     def test_lua_error_after_intercepted_python_exception(self):
         function = self.lua.eval('''
@@ -2618,25 +2615,25 @@ class TestErrorStackTrace(unittest.TestCase):
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertIn("stack traceback:", e.args[0])
+            self.assertIn("abc", e.args[0])
 
     def test_nil_debug(self):
         lua = lupa.LuaRuntime()
+        lua.execute("debug = nil")
         try:
-            lua.execute("debug = nil")
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertNotIn("stack traceback:", e.args[0])
+            self.assertIn("abc", e.args[0])
 
     def test_nil_debug_traceback(self):
         lua = lupa.LuaRuntime()
+        lua.execute("debug.traceback = nil")
         try:
-            lua.execute("debug = nil")
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertNotIn("stack traceback:", e.args[0])
+            self.assertIn("abc", e.args[0])
 
 
 ################################################################################
@@ -2954,6 +2951,110 @@ class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
         self.testmissingref({}, enumerate)          # enumerate
         self.testmissingref({}, lupa.as_itemgetter) # item getter protocol
         self.testmissingref({}, lupa.as_attrgetter) # attribute getter protocol
+
+################################################################################
+# tests for error conversion between Python and Lua
+
+class TestLuaErrorToPython(SetupLuaRuntimeMixin, unittest.TestCase):
+    def assertRaisesEqual(self, expected_exception, callable, *args, **kwargs):
+        raised = False
+        try:
+            callable(*args, **kwargs)
+        except BaseException as obtained_exception:
+            self.assertEqual(type(expected_exception), type(obtained_exception))
+            self.assertEqual(expected_exception.args, obtained_exception.args)
+            raised = True
+        if not raised:
+            raise AssertionError("expected error to be raised")
+
+    def test_assert_raises_equal(self):
+        def raiseme(o): raise Exception(o)
+        def noop(): pass
+        self.assertRaisesEqual(Exception('abc'), raiseme, 'abc')
+        self.assertRaisesRegex(AssertionError, "expected error to be raised",
+                self.assertRaisesEqual, Exception('abc'), noop)
+        self.assertRaises(AssertionError, self.assertRaisesEqual, Exception('abc'), raiseme, 'cde')
+        self.assertRaises(AssertionError, self.assertRaisesEqual, BaseException('abc'), raiseme, 'abc')
+
+    def test_error_base_exception(self):
+        self.assertRaisesRegex(ZeroDivisionError, 'xyz',
+                self.lua.eval, 'error(python.builtins.ZeroDivisionError("xyz"))')
+
+    def test_error_py_exception(self):
+        code = '''
+            local ok, err = pcall(python.eval, "0/0")
+            assert(not ok, "expected to raise an error")
+            assert(python.is_error(err), "expected exception info")
+            error(err)
+        '''
+        self.assertRaises(ZeroDivisionError, self.lua.execute, code)
+
+    def test_error_other_lua_objects(self):
+        self.assertRaisesEqual(lupa.LuaError(), self.lua.eval, 'error()')
+        self.assertRaisesEqual(lupa.LuaError(), self.lua.eval, 'error(nil)')
+        self.assertRaisesRegex(lupa.LuaError, 'xyz', self.lua.eval, 'error("xyz")')
+        self.assertRaisesRegex(lupa.LuaError, '123', self.lua.eval, 'error(123)')
+        self.assertRaisesEqual(lupa.LuaError(False), self.lua.eval, 'error(false)')
+        try:
+            self.lua.eval('error{a=123}')
+        except lupa.LuaError as err:
+            t = err.args[0]
+            self.assertEqual(t.a, 123)
+        else:
+            raise RuntimeError('LuaError not raised')
+
+
+class TestPythonErrorToLua(SetupLuaRuntimeMixin, unittest.TestCase):
+    def pcall(self, f, *args):
+        return self.lua.eval('pcall')(f, *args)
+
+    def raiseme(self, exctype, excobj):
+        raise exctype(excobj)
+
+    def test_lua_error(self):
+        ok, ret = self.pcall(self.lua.eval('error'), 'xyz')
+        self.assertFalse(ok)
+        self.assertEqual(ret, 'xyz')
+
+    def test_other_exceptions(self):
+        ok, ret = self.pcall(self.raiseme, Exception, 'abc')
+        self.assertFalse(ok)
+        self.assertTrue(self.lua.eval('python.is_error')(ret))
+        self.assertEqual(ret.etype, Exception)
+        self.assertIsInstance(ret.value, Exception)
+        self.assertEqual(ret.value.args, ('abc',))
+        self.assertIsNotNone(ret.traceback)
+
+################################################################################
+# tests for checking Python objects in Lua
+
+class TestIsPythonObjectInLua(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_is_object(self):
+        self.lua.execute('''
+        for _, object in ipairs{
+            42,
+            false,
+            "spam",
+            function() end,
+            coroutine.create(function() end),
+            {1, 2, 3},
+        } do
+            if python.is_object(object) then
+                error(tostring(object) .. ' is not a Python object')
+            end
+        end
+        assert(not python.is_object(nil))
+        for _, object in ipairs{
+            python.none,
+            python.builtins,
+            python.eval,
+            python.as_function(python.eval),
+        } do
+            if not python.is_object(object) then
+                error(tostring(object) .. ' is a Python object')
+            end
+        end
+        ''')
 
 
 ################################################################################
