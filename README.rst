@@ -627,6 +627,49 @@ Python callables automatically.  Decorators allow to enable named arguments
 on a per-callable basis.
 
 
+Handling errors
+---------------
+
+When Lua raises an ordinary error, it is converted to a ``LuaError`` exception.
+
+.. code:: python
+
+      >>> lua = LuaRuntime()
+      >>> lua.execute('error("spam")')  # doctest: +IGNORE_EXCEPTION_DETAIL
+      Traceback (most recent call last):
+       ...
+      lupa._lupa.LuaError: [string "<python>"]:1: spam
+
+
+Python exceptions are also propagated when raised from Lua.
+
+.. code:: python
+
+      >>> lua = LuaRuntime()
+      >>> lua.eval('python.eval("x")')
+      Traceback (most recent call last):
+       ...
+      NameError: name 'x' is not defined
+
+And can be handled just like any other error in Lua. If you want to check if an error
+comes from Python, use the ``python.is_error`` function. The error object has fields
+analogous to those returned by ``sys.exc_info`` (``etype``, ``value`` and ``traceback``).
+When converted to a string, this error object presents the full stack traceback.
+
+.. code:: python
+
+      >>> lua = LuaRuntime()
+      >>> lua.execute('''
+      ... local ok, err = pcall(python.eval, 'x')
+      ... assert(not ok and python.is_error(err))
+      ... assert(err.etype == python.builtins.NameError)
+      ... assert(python.builtins.isinstance(err.value, python.builtins.NameError))
+      ... assert(err.traceback ~= nil)
+      ... error(err)''')
+      Traceback (most recent call last):
+       ...
+      NameError: name 'x' is not defined
+
 Lua Coroutines
 --------------
 

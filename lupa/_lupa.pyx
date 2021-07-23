@@ -1581,30 +1581,21 @@ cdef int py_to_lua_error(LuaRuntime runtime, lua_State* L, bytes msg):
         Runtime is locked
         Caller is inside 'except' block
     Postconditions:
-        If the Python exception is a LuaError, the value object is pushed onto the stack
-        Otherwise, a _PyException object is created and wrapped into a Lua userdatum
+        A _PyException object is created and wrapped into a Lua userdatum
         If it cannot ensure an extra slot in the Lua stack, replaces value on top of
         the Lua stack with the error object (expect lua_error to be called thereafter)
         Always returns -1
     """
     cdef tuple einfo
-    cdef tuple args
     cdef _PyException pyexc
     if not lua.lua_checkstack(L, 1):
         lua.lua_pop(L, 1)  # ensure extra slot
     old_top = lua.lua_gettop(L)
     try:
-        einfo = <tuple?>exc_info()
-        value = einfo[1]
-        if isinstance(value, LuaError):
-            args = value.args
-            if not args:
-                lua.lua_pushnil(L)
-            else:
-                py_to_lua(runtime, L, args[0])
-        else:
-            pyexc = _PyException.__new__(_PyException, *einfo)
-            py_to_lua_custom(runtime, L, pyexc, 0)
+        einfo = exc_info()
+        assert any(einfo)
+        pyexc = _PyException.__new__(_PyException, *einfo)
+        py_to_lua_custom(runtime, L, pyexc, 0)
     except:
         lua.lua_settop(L, old_top)
         lua.lua_pushlstring(L, msg, len(msg))
