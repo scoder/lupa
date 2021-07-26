@@ -51,8 +51,8 @@ cdef extern from *:
 cdef object exc_info
 from sys import exc_info
 
-cdef object format_exception, print_stack
-from traceback import format_exception, print_stack
+cdef object format_exception
+from traceback import format_exception
 
 cdef object CodeType
 from types import CodeType
@@ -2127,7 +2127,7 @@ cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_f
     try:
         check_lua_stack(L, 3)
         # push the iterator function
-        lua.lua_pushcfunction(L, <lua.lua_CFunction>py_iter_next)
+        lua.lua_pushcfunction(L, py_iter_next)
         # push the wrapped iterator object as for-loop state object
         if runtime._unpack_returned_tuples:
             type_flags |= OBJ_UNPACK_TUPLE
