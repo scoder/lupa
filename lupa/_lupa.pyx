@@ -1553,7 +1553,6 @@ cdef bytes _asciiOrNone(s):
 
 # error handling
 
-@cython.no_gc_clear
 @cython.freelist(16)
 @cython.internal
 cdef class _PyException:
@@ -1561,11 +1560,6 @@ cdef class _PyException:
     cdef readonly object etype
     cdef readonly object value
     cdef readonly object traceback
-
-    def __cinit__(self, etype, value, traceback):
-        self.etype = etype
-        self.value = value
-        self.traceback = traceback
 
     def __init__(self):
         raise TypeError("Type cannot be instantiated from Python")
@@ -1586,15 +1580,17 @@ cdef int py_to_lua_error(LuaRuntime runtime, lua_State* L, bytes msg):
         the Lua stack with the error object (expect lua_error to be called thereafter)
         Always returns -1
     """
-    cdef tuple einfo
     cdef _PyException pyexc
     if not lua.lua_checkstack(L, 1):
         lua.lua_pop(L, 1)  # ensure extra slot
     old_top = lua.lua_gettop(L)
     try:
-        einfo = exc_info()
-        assert any(einfo)
-        pyexc = _PyException.__new__(_PyException, *einfo)
+        etype, value, traceback = exc_info()
+        assert etype is not None
+        pyexc = _PyException.__new__(_PyException)
+        pyexc.etype = etype
+        pyexc.value = value
+        pyexc.traceback = traceback
         py_to_lua_custom(runtime, L, pyexc, 0)
     except:
         lua.lua_settop(L, old_top)
@@ -2389,8 +2385,10 @@ cdef int py_error_with_gil(PyObject* runtime_obj, lua_State* L, py_object* py_ob
             errobj = py_from_lua(runtime, L, 1)
             exc = LuaError(errobj)  # convert error object
 
-        tb = py_traceback_from_lua(L, 1, exc)
-        pyexc = _PyException.__new__(_PyException, type(exc), exc, tb)
+        pyexc = _PyException.__new__(_PyException)
+        pyexc.etype = type(exc)
+        pyexc.value = exc
+        pyexc.traceback = py_traceback_from_lua(L, 1, exc)
         py_to_lua_custom(runtime, L, pyexc, 0)
         return 1
     except:
