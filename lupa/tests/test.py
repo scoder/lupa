@@ -2972,6 +2972,51 @@ class TestLuaObjectString(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_tostring_err(self):
         self.assertRaises(lupa.LuaError, str, self.lua.eval('setmetatable({}, {__tostring = function() error() end})'))
 
+class TestSigSegScenarios(unittest.TestCase):
+    class PendingRequest:
+
+        def __init__(self, callback):
+            self.__callback = callback
+
+    def make_request(callback):
+        return TestSigSegScenarios.PendingRequest(callback)
+
+    def test_callback_passing(self):
+        lua = lupa.LuaRuntime()
+        lua.globals().make_request = TestSigSegScenarios.make_request
+        run = lua.eval("""
+        function()
+            make_request(function() end)
+        end
+        """)
+
+        for i in range(10000):
+            thread = run.coroutine()
+            try:
+                thread.send(None)
+            except StopIteration:
+                pass
+
+        # assert no segmentation fault
+
+    def test_callback_passing_with_exception(self):
+        lua = lupa.LuaRuntime()
+        lua.globals().make_request = TestSigSegScenarios.make_request
+        run = lua.eval("""
+           function()
+               make_request(function() end)
+               error('test error')
+           end
+           """)
+
+        for i in range(10000):
+            thread = run.coroutine()
+            try:
+                thread.send(None)
+            except Exception:
+                pass
+
+        # assert no segmentation fault
 
 if __name__ == '__main__':
     def print_version():

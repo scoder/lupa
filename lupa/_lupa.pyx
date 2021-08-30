@@ -242,6 +242,7 @@ cdef class LuaRuntime:
     cdef object _attribute_getter
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
+    cdef StatesReferenceTracker _ref_tracker
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
@@ -255,6 +256,8 @@ cdef class LuaRuntime:
         self._pyrefs_in_lua = {}
         self._encoding = _asciiOrNone(encoding)
         self._source_encoding = _asciiOrNone(source_encoding) or self._encoding or b'UTF-8'
+        self._ref_tracker = StatesReferenceTracker()
+        self._ref_tracker.track_state(L)
         if attribute_filter is not None and not callable(attribute_filter):
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
@@ -284,6 +287,7 @@ cdef class LuaRuntime:
 
     def __dealloc__(self):
         if self._state is not NULL:
+            self._ref_tracker.unref_state_references(self._state)
             lua.lua_close(self._state)
             self._state = NULL
 
@@ -724,7 +728,7 @@ cdef class _LuaObject:
         cdef lua_State* L = self._state
         if L is not NULL and self._ref != lua.LUA_NOREF:
             locked = lock_runtime(self._runtime)
-            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
+            self._runtime._ref_tracker.unref_reference(L, self._ref)
             self._ref = lua.LUA_NOREF
             runtime = self._runtime
             self._runtime = None
@@ -875,6 +879,7 @@ cdef void init_lua_object(_LuaObject obj, LuaRuntime runtime, lua_State* L, int 
     obj._state = L
     lua.lua_pushvalue(L, n)
     obj._ref = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
+    runtime._ref_tracker.track_reference(L, obj._ref)
 
 cdef object lua_object_repr(lua_State* L, bytes encoding):
     cdef bytes py_bytes
@@ -1100,6 +1105,7 @@ cdef _LuaThread new_lua_thread(LuaRuntime runtime, lua_State* L, int n):
     cdef _LuaThread obj = _LuaThread.__new__(_LuaThread)
     init_lua_object(obj, runtime, L, n)
     obj._co_state = lua.lua_tothread(L, n)
+    runtime._ref_tracker.track_state(obj._co_state)
     return obj
 
 
@@ -1127,6 +1133,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
     cdef lua_State* L = thread._state
     cdef int status, i, nargs = 0, nres = 0
     assert thread._runtime is not None
+    cdef bint done = False
     lock_runtime(thread._runtime)
     old_top = lua.lua_gettop(L)
     try:
@@ -1144,8 +1151,10 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
                 # terminated
                 if nres == 0:
                     # no values left to return
+                    done = True
                     raise StopIteration
             else:
+                done = True
                 raise_lua_error(thread._runtime, co, status)
 
         # Move yielded values to the main state before unpacking.
@@ -1156,6 +1165,9 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
     finally:
         # FIXME: check that coroutine state is OK in case of errors?
         lua.lua_settop(L, old_top)
+        if done:
+            # unref all state references
+            thread._runtime._ref_tracker.unref_state_references(co)
         unlock_runtime(thread._runtime)
 
 
@@ -1745,6 +1757,54 @@ cdef int py_object_gc(lua_State* L) nogil:
         if py_object_gc_with_gil(py_obj, L):
             return lua.lua_error(L)  # never returns!
     return 0
+
+# ref-counting support for lua objects
+
+@cython.final
+@cython.internal
+@cython.no_gc_clear
+cdef class StatesReferenceTracker:
+    """Track all lua state objects and their references."""
+
+    cdef dict _states_references # Dict[<uintptr_t>LuaState, Set[int]]
+
+    def __cinit__(self):
+        self._states_references = {}
+
+    cdef int track_state(self, lua_State *L) except -1:
+        cdef state = <uintptr_t>L
+        assert state not in self._states_references
+        self._states_references[state] = set()
+        return 0
+
+    cdef int unref_state_references(self, lua_State *L) except -1:
+        cdef set references = self._states_references.pop(<uintptr_t>L, None)
+        if not references:
+            return 0
+
+        # unref all tracked references
+        for ref in references:
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
+        return 0
+
+    cdef int track_reference(self, lua_State *L, int ref) except -1:
+        cdef set references = self._states_references.get(<uintptr_t>L, None)
+        if references is None:
+            return 0
+
+        references.add(ref)
+        return 0
+
+    cdef int unref_reference(self, lua_State *L, int ref) except -1:
+        cdef set references = self._states_references.get(<uintptr_t>L, None)
+        if references is None:
+            return 0
+
+        if ref in references:
+            references.remove(ref)
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
+
+        return 0
 
 # calling Python objects
 
