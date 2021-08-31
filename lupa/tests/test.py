@@ -2973,17 +2973,17 @@ class TestLuaObjectString(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertRaises(lupa.LuaError, str, self.lua.eval('setmetatable({}, {__tostring = function() error() end})'))
 
 class TestSigSegScenarios(unittest.TestCase):
-    class PendingRequest:
+    class PendingRequest(object):
 
         def __init__(self, callback):
             self.__callback = callback
 
-    def make_request(callback):
+    def make_request(self, callback):
         return TestSigSegScenarios.PendingRequest(callback)
 
     def test_callback_passing(self):
         lua = lupa.LuaRuntime()
-        lua.globals().make_request = TestSigSegScenarios.make_request
+        lua.globals().make_request = self.make_request
         run = lua.eval("""
         function()
             make_request(function() end)
@@ -3001,7 +3001,7 @@ class TestSigSegScenarios(unittest.TestCase):
 
     def test_callback_passing_with_exception(self):
         lua = lupa.LuaRuntime()
-        lua.globals().make_request = TestSigSegScenarios.make_request
+        lua.globals().make_request = self.make_request
         run = lua.eval("""
            function()
                make_request(function() end)
