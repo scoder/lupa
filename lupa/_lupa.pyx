@@ -1565,8 +1565,7 @@ cdef class _PyException:
         raise TypeError("Type cannot be instantiated from Python")
 
     def __str__(self):
-        einfo = self.etype, self.value, self.traceback
-        return ''.join(format_exception(*einfo)).strip()
+        return ''.join(format_exception(self.etype, self.value, self.traceback)).strip()
 
 
 cdef int py_to_lua_error(LuaRuntime runtime, lua_State* L, bytes msg):
