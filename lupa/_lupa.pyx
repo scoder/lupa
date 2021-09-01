@@ -2253,11 +2253,12 @@ cdef int py_is_object(lua_State* L) nogil:
 # raising Python errors from Lua
 
 cdef object tb_set_next(object tb, object tb_next):
+    cdef PyObject* prev_tb_next
     c_tb = <PyTracebackObject*>tb
     if tb.tb_next is not None:
-        prev_tb_next = <object>c_tb.tb_next
+        prev_tb_next = <PyObject*>c_tb.tb_next
         c_tb.tb_next = NULL
-        cpython.ref.Py_DECREF(prev_tb_next)
+        cpython.ref.Py_XDECREF(prev_tb_next)
     if tb_next is not None:
         cpython.ref.Py_INCREF(tb_next)
         c_tb.tb_next = <PyTracebackObject*>tb_next

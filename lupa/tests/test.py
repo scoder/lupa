@@ -2956,10 +2956,10 @@ class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
 # tests for error conversion between Python and Lua
 
 class TestLuaErrorToPython(SetupLuaRuntimeMixin, unittest.TestCase):
-    def assertRaisesEqual(self, expected_exception, callable, *args, **kwargs):
+    def assertRaisesEqual(self, expected_exception, func, *args, **kwargs):
         raised = False
         try:
-            callable(*args, **kwargs)
+            func(*args, **kwargs)
         except BaseException as obtained_exception:
             self.assertEqual(type(expected_exception), type(obtained_exception))
             self.assertEqual(expected_exception.args, obtained_exception.args)
