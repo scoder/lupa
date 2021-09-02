@@ -23,7 +23,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Set up Python packages
-      run: python -m pip install -U "pip<21" "setuptools<45" && python -m pip install -U tox virtualenv
+      run: python -m pip install -U "pip<21" "setuptools<45" wheel && python -m pip install -U tox virtualenv
 
     - name: Set up Lua ${{ matrix.lua-version }}
       if: ${{ !contains(matrix.lua-version, 'bundle') }}
