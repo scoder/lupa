@@ -1,5 +1,4 @@
 version: 1.0.{build}
-os: windows-2019
 
 environment:
   matrix:
