@@ -4,7 +4,9 @@ image: Visual Studio 2019
 environment:
   matrix:
   - python: 27
+    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
   - python: 27-x64
+    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
   - python: 39
   - python: 39-x64
   - python: 38
