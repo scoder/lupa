@@ -1,14 +1,22 @@
 Lupa change log
 ===============
 
-Upcoming release
-----------------
+1.10 (2021-09-02)
+-----------------
+
+* GH#147: Lua 5.4 is supported.
+  (patch by Russel Davis)
 
 * The runtime version of the Lua library as a tuple (e.g. ``(5,3)``)
   is provided via ``lupa.LUA_VERSION`` and ``LuaRuntime.lua_version``.
 
 * The Lua implementation name and version string is provided as
   ``LuaRuntime.lua_implementation``.
+
+* ``setup.py`` accepts new command line arguments ``--lua-lib`` and ``--lua-includes``
+  to specify the
+
+* Built with Cython 0.29.24 to support Python 3.9.
 
 
 1.9 (2019-12-21)
