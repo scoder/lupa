@@ -14,7 +14,7 @@ try:
 except ImportError:
     from distutils.core import setup, Extension
 
-VERSION = '1.9'
+VERSION = '1.10'
 
 extra_setup_args = {}
 

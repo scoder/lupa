@@ -21,18 +21,30 @@ Upcoming release
   table index lookup from Python could crash Python.
   (patch by Guilherme Dantas)
 
-* The runtime version of the Lua library as a tuple (e.g. ``(5,3)``)
-  is provided via ``lupa.LUA_VERSION`` and ``LuaRuntime.lua_version``.
-
-* The Lua implementation name and version string is provided as
-  ``LuaRuntime.lua_implementation``.
-
 * GH#176: A new function ``python.args(*args, **kwargs)`` was added
   to help with building Python argument tuples and keyword argument dicts
   for Python function calls from Lua code.
 
 * GH#177: Tables that are not sequences raise ``IndexError`` when unpacking
   them.  Previously, non-sequential items were simply ignored.
+
+
+1.10 (2021-09-02)
+-----------------
+
+* GH#147: Lua 5.4 is supported.
+  (patch by Russel Davis)
+
+* The runtime version of the Lua library as a tuple (e.g. ``(5,3)``)
+  is provided via ``lupa.LUA_VERSION`` and ``LuaRuntime.lua_version``.
+
+* The Lua implementation name and version string is provided as
+  ``LuaRuntime.lua_implementation``.
+
+* ``setup.py`` accepts new command line arguments ``--lua-lib`` and ``--lua-includes``
+  to specify the
+
+* Built with Cython 0.29.24 to support Python 3.9.
 
 
 1.9 (2019-12-21)
