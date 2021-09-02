@@ -16,6 +16,8 @@ Lupa change log
 * ``setup.py`` accepts new command line arguments ``--lua-lib`` and ``--lua-includes``
   to specify the
 
+* Use Lua 5.4.3 in binary wheels and as bundled Lua.
+
 * Built with Cython 0.29.24 to support Python 3.9.
 
 
