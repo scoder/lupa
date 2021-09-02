@@ -28,6 +28,9 @@ Upcoming release
 * GH#177: Tables that are not sequences raise ``IndexError`` when unpacking
   them.  Previously, non-sequential items were simply ignored.
 
+* GH#165: Resolve some C compiler warnings about signed/unsigned comparisons.
+  (patch by Guilherme Dantas)
+
 
 1.10 (2021-09-02)
 -----------------
