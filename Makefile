@@ -28,7 +28,7 @@ realclean: clean
 wheel_manylinux: wheel_manylinux64 wheel_manylinux32
 
 wheel_manylinux32 wheel_manylinux64: dist/lupa-$(VERSION).tar.gz
-	echo "Building wheels for Lupa $(VERSION)"
+	@echo "Building $(subst wheel_,,$@) wheels for Lupa $(VERSION)"
 	mkdir -p wheelhouse_$(subst wheel_,,$@)
 	time docker run --rm -t \
 		-v $(shell pwd):/io \
