@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        os: [windows-2019, ubuntu-18.04]
         python-version: ["2.7", "3.5", "3.6", "3.7", "3.8", "3.9", "pypy-2.7", "pypy-3.6"]
         lua-version: ["bundle", "lua5.2", "lua5.3", "luajit-5.1"]
 
