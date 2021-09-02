@@ -5,7 +5,6 @@ on: [push, pull_request]
 jobs:
   build:
 
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         os: [windows-2019, ubuntu-18.04]
@@ -19,6 +18,8 @@ jobs:
             lua-version: lua5.3
           - os: windows-2019
             lua-version: luajit-5.1
+
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v2
@@ -57,6 +58,6 @@ jobs:
       if: ${{ contains(matrix.lua-version, 'bundle') }}
       uses: actions/upload-artifact@v2
       with:
-        name: wheels-${{ matrix.os }}
+        name: wheels-${{ runner.os }}
         path: dist/*.whl
         if-no-files-found: ignore
