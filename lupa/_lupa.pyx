@@ -21,8 +21,6 @@ from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
 from cpython.bytes cimport PyBytes_FromFormat
 
-import weakref
-
 #from libc.stdint cimport uintptr_t
 cdef extern from *:
     """
@@ -244,7 +242,6 @@ cdef class LuaRuntime:
     cdef object _attribute_getter
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
-    cdef CostatesObjTracker _obj_tracker
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
@@ -258,7 +255,6 @@ cdef class LuaRuntime:
         self._pyrefs_in_lua = {}
         self._encoding = _asciiOrNone(encoding)
         self._source_encoding = _asciiOrNone(source_encoding) or self._encoding or b'UTF-8'
-        self._obj_tracker = CostatesObjTracker()
         if attribute_filter is not None and not callable(attribute_filter):
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
@@ -715,7 +711,6 @@ cdef class _LuaObject:
     cdef LuaRuntime _runtime
     cdef lua_State* _state
     cdef int _ref
-    cdef object __weakref__
 
     def __cinit__(self):
         self._ref = lua.LUA_NOREF
@@ -726,11 +721,10 @@ cdef class _LuaObject:
     def __dealloc__(self):
         if self._runtime is None:
             return
-        cdef lua_State* L = self._state
+        cdef lua_State* L = self._runtime._state
         if L is not NULL and self._ref != lua.LUA_NOREF:
             locked = lock_runtime(self._runtime)
-            if self._runtime._obj_tracker.untrack_obj(self):
-                lua.luaL_unref(self._state,  lua.LUA_REGISTRYINDEX, self._ref)
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
             self._ref = lua.LUA_NOREF
             runtime = self._runtime
             self._runtime = None
@@ -881,7 +875,6 @@ cdef void init_lua_object(_LuaObject obj, LuaRuntime runtime, lua_State* L, int 
     obj._state = L
     lua.lua_pushvalue(L, n)
     obj._ref = lua.luaL_ref(L, lua.LUA_REGISTRYINDEX)
-    runtime._obj_tracker.track_obj(obj)
 
 cdef object lua_object_repr(lua_State* L, bytes encoding):
     cdef bytes py_bytes
@@ -1065,16 +1058,6 @@ cdef class _LuaThread(_LuaObject):
     """
     cdef lua_State* _co_state
     cdef tuple _arguments
-
-    def __dealloc__(self):
-        cdef LuaRuntime runtime = self._runtime
-        # set states of all unreferenced coroutine objects to parent state
-        # because coroutine state no longer exists
-        costate_objs = runtime._obj_tracker.untrack_costate_objects(self._co_state)
-        if costate_objs:
-            for obj in costate_objs:
-                (<_LuaObject>obj)._state = self._state
-
     def __iter__(self):
         return self
 
@@ -1117,7 +1100,6 @@ cdef _LuaThread new_lua_thread(LuaRuntime runtime, lua_State* L, int n):
     cdef _LuaThread obj = _LuaThread.__new__(_LuaThread)
     init_lua_object(obj, runtime, L, n)
     obj._co_state = lua.lua_tothread(L, n)
-    runtime._obj_tracker.track_state(obj._co_state)
     return obj
 
 
@@ -1145,7 +1127,6 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
     cdef lua_State* L = thread._state
     cdef int status, i, nargs = 0, nres = 0
     assert thread._runtime is not None
-    cdef bint done = False
     lock_runtime(thread._runtime)
     old_top = lua.lua_gettop(L)
     try:
@@ -1163,10 +1144,8 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
                 # terminated
                 if nres == 0:
                     # no values left to return
-                    done = True
                     raise StopIteration
             else:
-                done = True
                 raise_lua_error(thread._runtime, co, status)
 
         # Move yielded values to the main state before unpacking.
@@ -1177,13 +1156,6 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
     finally:
         # FIXME: check that coroutine state is OK in case of errors?
         lua.lua_settop(L, old_top)
-        if done:
-            # set states of all unreferenced coroutine objects to parent state
-            # because coroutine state no longer exists
-            costate_objs = thread._runtime._obj_tracker.untrack_costate_objects(co)
-            if costate_objs:
-                for obj in costate_objs:
-                    (<_LuaObject>obj)._state = L
         unlock_runtime(thread._runtime)
 
 
@@ -1773,58 +1745,6 @@ cdef int py_object_gc(lua_State* L) nogil:
         if py_object_gc_with_gil(py_obj, L):
             return lua.lua_error(L)  # never returns!
     return 0
-
-# ref-counting support for lua objects
-
-@cython.final
-@cython.internal
-@cython.no_gc_clear
-cdef class CostatesObjTracker:
-    """Track all coroutine state objects.
-
-    Uses weak object references so that gc can make cleanup."""
-
-    cdef dict _costates_objs # Dict[<uintptr_t>LuaState, weakref.WeakSet[_LuaObject]]
-
-    def __cinit__(self):
-        self._costates_objs = {}
-
-    cdef int track_state(self, lua_State *L) except -1:
-        """Add new coroutine state to track its object"""
-        cdef state = <uintptr_t>L
-        assert state not in self._costates_objs
-        self._costates_objs[state] = weakref.WeakSet()
-        return 0
-
-    cdef object untrack_costate_objects(self, lua_State *L):
-        """Remove coroutine state and return its objects that has not been untracked yet."""
-        cdef state = <uintptr_t>L
-        return self._costates_objs.pop(state, None)
-
-    cdef int track_obj(self, _LuaObject obj) except -1:
-        """Add object reference if it belongs to tracked coroutine state."""
-        cdef state = <uintptr_t>obj._state
-        cdef state_objs = self._costates_objs.get(state, None)
-        if state_objs is None:
-            return 0
-
-        state_objs.add(obj)
-        return 1
-
-    cdef int untrack_obj(self, _LuaObject obj) except -1:
-        """Remove object reference if it belong to tracked coroutine state.
-        Returns 1 if object needs to be unreferenced in lua.
-        """
-        cdef state = <uintptr_t>obj._state
-        cdef state_objs = self._costates_objs.get(state, None)
-        if state_objs is None:
-            return 1
-
-        if obj in state_objs:
-            state_objs.remove(obj)
-            return 1
-
-        return 0
 
 # calling Python objects
 
