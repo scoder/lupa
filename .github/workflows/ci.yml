@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-2019, ubuntu-18.04]
-        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "3.5", "pypy-2.7", "pypy-3.6", "3.11-dev"]
+        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "3.5", "pypy-2.7", "pypy-3.6"]
         lua-version: ["bundle", "lua5.2", "lua5.3", "luajit-5.1"]
 
         exclude:
