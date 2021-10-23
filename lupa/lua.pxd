@@ -93,7 +93,7 @@ cdef extern from "lua.h" nogil:
     int             lua_iscfunction (lua_State *L, int idx)
     int             lua_isuserdata (lua_State *L, int idx)
     int             lua_type (lua_State *L, int idx)
-    char           *lua_typename (lua_State *L, int tp)
+    const char     *lua_typename (lua_State *L, int tp)
 
     int             lua_equal (lua_State *L, int idx1, int idx2)
     int             lua_rawequal (lua_State *L, int idx1, int idx2)
@@ -278,6 +278,11 @@ cdef extern from "lauxlib.h" nogil:
     enum:
         LUA_ERRFILE #     (LUA_ERRERR+1)
 
+    # pre-defined references
+    enum:
+        LUA_NOREF   # -2
+        LUA_REFNIL  # -1
+
     ctypedef struct luaL_Reg:
         char *name
         lua_CFunction func
@@ -418,7 +423,7 @@ cdef extern from "lualib.h":
     void luaL_openlibs(lua_State *L)
 
 
-cdef extern from *:
+cdef extern from * nogil:
     # Compatibility definitions for Lupa.
     """
     #if LUA_VERSION_NUM >= 504
@@ -443,6 +448,10 @@ cdef extern from *:
     #define lua_isinteger(L, i) (((void) i), 0)
     #endif
 
+    #if LUA_VERSION_NUM < 502
+    #define lua_tointegerx(L, i, isnum) (*(isnum) = lua_isnumber(L, i), lua_tointeger(L, i))
+    #endif
+
     #if LUA_VERSION_NUM >= 504
     #define read_lua_version(L)  ((int) lua_version(L))
     #elif LUA_VERSION_NUM >= 502
@@ -452,10 +461,15 @@ cdef extern from *:
     #else
     #error Lupa requires at least Lua 5.1 or LuaJIT 2.x
     #endif
+
+    #if LUA_VERSION_NUM < 502
+    #define lua_pushglobaltable(L)  lua_pushvalue(L, LUA_GLOBALSINDEX)
+    #endif
     """
     int read_lua_version(lua_State *L)
     int lua_isinteger(lua_State *L, int idx)
-
+    lua_Integer lua_tointegerx (lua_State *L, int idx, int *isnum)
+    void lua_pushglobaltable (lua_State *L)
 
 cdef extern from *:
     # Limits for Lua integers (in Lua<5.3: PTRDIFF_MIN, PTRDIFF_MAX)
