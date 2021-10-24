@@ -5,11 +5,37 @@ on: [push, pull_request]
 jobs:
   build:
 
-    runs-on: ubuntu-latest
     strategy:
+      # Allows for matrix sub-jobs to fail without canceling the rest
+      fail-fast: false
+
       matrix:
-        python-version: ["2.7", "3.5", "3.6", "3.7", "3.8", "3.9", "pypy-2.7", "pypy-3.6"]
+        os: [windows-2019, ubuntu-18.04, macos-10.15]
+        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "3.5", "pypy-2.7", "pypy-3.6"]
         lua-version: ["bundle", "lua5.2", "lua5.3", "luajit-5.1"]
+
+        exclude:
+          - os: windows-2019
+            python-version: 2.7
+          - os: windows-2019
+            lua-version: lua5.2
+          - os: windows-2019
+            lua-version: lua5.3
+          - os: windows-2019
+            lua-version: luajit-5.1
+          - os: macos-10.15
+            python-version: 2.7
+          - os: macos-10.15
+            lua-version: lua5.2
+          - os: macos-10.15
+            lua-version: lua5.3
+          - os: macos-10.15
+            lua-version: luajit-5.1
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      CFLAGS_LTO: ${{ contains(matrix.lua-version, 'bundle')  && (contains(matrix.os, 'windows') && '/LTCG' || '-flto') || '' }}
 
     steps:
     - uses: actions/checkout@v2
@@ -26,23 +52,23 @@ jobs:
       run: python -m pip install -U "pip<21" "setuptools<45" wheel && python -m pip install -U tox virtualenv
 
     - name: Set up Lua ${{ matrix.lua-version }}
-      if: ${{ !contains(matrix.lua-version, 'bundle') }}
+      if: ${{ contains(matrix.os, 'ubuntu') && !contains(matrix.lua-version, 'bundle') }}
       run: sudo apt-get install lib${{ matrix.lua-version }}-dev
 
     - name: Build wheel
       run: python -m pip install -r requirements.txt && python setup.py sdist bdist_wheel
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
-        CFLAGS: ${{ contains(matrix.lua-version, 'bundle') && '-flto -g' || '-g' }}
-        LDFLAGS: ${{ contains(matrix.lua-version, 'bundle') && '-flto' || '' }}
+        CFLAGS: ${{ env.CFLAGS_LTO }} -g
+        LDFLAGS: ${{ env.CFLAGS_LTO }}
 
-    - name: Run tests with tox
-      run: tox -e py # Runs the version of Python tox is currently using
+    - name: Run tests
+      run: python setup.py test
       continue-on-error: ${{ contains(matrix.python-version, 'pypy') }}
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
-        CFLAGS: ${{ contains(matrix.lua-version, 'bundle') && '-flto -g' || '-g' }}
-        LDFLAGS: ${{ contains(matrix.lua-version, 'bundle') && '-flto' || '' }}
+        CFLAGS: ${{ env.CFLAGS_LTO }} -g
+        LDFLAGS: ${{ env.CFLAGS_LTO }}
 
     - name: Upload wheels
       if: ${{ contains(matrix.lua-version, 'bundle') }}
