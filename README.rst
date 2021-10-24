@@ -795,7 +795,7 @@ implementation`_ for the `Computer Language Benchmarks Game`_.
 
     # use Pillow to display the image
     from PIL import Image
-    image = Image.fromstring('1', (image_size, image_size), result_buffer)
+    image = Image.frombytes('1', (image_size, image_size), result_buffer)
     image.show()
 
 Note how the example creates a separate ``LuaRuntime`` for each thread
