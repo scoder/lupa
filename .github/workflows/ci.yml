@@ -11,7 +11,7 @@ jobs:
 
       matrix:
         os: [windows-2019, ubuntu-18.04, macos-10.15]
-        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "3.5", "pypy-2.7", "pypy-3.6"]
+        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "3.5", "pypy-2.7", "pypy-3.7", "pypy-3.8"]
         lua-version: ["bundle", "lua5.2", "lua5.3", "luajit-5.1"]
 
         exclude:

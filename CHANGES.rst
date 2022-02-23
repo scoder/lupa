@@ -4,8 +4,6 @@ Lupa change log
 Upcoming release
 ----------------
 
-* Lua 5.4 and Python 3.9 are supported.
-
 * GH#171: Python references in Lua are not more safely reference counted
   to prevent garbage collection glitches.
   (patch by Guilherme Dantas)
@@ -30,6 +28,14 @@ Upcoming release
 
 * GH#165: Resolve some C compiler warnings about signed/unsigned comparisons.
   (patch by Guilherme Dantas)
+
+
+1.11 (2022-02-23)
+-----------------
+
+* Use Lua 5.4.4 in binary wheels and as bundled Lua.
+
+* Built with Cython 0.29.28 to support Python 3.10/11.
 
 
 1.10 (2021-09-02)
