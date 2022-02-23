@@ -317,7 +317,7 @@ else:
 ext_modules = [
     Extension(
         'lupa._lupa',
-        sources = [os.path.join(basedir, 'lupa', '_lupa'+source_extension)],
+        sources=[os.path.join('lupa', '_lupa'+source_extension)],
         **ext_args
     )]
 

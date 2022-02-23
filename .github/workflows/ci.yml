@@ -18,6 +18,8 @@ jobs:
           - os: windows-2019
             python-version: 2.7
           - os: windows-2019
+            python-version: pypy-2.7
+          - os: windows-2019
             lua-version: lua5.2
           - os: windows-2019
             lua-version: lua5.3
