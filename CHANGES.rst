@@ -1,6 +1,14 @@
 Lupa change log
 ===============
 
+1.11 (2022-02-23)
+-----------------
+
+* Use Lua 5.4.3 in binary wheels and as bundled Lua.
+
+* Built with Cython 0.29.28 to support Python 3.10/11.
+
+
 1.10 (2021-09-02)
 -----------------
 
