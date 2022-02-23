@@ -50,11 +50,15 @@ wheel_%: dist/lupa-$(VERSION).tar.gz
 		-v $(shell pwd):/io \
 		-e CFLAGS="-O3 -g0 -mtune=generic -pipe -fPIC -flto" \
 		-e LDFLAGS="$(LDFLAGS) -fPIC -flto" \
+		-e LD=gcc-ld \
+		-e AR=gcc-ar \
+		-e NM=gcc-nm \
+		-e RANLIB=gcc-ranlib \
 		-e LUPA_USE_BUNDLE=$(USE_BUNDLE) \
 		-e WHEELHOUSE=wheelhouse_$(subst wheel_,,$@) \
 		quay.io/pypa/$(subst wheel_,,$@) \
 		bash -c 'for PYBIN in /opt/python/$(PYTHON_BUILD_VERSION)/bin; do \
 		    $$PYBIN/python -V; \
-		    { $$PYBIN/pip wheel -w /io/$$WHEELHOUSE /io/$< & } ; \
+		    { time $$PYBIN/pip wheel -v -w /io/$$WHEELHOUSE /io/$< & } ; \
 		    done; wait; \
 		    for whl in /io/$$WHEELHOUSE/lupa-$(VERSION)-*-linux_*.whl; do auditwheel repair $$whl -w /io/$$WHEELHOUSE; done'
