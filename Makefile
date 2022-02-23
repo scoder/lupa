@@ -2,9 +2,18 @@ PYTHON?=python
 USE_BUNDLE?=true
 VERSION?=$(shell sed -ne "s|^VERSION\s*=\s*'\([^']*\)'.*|\1|p" setup.py)
 WITH_CYTHON?=$(shell $(PYTHON)  -c 'import Cython.Build.Dependencies' >/dev/null 2>/dev/null && echo " --with-cython" || true)
+PYTHON_BUILD_VERSION?=*
 
-MANYLINUX_IMAGE_X86_64=quay.io/pypa/manylinux1_x86_64
-MANYLINUX_IMAGE_686=quay.io/pypa/manylinux1_i686
+MANYLINUX_IMAGES= \
+	manylinux1_x86_64 \
+	manylinux1_i686 \
+	manylinux_2_24_x86_64 \
+	manylinux_2_24_i686 \
+	manylinux2014_aarch64 \
+	manylinux_2_24_aarch64 \
+	manylinux_2_24_ppc64le \
+	manylinux_2_24_s390x \
+	musllinux_1_1_x86_64
 
 .PHONY: all local sdist test clean realclean
 
@@ -25,9 +34,16 @@ clean:
 realclean: clean
 	rm -fr lupa/_lupa.c
 
-wheel_manylinux: wheel_manylinux64 wheel_manylinux32
+wheel:
+	$(PYTHON) setup.py bdist_wheel $(WITH_CYTHON)
 
-wheel_manylinux32 wheel_manylinux64: dist/lupa-$(VERSION).tar.gz
+qemu-user-static:
+	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+wheel_manylinux: $(addprefix wheel_,$(MANYLINUX_IMAGES))
+$(addprefix wheel_,$(filter-out %_x86_64, $(filter-out %_i686, $(MANYLINUX_IMAGES)))): qemu-user-static
+
+wheel_%: dist/lupa-$(VERSION).tar.gz
 	@echo "Building $(subst wheel_,,$@) wheels for Lupa $(VERSION)"
 	mkdir -p wheelhouse_$(subst wheel_,,$@)
 	time docker run --rm -t \
@@ -36,8 +52,8 @@ wheel_manylinux32 wheel_manylinux64: dist/lupa-$(VERSION).tar.gz
 		-e LDFLAGS="$(LDFLAGS) -fPIC -flto" \
 		-e LUPA_USE_BUNDLE=$(USE_BUNDLE) \
 		-e WHEELHOUSE=wheelhouse_$(subst wheel_,,$@) \
-		$(if $(patsubst %32,,$@),$(MANYLINUX_IMAGE_X86_64),$(MANYLINUX_IMAGE_686)) \
-		bash -c 'for PYBIN in /opt/python/*/bin; do \
+		quay.io/pypa/$(subst wheel_,,$@) \
+		bash -c 'for PYBIN in /opt/python/$(PYTHON_BUILD_VERSION)/bin; do \
 		    $$PYBIN/python -V; \
 		    { $$PYBIN/pip wheel -w /io/$$WHEELHOUSE /io/$< & } ; \
 		    done; wait; \
