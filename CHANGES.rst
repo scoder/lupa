@@ -4,7 +4,7 @@ Lupa change log
 Upcoming release
 ----------------
 
-* GH#171: Python references in Lua are not more safely reference counted
+* GH#171: Python references in Lua are now more safely reference counted
   to prevent garbage collection glitches.
   (patch by Guilherme Dantas)
 
