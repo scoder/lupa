@@ -30,6 +30,15 @@ Upcoming release
   (patch by Guilherme Dantas)
 
 
+1.12 (2022-02-24)
+-----------------
+
+* GH#197: Some binary wheels in the last releases were not correctly linked with Lua.
+
+* GH#194: An absolute file path appeared in the ``SOURCES.txt`` metadata
+  of the source distribution.
+
+
 1.11 (2022-02-23)
 -----------------
 
