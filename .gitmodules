@@ -1,6 +1,12 @@
-[submodule "lua"]
-	path = third-party/lua
+[submodule "third-party/lua53"]
+	path = third-party/lua53
 	url = https://github.com/lua/lua.git
-[submodule "third-party/luajit"]
-	path = third-party/luajit
-	url = http://luajit.org/git/luajit-2.0.git
+[submodule "third-party/lua54"]
+	path = third-party/lua54
+	url = https://github.com/lua/lua.git
+[submodule "third-party/luajit20"]
+	path = third-party/luajit20
+	url = https://luajit.org/git/luajit.git
+[submodule "third-party/luajit21"]
+	path = third-party/luajit21
+	url = https://luajit.org/git/luajit.git
