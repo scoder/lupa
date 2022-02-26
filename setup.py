@@ -14,7 +14,7 @@ try:
 except ImportError:
     from distutils.core import setup, Extension
 
-VERSION = '1.12'
+VERSION = '2.0a1'
 
 extra_setup_args = {}
 
@@ -28,6 +28,17 @@ if 'setuptools' in sys.modules:
 
 class PkgConfigError(RuntimeError):
     pass
+
+
+def dev_status(version):
+    if 'b' in version or 'c' in version:
+        # 1b1, 1beta1, 2rc1, ...
+        return 'Development Status :: 4 - Beta'
+    elif 'a' in version:
+        # 1a1, 1alpha1, ...
+        return 'Development Status :: 3 - Alpha'
+    else:
+        return 'Development Status :: 5 - Production/Stable'
 
 
 def try_int(s):
@@ -364,7 +375,7 @@ setup(
     long_description=long_description,
     license='MIT style',
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
+        dev_status(VERSION),
         'Intended Audience :: Developers',
         'Intended Audience :: Information Technology',
         'License :: OSI Approved :: MIT License',
