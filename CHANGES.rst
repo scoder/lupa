@@ -1,6 +1,12 @@
 Lupa change log
 ===============
 
+1.13 (2022-03-01)
+-----------------
+
+* Bundled Lua source files were missing in the source distribution.
+
+
 1.12 (2022-02-24)
 -----------------
 
