@@ -29,7 +29,7 @@ test: local
 	PYTHONPATH=. $(PYTHON) -m lupa.tests.test
 
 clean:
-	rm -fr build lupa/_lupa.so
+	rm -fr build lupa/_lupa*.so lupa/lupa_*.pyx lupa/*.c
 
 realclean: clean
 	rm -fr lupa/_lupa.c

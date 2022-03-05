@@ -1,12 +1,14 @@
 from __future__ import absolute_import
 
-import sys
-import shutil
+import glob
 import os
 import os.path
+import re
+import shutil
+import sys
 
 from glob import iglob
-from io import open
+from io import open as io_open
 
 try:
     # use setuptools if available
@@ -17,6 +19,8 @@ except ImportError:
 VERSION = '2.0a1'
 
 extra_setup_args = {}
+
+basedir = os.path.abspath(os.path.dirname(__file__))
 
 
 # support 'test' target if setuptools/distribute is available
@@ -124,26 +128,29 @@ def lua_libs(package='luajit'):
     return libs_out.split()
 
 
-basedir = os.path.abspath(os.path.dirname(__file__))
-
 def get_lua_build_from_arguments():
     lua_lib = get_option('--lua-lib')
     lua_includes = get_option('--lua-includes')
 
     if not lua_lib or not lua_includes:
-        return None
+        return []
 
     print('Using Lua library: %s' % lua_lib)
     print('Using Lua include directory: %s' % lua_includes)
 
     root, ext = os.path.splitext(lua_lib)
     if os.name == 'nt' and ext == '.lib':
-        return dict(extra_objects=[lua_lib],
-                    include_dirs=[lua_includes],
-                    libfile=lua_lib)
+        return [
+            dict(extra_objects=[lua_lib],
+                 include_dirs=[lua_includes],
+                 libfile=lua_lib)
+        ]
     else:
-        return dict(extra_objects=[lua_lib],
-                    include_dirs=[lua_includes])
+        return [
+            dict(extra_objects=[lua_lib],
+                 include_dirs=[lua_includes])
+        ]
+
 
 def find_lua_build(no_luajit=False):
     # try to find local LuaJIT2 build
@@ -210,10 +217,38 @@ def no_lua_error():
     return {}
 
 
-def use_bundled_lua(path, lua_sources, macros):
-    print('Using bundled Lua')
+def use_bundled_lua(path, macros):
+    libname = os.path.basename(path.rstrip(os.sep))
+    print('Using bundled Lua in %s' % libname)
+
+    # Parse .o files from 'makefile'
+    makefile = os.path.join(path, "makefile")
+    match_var = re.compile(r"(CORE|AUX|LIB|ALL)_O\s*=(.*)").match
+    is_indented = re.compile(r"\s+").match
+
+    obj_files = []
+    continuing = False
+    with open(makefile) as f:
+        lines = iter(f)
+        for line in lines:
+            if '#' in line:
+                line = line.partition("#")[0]
+            line = line.rstrip()
+            if not line:
+                continue
+            match = match_var(line)
+            if match:
+                if match.group(1) == 'ALL':
+                    break  # by now, we should have seen all that we needed
+                obj_files.extend(match.group(2).rstrip('\\').split())
+                continuing = line.endswith('\\')
+            elif continuing and is_indented(line):
+                obj_files.extend(line.rstrip('\\').split())
+                continuing = line.endswith('\\')
+
+    lua_sources = [os.path.splitext(obj_file)[0] + '.c' for obj_file in obj_files]
     ext_libraries = [
-        ['lua', {
+        [libname, {
             'sources': [os.path.join(path, src) for src in lua_sources],
             'include_dirs': [path],
             'macros': macros,
@@ -222,6 +257,7 @@ def use_bundled_lua(path, lua_sources, macros):
     return {
         'include_dirs': [path],
         'ext_libraries': ext_libraries,
+        'libversion': libname,
     }
 
 
@@ -250,99 +286,76 @@ if has_option('--with-lua-checks'):
     c_defines.append(('LUA_USE_APICHECK', None))
 
 
-# bundled lua
-lua_bundle_path = os.path.join(basedir, 'third-party', 'lua')
-lua_sources = [
-    'lapi.c',
-    'lcode.c',
-    'lctype.c',
-    'ldebug.c',
-    'ldo.c',
-    'ldump.c',
-    'lfunc.c',
-    'lgc.c',
-    'llex.c',
-    'lmem.c',
-    'lobject.c',
-    'lopcodes.c',
-    'lparser.c',
-    'lstate.c',
-    'lstring.c',
-    'ltable.c',
-    'ltm.c',
-    'lundump.c',
-    'lvm.c',
-    'lzio.c',
-    'ltests.c',
-    'lauxlib.c',
-    'lbaselib.c',
-    'ldblib.c',
-    'liolib.c',
-    'lmathlib.c',
-    'loslib.c',
-    'ltablib.c',
-    'lstrlib.c',
-    'lutf8lib.c',
-    'loadlib.c',
-    'lcorolib.c',
-    'linit.c',
-]
-
-config = get_lua_build_from_arguments()
-if not config and not has_option('--use-bundle'):
-    config = find_lua_build(no_luajit=has_option('--no-luajit'))
-if not config and not has_option('--no-bundle'):
-    config = use_bundled_lua(lua_bundle_path, lua_sources, c_defines)
-if not config:
-    config = no_lua_error()
-
-ext_args = {
-    'extra_objects': config.get('extra_objects'),
-    'include_dirs': config.get('include_dirs'),
-    'define_macros': c_defines,
-}
+# find Lua
+configs = get_lua_build_from_arguments()
+if not configs and not has_option('--no-bundle'):
+    configs = [
+        use_bundled_lua(lua_bundle_path, c_defines)
+        for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'lua5*' + os.sep))
+        if not lua_bundle_path.endswith('lua52' + os.sep)  # 5.2.3 fails to compile
+    ]
+if not configs and not has_option('--use-bundle'):
+    configs = find_lua_build(no_luajit=has_option('--no-luajit'))
+if not configs:
+    configs = no_lua_error()
 
 
 # check if Cython is installed, and use it if requested or necessary
-use_cython = has_option('--with-cython')
-if not use_cython:
-    if not os.path.exists(os.path.join(basedir, 'lupa', '_lupa.c')):
-        print("generated sources not available, need Cython to build")
-        use_cython = True
+def prepare_extensions(use_cython=True):
+    ext_modules = []
+    ext_libraries = []
+    for config in configs:
+        ext_name = 'lupa_%s' % config.get('libversion', 'lua')
+        src, dst = os.path.join('lupa', '_lupa.pyx'), os.path.join('lupa', ext_name + '.pyx')
+        if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
+            with open(dst, 'wb') as f_out:
+                f_out.write(b'#######  DO NOT EDIT - BUILD TIME COPY OF "_lupa.pyx" #######\n\n')
+                with open(src, 'rb') as f_in:
+                    shutil.copyfileobj(f_in, f_out)
 
-cythonize = None
-source_extension = ".c"
-if use_cython:
-    try:
-        import Cython.Compiler.Version
-        import Cython.Compiler.Errors as CythonErrors
-        from Cython.Build import cythonize
-        print("building with Cython " + Cython.Compiler.Version.version)
-        source_extension = ".pyx"
-        CythonErrors.LEVEL = 0
-    except ImportError:
-        print("WARNING: trying to build with Cython, but it is not installed")
-else:
-    print("building without Cython")
+        libs = config.get('ext_libraries')
+        ext_modules.append(Extension(
+            'lupa.' + ext_name,
+            sources=[dst] + (libs[0][1]['sources'] if libs else []),
+            extra_objects=config.get('extra_objects'),
+            include_dirs=config.get('include_dirs'),
+            define_macros=c_defines,
+        ))
 
-ext_modules = [
-    Extension(
-        'lupa._lupa',
-        sources=[os.path.join('lupa', '_lupa'+source_extension)],
-        **ext_args
-    )]
+        if not use_cython:
+            if not os.path.exists(os.path.join(basedir, 'lupa', '_lupa.c')):
+                print("generated sources not available, need Cython to build")
+                use_cython = True
 
-if cythonize is not None:
-    ext_modules = cythonize(ext_modules)
+    cythonize = None
+    if use_cython:
+        try:
+            import Cython.Compiler.Version
+            import Cython.Compiler.Errors as CythonErrors
+            from Cython.Build import cythonize
+            print("building with Cython " + Cython.Compiler.Version.version)
+            CythonErrors.LEVEL = 0
+        except ImportError:
+            print("WARNING: trying to build with Cython, but it is not installed")
+    else:
+        print("building without Cython")
+
+    if cythonize is not None:
+        ext_modules = cythonize(ext_modules)
+
+    return ext_modules, ext_libraries
+
+
+ext_modules, ext_libraries = prepare_extensions(use_cython=has_option('--with-cython'))
 
 
 def read_file(filename):
-    with open(os.path.join(basedir, filename), encoding="utf8") as f:
+    with io_open(os.path.join(basedir, filename), encoding="utf8") as f:
         return f.read()
 
 
 def write_file(filename, content):
-    with open(os.path.join(basedir, filename), 'w', encoding='us-ascii') as f:
+    with io_open(os.path.join(basedir, filename), 'w', encoding='us-ascii') as f:
         f.write(content)
 
 
@@ -352,12 +365,16 @@ long_description = '\n\n'.join([
 
 write_file(os.path.join(basedir, 'lupa', 'version.py'), u"__version__ = '%s'\n" % VERSION)
 
-if config.get('libfile'):
-    # include Lua DLL in the lib folder if we are on Windows
-    dllfile = os.path.splitext(config['libfile'])[0] + ".dll"
-    shutil.copy(dllfile, os.path.join(basedir, 'lupa'))
-    extra_setup_args['package_data'] = {'lupa': [os.path.basename(dllfile)]}
+dll_files = []
+for config in configs:
+    if config.get('libfile'):
+        # include Lua DLL in the lib folder if we are on Windows
+        dll_file = os.path.splitext(config['libfile'])[0] + ".dll"
+        shutil.copy(dll_file, os.path.join(basedir, 'lupa'))
+        dll_files.append(os.path.basename(dll_file))
 
+if dll_files:
+    extra_setup_args['package_data'] = {'lupa': dll_files}
 
 # call distutils
 
@@ -393,7 +410,8 @@ setup(
     ],
 
     packages=['lupa'],
+    build_requires=['Cython>=0.29.28'],
     ext_modules=ext_modules,
-    libraries=config.get('ext_libraries'),
+    libraries=ext_libraries,
     **extra_setup_args
 )

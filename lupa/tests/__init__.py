@@ -18,7 +18,7 @@ def suite():
             tests.append('lupa.tests.'  + filename[:-3])
 
     suite = unittest.defaultTestLoader.loadTestsFromNames(tests)
-    suite.addTest(doctest.DocTestSuite(lupa._lupa))
+    suite.addTest(doctest.DocTestSuite(lupa))
 
     # Long version of
     # suite.addTest(doctest.DocFileSuite('../../README.rst'))

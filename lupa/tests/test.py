@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import, print_function
 
+import os.path
 import threading
 import operator
 import unittest
@@ -2385,9 +2386,19 @@ def _wait():
 class TestFastRLock(unittest.TestCase):
     """Copied from CPython's test.lock_tests module
     """
+    FastRLock = None
+
     def setUp(self):
-        from lupa._lupa import FastRLock
-        self.locktype = FastRLock
+        for filename in os.listdir(os.path.dirname(os.path.dirname(__file__))):
+            if filename.startswith('lupa_lua'):
+                try:
+                    module_name = "lupa." + filename.partition('.')[0]
+                    self.FastRLock = __import__(module_name, fromlist='FastRLock', level=0).FastRLock
+                except ImportError:
+                    pass
+        if self.FastRLock is None:
+            self.skipTest("No FastRLock implementation found")
+        self.locktype = self.FastRLock
 
     def tearDown(self):
         gc.collect()
