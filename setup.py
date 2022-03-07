@@ -287,15 +287,19 @@ if has_option('--with-lua-checks'):
 
 
 # find Lua
+option_no_bundle = has_option('--no-bundle')
+option_use_bundle = has_option('--use-bundle')
+option_no_luajit = has_option('--no-luajit')
+
 configs = get_lua_build_from_arguments()
-if not configs and not has_option('--no-bundle'):
+if not configs and not option_no_bundle:
     configs = [
         use_bundled_lua(lua_bundle_path, c_defines)
         for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'lua5*' + os.sep))
         if not lua_bundle_path.endswith('lua52' + os.sep)  # 5.2.3 fails to compile
     ]
-if not configs and not has_option('--use-bundle'):
-    configs = find_lua_build(no_luajit=has_option('--no-luajit'))
+if not configs and not option_use_bundle:
+    configs = find_lua_build(no_luajit=option_no_luajit)
 if not configs:
     configs = no_lua_error()
 
