@@ -233,7 +233,10 @@ def use_bundled_luajit(path, macros):
 
     src_dir = os.path.join(path, "src")
     output = subprocess.check_output(build_script, cwd=src_dir)
-    assert b'Successfully built LuaJIT' in output
+    if b'Successfully built LuaJIT' not in output:
+        print("Building LuaJIT did not report success:")
+        print(output)
+        print("## Building LuaJIT probably failed ##")
 
     return {
         'include_dirs': [src_dir],
