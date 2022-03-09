@@ -225,15 +225,12 @@ def use_bundled_luajit(path, macros):
     print('Using bundled LuaJIT in %s' % libname)
     print('Building LuaJIT for %r in %s' % (platform, libname))
 
-    extra_link_args = None
     if platform.startswith('win'):
         build_script = ["msvcbuild.bat", "static"]
         lib_file = "lua51.lib"
     else:
         build_script = ["make",  "libluajit.a"]
         lib_file = "libluajit.a"
-        if platform == 'darwin' and libname == 'luajit20':
-            extra_link_args = ["-pagezero_size", "10000", "-image_base", "100000000"]
 
     src_dir = os.path.join(path, "src")
     output = subprocess.check_output(build_script, cwd=src_dir)
@@ -246,7 +243,6 @@ def use_bundled_luajit(path, macros):
         'include_dirs': [src_dir],
         'extra_objects': [os.path.join(src_dir, lib_file)],
         'libversion': libname,
-        'extra_link_args': extra_link_args,
     }
 
 
@@ -346,7 +342,14 @@ if not configs and not option_no_bundle:
     configs = [
         use_bundled_lua(lua_bundle_path, c_defines)
         for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'lua*' + os.sep))
-        if not lua_bundle_path.endswith('lua52' + os.sep)  # 5.2.3 fails to compile
+        if not (
+            False
+            # Lua 5.2.3 fails to build
+            or lua_bundle_path.endswith('lua52' + os.sep)
+            # LuaJIT 2.0 requires a CPython linked with "-pagezero_size 10000 -image_base 100000000"
+            # http://t-p-j.blogspot.com/2010/11/lupa-on-os-x-with-macports-python-26.html
+            or (platform == 'darwin' and lua_bundle_path.endswith('luajit20' + os.sep))
+        )
     ]
 if not configs and not option_use_bundle:
     configs = find_lua_build(no_luajit=option_no_luajit)
@@ -372,7 +375,6 @@ def prepare_extensions(use_cython=True):
             'lupa.' + ext_name,
             sources=[dst] + (libs[0][1]['sources'] if libs else []),
             extra_objects=config.get('extra_objects'),
-            extra_link_args=config.get('extra_link_args'),
             include_dirs=config.get('include_dirs'),
             define_macros=c_defines,
         ))
