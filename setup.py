@@ -225,14 +225,14 @@ def use_bundled_luajit(path, macros):
     print('Using bundled LuaJIT in %s' % libname)
     print('Building LuaJIT for %r in %s' % (platform, libname))
 
+    src_dir = os.path.join(path, "src")
     if platform.startswith('win'):
-        build_script = ["msvcbuild.bat", "static"]
+        build_script = [os.path.join(src_dir, "msvcbuild.bat"), "static"]
         lib_file = "lua51.lib"
     else:
         build_script = ["make",  "libluajit.a"]
         lib_file = "libluajit.a"
 
-    src_dir = os.path.join(path, "src")
     output = subprocess.check_output(build_script, cwd=src_dir)
     if lib_file.encode("ascii") not in output:
         print("Building LuaJIT did not report success:")
