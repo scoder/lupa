@@ -224,14 +224,16 @@ def use_bundled_luajit(path, macros):
     print('Using bundled LuaJIT in %s' % libname)
     print('Building LuaJIT in %s' % libname)
 
-    src_dir = os.path.join(path, "src")
     if sys.platform.startswith('win'):
-        build_script = os.path.join(src_dir, "msvcbuild.bat")
+        build_script = "msvcbuild"
         lib_file = "lua51.lib"
     else:
-        build_script = "make"
+        build_script = ["make",  "libluajit.a"]
         lib_file = "libluajit.a"
-    subprocess.check_call(build_script, cwd=src_dir)
+
+    src_dir = os.path.join(path, "src")
+    output = subprocess.check_output(build_script, cwd=src_dir)
+    assert b'Successfully built LuaJIT' in output
 
     return {
         'include_dirs': [src_dir],
