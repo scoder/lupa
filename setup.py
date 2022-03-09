@@ -227,7 +227,7 @@ def use_bundled_luajit(path, macros):
 
     extra_link_args = None
     if platform.startswith('win'):
-        build_script = ["msvcbuild", "static"]
+        build_script = ["msvcbuild.bat", "static"]
         lib_file = "lua51.lib"
     else:
         build_script = ["make",  "libluajit.a"]
