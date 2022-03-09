@@ -5,6 +5,7 @@ import os
 import os.path
 import re
 import shutil
+import subprocess
 import sys
 
 from glob import iglob
@@ -217,8 +218,34 @@ def no_lua_error():
     return {}
 
 
+def use_bundled_luajit(path, macros):
+    libname = os.path.basename(path.rstrip(os.sep))
+    assert 'luajit' in libname, libname
+    print('Using bundled LuaJIT in %s' % libname)
+    print('Building LuaJIT in %s' % libname)
+
+    src_dir = os.path.join(path, "src")
+    if sys.platform.startswith('win'):
+        build_script = os.path.join(src_dir, "msvcbuild.bat")
+        lib_file = "lua51.lib"
+    else:
+        build_script = "make"
+        lib_file = "libluajit.a"
+    subprocess.check_call(build_script, cwd=src_dir)
+
+    return {
+        'include_dirs': [src_dir],
+        'extra_objects': [os.path.join(src_dir, lib_file)],
+        'ext_libraries': None,
+        'libversion': libname,
+    }
+
+
 def use_bundled_lua(path, macros):
     libname = os.path.basename(path.rstrip(os.sep))
+    if 'luajit' in libname:
+        return use_bundled_luajit(path, macros)
+
     print('Using bundled Lua in %s' % libname)
 
     # Parse .o files from 'makefile'
@@ -246,16 +273,30 @@ def use_bundled_lua(path, macros):
                 obj_files.extend(line.rstrip('\\').split())
                 continuing = line.endswith('\\')
 
-    lua_sources = [os.path.splitext(obj_file)[0] + '.c' for obj_file in obj_files]
+    # Safety check, prevent Makefile variables from appearing in the sources list.
+    obj_files = [
+        obj_file for obj_file in obj_files
+        if not obj_file.startswith('$')
+    ]
+    for obj_file in obj_files:
+        if '$' in obj_file:
+            raise RuntimeError("Makefile of %s has unexpected format, found '%s'" % (
+                libname, obj_file))
+
+    lua_sources = [
+        os.path.splitext(obj_file)[0] + '.c' if obj_file != 'lj_vm.o' else 'lj_vm.s'
+        for obj_file in obj_files
+    ]
+    src_dir = os.path.dirname(makefile)
     ext_libraries = [
         [libname, {
-            'sources': [os.path.join(path, src) for src in lua_sources],
-            'include_dirs': [path],
+            'sources': [os.path.join(src_dir, src) for src in lua_sources],
+            'include_dirs': [src_dir],
             'macros': macros,
         }]
     ]
     return {
-        'include_dirs': [path],
+        'include_dirs': [src_dir],
         'ext_libraries': ext_libraries,
         'libversion': libname,
     }
@@ -295,7 +336,7 @@ configs = get_lua_build_from_arguments()
 if not configs and not option_no_bundle:
     configs = [
         use_bundled_lua(lua_bundle_path, c_defines)
-        for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'lua5*' + os.sep))
+        for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'lua*' + os.sep))
         if not lua_bundle_path.endswith('lua52' + os.sep)  # 5.2.3 fails to compile
     ]
 if not configs and not option_use_bundle:
