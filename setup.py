@@ -349,7 +349,7 @@ if not configs and not option_no_bundle:
             # LuaJIT 2.0 on macOS requires a CPython linked with "-pagezero_size 10000 -image_base 100000000"
             # http://t-p-j.blogspot.com/2010/11/lupa-on-os-x-with-macports-python-26.html
             # LuaJIT 2.1-alpha3 fails at runtime.
-            or (platform == 'darwin' and 'luajit' in os.path.basename(lua_bundle_path))
+            or (platform == 'darwin' and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
     ]
 if not configs and not option_use_bundle:
