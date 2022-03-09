@@ -222,7 +222,7 @@ def use_bundled_luajit(path, macros):
     libname = os.path.basename(path.rstrip(os.sep))
     assert 'luajit' in libname, libname
     print('Using bundled LuaJIT in %s' % libname)
-    print('Building LuaJIT in %s' % libname)
+    print('Building LuaJIT for %r in %s' % (sys.platform, libname))
 
     if sys.platform.startswith('win'):
         build_script = "msvcbuild"
@@ -236,12 +236,11 @@ def use_bundled_luajit(path, macros):
     if b'Successfully built LuaJIT' not in output:
         print("Building LuaJIT did not report success:")
         print(output)
-        print("## Building LuaJIT probably failed ##")
+        print("## Building LuaJIT may have failed ##")
 
     return {
         'include_dirs': [src_dir],
         'extra_objects': [os.path.join(src_dir, lib_file)],
-        'ext_libraries': None,
         'libversion': libname,
     }
 
