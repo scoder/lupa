@@ -30,6 +30,7 @@ test: local
 
 clean:
 	rm -fr build lupa/_lupa*.so lupa/lupa_*.pyx lupa/*.c
+	@for dir in third-party/*/; do $(MAKE) -C $${dir} clean; done
 
 realclean: clean
 	rm -fr lupa/_lupa.c
