@@ -10,6 +10,7 @@ import sys
 
 from glob import iglob
 from io import open as io_open
+from sys import platform
 
 try:
     # use setuptools if available
@@ -222,14 +223,17 @@ def use_bundled_luajit(path, macros):
     libname = os.path.basename(path.rstrip(os.sep))
     assert 'luajit' in libname, libname
     print('Using bundled LuaJIT in %s' % libname)
-    print('Building LuaJIT for %r in %s' % (sys.platform, libname))
+    print('Building LuaJIT for %r in %s' % (platform, libname))
 
-    if sys.platform.startswith('win'):
+    extra_link_args = None
+    if platform.startswith('win'):
         build_script = ["msvcbuild", "static"]
         lib_file = "lua51.lib"
     else:
         build_script = ["make",  "libluajit.a"]
         lib_file = "libluajit.a"
+        if platform == 'darwin' and libname == 'luajit20':
+            extra_link_args = ["-pagezero_size", "10000", "-image_base", "100000000"]
 
     src_dir = os.path.join(path, "src")
     output = subprocess.check_output(build_script, cwd=src_dir)
@@ -242,6 +246,7 @@ def use_bundled_luajit(path, macros):
         'include_dirs': [src_dir],
         'extra_objects': [os.path.join(src_dir, lib_file)],
         'libversion': libname,
+        'extra_link_args': extra_link_args,
     }
 
 
@@ -367,6 +372,7 @@ def prepare_extensions(use_cython=True):
             'lupa.' + ext_name,
             sources=[dst] + (libs[0][1]['sources'] if libs else []),
             extra_objects=config.get('extra_objects'),
+            extra_link_args=config.get('extra_link_args'),
             include_dirs=config.get('include_dirs'),
             define_macros=c_defines,
         ))
