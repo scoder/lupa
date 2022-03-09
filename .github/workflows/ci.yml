@@ -39,6 +39,7 @@ jobs:
     env:
       CFLAGS_LTO: ${{ contains(matrix.lua-version, 'bundle')  && (contains(matrix.os, 'windows') && '/LTCG' || '-flto') || '' }}
       CFLAGS: ${{ contains(matrix.os, 'windows') && '/O2' || '-O2 -fPIC' }} -g
+      MACOSX_DEPLOYMENT_TARGET: "10.14"
 
     steps:
     - uses: actions/checkout@v2
