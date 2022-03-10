@@ -43,7 +43,7 @@ def _import_newest_lib():
     package_dir = os.path.dirname(__file__)
     modules = [
         match.groups() for match in (
-            re.match(r"(lupa_(lua[a-z]*)([0-9]*))\..*", filename)
+            re.match(r"((lua[a-z]*)([0-9]*))\..*", filename)
             for filename in os.listdir(package_dir)
         )
         if match

@@ -14,7 +14,7 @@ MANIFEST
 *.patch
 wheel*/
 lupa/version.py
-lupa/lupa_lua*.pyx
+lupa/lua*.pyx
 
 # Vim swapfiles
 *.swp

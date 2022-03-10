@@ -90,19 +90,19 @@ a specific one via import:
 .. code:: python
 
     try:
-        import lupa.lupa_luajit20 as lupa
+        import lupa.luajit20 as lupa
     except ImportError:
         try:
-            import lupa.lupa_lua54 as lupa
+            import lupa.lua54 as lupa
         except ImportError:
             try:
-                import lupa.lupa_lua53 as lupa
+                import lupa.lua53 as lupa
             except ImportError:
                 import lupa
 
     print(f"Using {lupa.LuaRuntime().lua_implementation} (compiled with {lupa.LUA_VERSION})")
 
-Note that LuaJIT 2.1 may also be included (as ``lupa_luajit21``) but is currently in Alpha state.
+Note that LuaJIT 2.1 may also be included (as ``luajit21``) but is currently in Alpha state.
 
 
 Examples

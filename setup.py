@@ -366,7 +366,7 @@ def prepare_extensions(use_cython=True):
     ext_modules = []
     ext_libraries = []
     for config in configs:
-        ext_name = 'lupa_%s' % config.get('libversion', 'lua')
+        ext_name = config.get('libversion', 'lua')
         src, dst = os.path.join('lupa', '_lupa.pyx'), os.path.join('lupa', ext_name + '.pyx')
         if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
             with open(dst, 'wb') as f_out:

@@ -29,7 +29,7 @@ test: local
 	PYTHONPATH=. $(PYTHON) -m lupa.tests.test
 
 clean:
-	rm -fr build lupa/_lupa*.so lupa/lupa_*.pyx lupa/*.c
+	rm -fr build lupa/_lupa*.so lupa/lua*.pyx lupa/*.c
 	@for dir in third-party/*/; do $(MAKE) -C $${dir} clean; done
 
 realclean: clean

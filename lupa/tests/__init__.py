@@ -20,7 +20,7 @@ def find_lua_modules():
     modules = [lupa]
     imported = set()
     for filename in os.listdir(os.path.dirname(os.path.dirname(__file__))):
-        if not filename.startswith('lupa_lua'):
+        if not filename.startswith('lua'):
             continue
         module_name = "lupa." + filename.partition('.')[0]
         if module_name in imported:
