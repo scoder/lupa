@@ -21,6 +21,10 @@ from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
 from cpython.bytes cimport PyBytes_FromFormat
 
+cdef extern from "Python.h":
+    ctypedef struct PyTracebackObject:
+        PyTracebackObject* tb_next
+
 #from libc.stdint cimport uintptr_t
 cdef extern from *:
     """
@@ -47,6 +51,12 @@ cdef extern from *:
 cdef object exc_info
 from sys import exc_info
 
+cdef object format_exception
+from traceback import format_exception
+
+cdef object CodeType
+from types import CodeType
+
 cdef object Mapping
 try:
     from collections.abc import Mapping
@@ -71,6 +81,7 @@ except ImportError:
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
 DEF LUPAOFH = b"LUPA_NUMBER_OVERFLOW_CALLBACK_FUNCTION"
 DEF PYREFST = b"LUPA_PYTHON_REFERENCES_TABLE"
+DEF ERRHDLR = b"LUPA_ERROR_HANDLER_FUNCTION"
 
 cdef extern from *:
     """
@@ -235,7 +246,6 @@ cdef class LuaRuntime:
     cdef lua_State *_state
     cdef FastRLock _lock
     cdef dict _pyrefs_in_lua
-    cdef tuple _raised_exception
     cdef bytes _encoding
     cdef bytes _source_encoding
     cdef object _attribute_filter
@@ -308,24 +318,6 @@ cdef class LuaRuntime:
             "end)()"
         )
 
-    @cython.final
-    cdef int reraise_on_exception(self) except -1:
-        if self._raised_exception is not None:
-            exception = self._raised_exception
-            self._raised_exception = None
-            raise exception[0], exception[1], exception[2]
-        return 0
-
-    @cython.final
-    cdef int store_raised_exception(self, lua_State* L, bytes lua_error_msg) except -1:
-        try:
-            self._raised_exception = tuple(exc_info())
-            py_to_lua(self, L, self._raised_exception[1])
-        except:
-            lua.lua_pushlstring(L, lua_error_msg, len(lua_error_msg))
-            raise
-        return 0
-
     def eval(self, lua_code, *args):
         """Evaluate a Lua expression passed in a string.
         """
@@ -352,16 +344,13 @@ cdef class LuaRuntime:
         L = self._state
         lock_runtime(self)
         old_top = lua.lua_gettop(L)
-        cdef size_t size
         try:
             check_lua_stack(L, 1)
             status = lua.luaL_loadbuffer(L, lua_code, len(lua_code), b'<python>')
             if status == 0:
                 return py_from_lua(self, L, -1)
             else:
-                err = lua.lua_tolstring(L, -1, &size)
-                error = err[:size] if self._encoding is None else err[:size].decode(self._encoding)
-                raise LuaSyntaxError(error)
+                py_from_lua_error(self, L, status)
         finally:
             lua.lua_settop(L, old_top)
             unlock_runtime(self)
@@ -504,6 +493,14 @@ cdef class LuaRuntime:
     cdef int init_python_lib(self, bint register_eval, bint register_builtins) except -1:
         cdef lua_State *L = self._state
 
+        check_lua_stack(L, 4)
+
+        # register the error handler function
+        lua.lua_pushlstring(L, ERRHDLR, len(ERRHDLR))  # name
+        lua.lua_pushlightuserdata(L, <void*>self)      # name self
+        lua.lua_pushcclosure(L, py_error, 1)           # name errhdlr
+        lua.lua_rawset(L, lua.LUA_REGISTRYINDEX)       #
+
         # create 'python' lib
         luaL_openlib(L, "python", py_lib, 0)       # lib
         lua.lua_pushlightuserdata(L, <void*>self)  # lib udata
@@ -610,7 +607,7 @@ cdef Py_ssize_t get_object_length(LuaRuntime runtime, lua_State* L, int index) e
     lua.lua_pushcclosure(L, get_object_length_from_lua, 1)  # closure
     result = lua.lua_pcall(L, 0, 1, 0)
     if result:                                              # err
-        raise_lua_error(runtime, L, result)                 #
+        py_from_lua_error(runtime, L, result)               #
     length = <size_t>lua.lua_touserdata(L, -1)              # length
     lua.lua_pop(L, 1)                                       #
     if length > <size_t> PY_SSIZE_T_MAX:
@@ -692,7 +689,11 @@ cdef tuple _fix_args_kwargs(tuple args):
 ################################################################################
 # fast, re-entrant runtime locking
 
-cdef inline bint lock_runtime(LuaRuntime runtime) with gil:
+cdef inline lock_runtime(LuaRuntime runtime):
+    if not try_lock_runtime(runtime):
+        raise RuntimeError('could not acquire thread lock')
+
+cdef inline bint try_lock_runtime(LuaRuntime runtime):
     return lock_lock(runtime._lock, pythread.PyThread_get_thread_ident(), True)
 
 cdef inline void unlock_runtime(LuaRuntime runtime) nogil:
@@ -722,14 +723,12 @@ cdef class _LuaObject:
         if self._runtime is None:
             return
         cdef lua_State* L = self._state
-        if L is not NULL and self._ref != lua.LUA_NOREF:
-            locked = lock_runtime(self._runtime)
+        if try_lock_runtime(self._runtime):
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
             self._ref = lua.LUA_NOREF
             runtime = self._runtime
             self._runtime = None
-            if locked:
-                unlock_runtime(runtime)
+            unlock_runtime(runtime)
 
     @cython.final
     cdef inline int push_lua_object(self, lua_State* L) except -1:
@@ -751,14 +750,14 @@ cdef class _LuaObject:
     def __call__(self, *args):
         assert self._runtime is not None
         cdef lua_State* L = self._state
-        if not lock_runtime(self._runtime):
-            raise RuntimeError("failed to acquire thread lock")
+        lock_runtime(self._runtime)
+        old_top = lua.lua_gettop(L)
         try:
-            lua.lua_settop(L, 0)
+            check_lua_stack(L, 1)
             self.push_lua_object(L)
             return call_lua(self._runtime, L, args)
         finally:
-            lua.lua_settop(L, 0)
+            lua.lua_settop(L, old_top)
             unlock_runtime(self._runtime)
 
     def __len__(self):
@@ -822,7 +821,7 @@ cdef class _LuaObject:
                     except UnicodeDecodeError:
                         return string[:size].decode('ISO-8859-1')
                 else:
-                    raise_lua_error(self._runtime, L, status)
+                    py_from_lua_error(self._runtime, L, status)
             else:
                 return lua_object_repr(L, encoding)
         finally:
@@ -1146,13 +1145,15 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
                     # no values left to return
                     raise StopIteration
             else:
-                raise_lua_error(thread._runtime, co, status)
-
-        # Move yielded values to the main state before unpacking.
-        # This is what Lua's internal auxresume function is doing;
-        # it affects wrapped Lua functions returned to Python.
-        lua.lua_xmove(co, L, nres)
-        return unpack_lua_results(thread._runtime, L)
+                py_from_lua_error(thread._runtime, co, status)
+        try:
+            check_lua_stack(L, nres)
+        except:
+            lua.lua_pop(co, nres)
+            raise
+        else:
+            lua.lua_xmove(co, L, nres)
+            return py_function_return_from_lua(thread._runtime, L, nres)
     finally:
         # FIXME: check that coroutine state is OK in case of errors?
         lua.lua_settop(L, old_top)
@@ -1188,14 +1189,12 @@ cdef class _LuaIter:
         if self._runtime is None:
             return
         cdef lua_State* L = self._state
-        if L is not NULL and self._refiter != lua.LUA_NOREF:
-            locked = lock_runtime(self._runtime)
+        if try_lock_runtime(self._runtime):
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
             self._refiter = lua.LUA_NOREF
             runtime = self._runtime
             self._runtime = None
-            if locked:
-                unlock_runtime(runtime)
+            unlock_runtime(runtime)
 
     def __repr__(self):
         return u"LuaIter(%r)" % (self._obj)
@@ -1554,32 +1553,92 @@ cdef bytes _asciiOrNone(s):
 
 # error handling
 
-cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1:
+@cython.freelist(16)
+@cython.internal
+cdef class _PyException:
+    """Exception information for Lua"""
+    cdef readonly object etype
+    cdef readonly object value
+    cdef readonly object traceback
+
+    def __init__(self):
+        raise TypeError("Type cannot be instantiated from Python")
+
+    def __str__(self):
+        return ''.join(format_exception(self.etype, self.value, self.traceback)).strip()
+
+
+cdef int py_to_lua_error(LuaRuntime runtime, lua_State* L, bytes msg):
+    """Convert Python exception to a Lua error object
+    Preconditions:
+        Runtime is locked
+        Caller is inside 'except' block
+    Postconditions:
+        A _PyException object is created and wrapped into a Lua userdatum
+        If it cannot ensure an extra slot in the Lua stack, replaces value on top of
+        the Lua stack with the error object (expect lua_error to be called thereafter)
+        Always returns -1
+    """
+    cdef _PyException pyexc
+    if not lua.lua_checkstack(L, 1):
+        lua.lua_pop(L, 1)  # ensure extra slot
+    old_top = lua.lua_gettop(L)
+    try:
+        etype, value, traceback = exc_info()
+        assert etype is not None
+        pyexc = _PyException.__new__(_PyException)
+        pyexc.etype = etype
+        pyexc.value = value
+        pyexc.traceback = traceback
+        py_to_lua_custom(runtime, L, pyexc, 0)
+    except:
+        lua.lua_settop(L, old_top)
+        lua.lua_pushlstring(L, msg, len(msg))
+    return -1
+
+
+cdef int py_from_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1:
+    """Handle Lua error status code and raise a Python exception accordingly
+    Preconditions:
+        The 'result' argument is a valid Lua status code
+        If result != 0, then the error object is on top of the Lua stack
+    Postconditions:
+        If result is 0, it returns 0
+        If result is not 0, pops the error object from the Lua stack
+        If result is LUA_ERRMEM, it raises a MemoryError
+        If result is LUA_ERRSYNTAX, it raises a LuaSyntaxError with the error object
+        If result is another value, it converts the object on top of the stack
+        If the error object is a wrapped BaseException, it is reraised
+        If the error object is a wrapped _PyException, the inner exception is reraised
+        If the error object is nil, raises a LuaError without a value
+        Otherwise, it raises a LuaError with the error object as value
+    """
+    cdef _PyException pyexc
     if result == 0:
         return 0
     elif result == lua.LUA_ERRMEM:
-        raise MemoryError()
-    else:
-        raise LuaError(build_lua_error_message(runtime, L, None, -1))
-
-cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message, int n):
-    """Removes the string at the given stack index ``n`` to build an error message.
-    If ``err_message`` is provided, it is used as a %-format string to build the error message.
-    """
-    cdef size_t size = 0
-    cdef const char *s = lua.lua_tolstring(L, n, &size)
-    if runtime._encoding is not None:
+        lua.lua_pop(L, 1)
+        raise MemoryError
+    elif result == lua.LUA_ERRSYNTAX:
         try:
-            py_ustring = s[:size].decode(runtime._encoding)
-        except UnicodeDecodeError:
-            py_ustring = s[:size].decode('ISO-8859-1') # safe 'fake' decoding
+            err = py_from_lua(runtime, L, -1)
+        finally:
+            lua.lua_pop(L, 1)
+        raise LuaSyntaxError(err)
     else:
-        py_ustring = s[:size].decode('ISO-8859-1')
-    lua.lua_remove(L, n)
-    if err_message is None:
-        return py_ustring
-    else:
-        return err_message % py_ustring
+        try:
+            err = py_from_lua(runtime, L, -1)
+        finally:
+            lua.lua_pop(L, 1)
+        if err is None:
+            raise LuaError()
+        elif isinstance(err, _PyException):
+            pyexc = <_PyException>err
+            raise pyexc.etype, pyexc.value, pyexc.traceback
+        elif isinstance(err, BaseException):
+            raise err
+        else:
+            raise LuaError(err)
 
 # calling into Lua
 
@@ -1590,9 +1649,9 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code, tuple args):
     old_top = lua.lua_gettop(L)
     try:
         check_lua_stack(L, 1)
-        if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
-            raise LuaSyntaxError(build_lua_error_message(
-                runtime, L, u"error loading code: %s", -1))
+        result_status = lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>')
+        if result_status:
+            py_from_lua_error(runtime, L, result_status)
         return call_lua(runtime, L, args)
     finally:
         lua.lua_settop(L, old_top)
@@ -1609,32 +1668,32 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
     push_lua_arguments(runtime, L, args)
     return execute_lua_call(runtime, L, len(args))
 
-cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
+cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, int nargs):
+    """Executes protected call to Lua function with "nargs" arguments
+    Returns all the values returned by the function, converted to Python
+    """
     cdef int result_status
     cdef object result
-    # call into Lua
-    cdef int errfunc = 0
+    cdef int base = lua.lua_gettop(L) - nargs - 1
+    cdef int nres
+    cdef int errfunc
+    check_lua_stack(L, 1)
+    lua.lua_pushlstring(L, ERRHDLR, len(ERRHDLR))
     with nogil:
-        lua.lua_getglobal(L, "debug")
-        if not lua.lua_istable(L, -1):
-            lua.lua_pop(L, 1)
+        lua.lua_rawget(L, lua.LUA_REGISTRYINDEX)
+        if lua.lua_isfunction(L, -1):
+            errfunc = base + 1
+            lua.lua_insert(L, errfunc)
         else:
-            lua.lua_getfield(L, -1, "traceback")
-            if not lua.lua_isfunction(L, -1):
-                lua.lua_pop(L, 2)
-            else:
-                lua.lua_replace(L, -2)
-                lua.lua_insert(L, 1)
-                errfunc = 1
+            errfunc = 0
+            lua.lua_pop(L, 1)
         result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, errfunc)
-        if errfunc:
-            lua.lua_remove(L, 1)
-    results = unpack_lua_results(runtime, L)
+        if errfunc != 0:
+            lua.lua_remove(L, errfunc)
     if result_status:
-        if isinstance(results, BaseException):
-            runtime.reraise_on_exception()
-        raise_lua_error(runtime, L, result_status)
-    return results
+        py_from_lua_error(runtime, L, result_status)
+    nres = lua.lua_gettop(L) - base
+    return py_function_return_from_lua(runtime, L, nres)
 
 cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L,
                             tuple args, bint first_may_be_nil=True) except -1:
@@ -1667,23 +1726,32 @@ cdef int push_lua_arguments(LuaRuntime runtime, lua_State *L,
     else:
         return 0
 
-cdef inline object unpack_lua_results(LuaRuntime runtime, lua_State *L):
-    cdef int nargs = lua.lua_gettop(L)
-    if nargs == 1:
-        return py_from_lua(runtime, L, 1)
-    if nargs == 0:
-        return None
-    return unpack_multiple_lua_results(runtime, L, nargs)
-
-cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nargs):
-    cdef tuple args = cpython.tuple.PyTuple_New(nargs)
+cdef inline tuple py_tuple_from_lua(LuaRuntime runtime, lua_State *L, int nargs):
+    """Converts the nargs on top of the Lua stack into a Python tuple
+    """
+    cdef tuple args
     cdef int i
+    assert nargs >= 0
+    args = cpython.tuple.PyTuple_New(nargs)
     for i in range(nargs):
-        arg = py_from_lua(runtime, L, i+1)
+        arg = py_from_lua(runtime, L, -nargs+i)
         cpython.ref.Py_INCREF(arg)
         cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
     return args
 
+cdef inline object py_function_return_from_lua(LuaRuntime runtime, lua_State *L, int nargs):
+    """Converts the nargs on top of the stack into...
+    For nargs = 0, returns None
+    For nargs = 1, returns the object itself
+    For nargs > 1, returns a tuple of objects
+    """
+    assert nargs >= 0
+    if nargs == 0:
+        return None
+    elif nargs == 1:
+        return py_from_lua(runtime, L, -1)
+    else:
+        return py_tuple_from_lua(runtime, L, nargs)
 
 ################################################################################
 # Python support in Lua
@@ -1728,8 +1796,7 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) with gil:
     except (TypeError, KeyError):
         return 0  # runtime was already cleared during GC, nothing left to do
     except:
-        try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error finalizing Python object')
     else:
         lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
         lua.luaL_unref(L, -1, pyref._ref)                    # tbl
@@ -1757,7 +1824,6 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
     f = <object>py_obj.obj
 
     if nargs == 0:
-        lua.lua_settop(L, 0)  # FIXME
         result = f()
     else:
         args = ()
@@ -1783,7 +1849,6 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
             # so we just call the underlying function directly instead.
             f = <object>PyMethod_GET_FUNCTION(f)
 
-        lua.lua_settop(L, 0)  # FIXME
         result = f(*args, **kwargs)
 
     return py_function_result_to_lua(runtime, L, result)
@@ -1799,8 +1864,7 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
             runtime._state = L
         return call_python(runtime, L, py_obj)
     except:
-        try: runtime.store_raised_exception(L, b'error during Python call')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error calling Python function')
     finally:
         if stored_state is not NULL:
             runtime._state = stored_state
@@ -1815,7 +1879,7 @@ cdef int py_object_call(lua_State* L) nogil:
 # str() support for Python objects
 
 cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
-    cdef LuaRuntime runtime
+    cdef LuaRuntime runtime = None
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         s = str(<object>py_obj.obj)
@@ -1829,8 +1893,7 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
         lua.lua_pushlstring(L, <bytes>s, len(<bytes>s))
         return 1 # returning 1 value
     except:
-        try: runtime.store_raised_exception(L, b'error during Python str() call')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error converting Python object to Lua string')
 
 cdef int py_object_str(lua_State* L) nogil:
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
@@ -1893,7 +1956,7 @@ cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, in
 
 
 cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
-    cdef LuaRuntime runtime
+    cdef LuaRuntime runtime = None
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         if (py_obj.type_flags & OBJ_AS_INDEX) and not runtime._attribute_getter:
@@ -1901,8 +1964,7 @@ cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         else:
             return getattr_for_lua(runtime, L, py_obj, 2)
     except:
-        try: runtime.store_raised_exception(L, b'error reading Python attribute/item')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error reading Python object attribute/item')
 
 cdef int py_object_getindex(lua_State* L) nogil:
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
@@ -1913,7 +1975,7 @@ cdef int py_object_getindex(lua_State* L) nogil:
 
 
 cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
-    cdef LuaRuntime runtime
+    cdef LuaRuntime runtime = None
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         if (py_obj.type_flags & OBJ_AS_INDEX) and not runtime._attribute_setter:
@@ -1921,8 +1983,7 @@ cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         else:
             return setattr_for_lua(runtime, L, py_obj, 2, 3)
     except:
-        try: runtime.store_raised_exception(L, b'error writing Python attribute/item')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error writing Python object attribute/item')
 
 cdef int py_object_setindex(lua_State* L) nogil:
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
@@ -1965,13 +2026,12 @@ cdef inline py_object* unpack_python_argument_or_jump(lua_State* L, int n) nogil
     return py_obj
 
 cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
-    cdef LuaRuntime runtime
+    cdef LuaRuntime runtime = None
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         return py_to_lua_custom(runtime, L, <object>py_obj.obj, type_flags)
     except:
-        try: runtime.store_raised_exception(L, b'error during type adaptation')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error protocol-wrapping Python object')
 
 cdef int py_wrap_object_protocol(lua_State* L, int type_flags) nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
@@ -1988,7 +2048,7 @@ cdef int py_as_itemgetter(lua_State* L) nogil:
 
 cdef int py_as_function(lua_State* L) nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
-    lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
+    lua.lua_pushcclosure(L, py_asfunc_call, 1)
     return 1
 
 # iteration support for Python objects in Lua
@@ -2035,24 +2095,22 @@ cdef int py_enumerate(lua_State* L) nogil:
 
 
 cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj, lua.lua_Integer start) with gil:
-    cdef LuaRuntime runtime
+    cdef LuaRuntime runtime = None
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         obj = iter(<object>py_obj.obj)
         return py_push_iterator(runtime, L, obj, OBJ_ENUMERATOR, start - 1)
     except:
-        try: runtime.store_raised_exception(L, b'error creating an iterator with enumerate()')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error creating an enumerator')
 
 cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
-    cdef LuaRuntime runtime
+    cdef LuaRuntime runtime = None
     try:
         runtime = <LuaRuntime?>py_obj.runtime
         obj = iter(<object>py_obj.obj)
         return py_push_iterator(runtime, L, obj, type_flags, 0)
     except:
-        try: runtime.store_raised_exception(L, b'error creating an iterator')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error creating an iterator')
 
 cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_flags,
                           lua.lua_Integer initial_value) except -2:
@@ -2064,17 +2122,23 @@ cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_f
         Pushes py_iter_next, iterator and the control variable
         Returns the number of pushed values
     """
-    # push the iterator function
-    lua.lua_pushcfunction(L, <lua.lua_CFunction>py_iter_next)
-    # push the wrapped iterator object as for-loop state object
-    if runtime._unpack_returned_tuples:
-        type_flags |= OBJ_UNPACK_TUPLE
-    py_to_lua_custom(runtime, L, iterator, type_flags)
-    # push either enumerator index or nil as control variable value
-    if type_flags & OBJ_ENUMERATOR:
-        lua.lua_pushinteger(L, initial_value)
-    else:
-        lua.lua_pushnil(L)
+    old_top = lua.lua_gettop(L)
+    try:
+        check_lua_stack(L, 3)
+        # push the iterator function
+        lua.lua_pushcfunction(L, py_iter_next)
+        # push the wrapped iterator object as for-loop state object
+        if runtime._unpack_returned_tuples:
+            type_flags |= OBJ_UNPACK_TUPLE
+        py_to_lua_custom(runtime, L, iterator, type_flags)
+        # push either enumerator index or nil as control variable value
+        if type_flags & OBJ_ENUMERATOR:
+            lua.lua_pushinteger(L, initial_value)
+        else:
+            lua.lua_pushnil(L)
+    except:
+        lua.lua_settop(L, old_top)
+        raise
     return 3
 
 cdef int py_iter_next(lua_State* L) nogil:
@@ -2086,7 +2150,7 @@ cdef int py_iter_next(lua_State* L) nogil:
     return result
 
 cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
-    cdef LuaRuntime runtime
+    cdef LuaRuntime runtime = None
     try:
         runtime = <LuaRuntime?>py_iter.runtime
         try:
@@ -2113,8 +2177,7 @@ cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
             result += 1
         return result
     except:
-        try: runtime.store_raised_exception(L, b'error while calling next(iterator)')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error iterating Python object')
 
 # support for calling Python objects in Lua with Python-like arguments
 
@@ -2124,15 +2187,14 @@ cdef class _PyArguments:
 
 cdef int py_args_with_gil(PyObject* runtime_obj, lua_State* L) with gil:
     cdef _PyArguments pyargs
-    cdef LuaRuntime runtime
+    cdef LuaRuntime runtime = None
     try:
         runtime = <LuaRuntime?>runtime_obj
         pyargs = _PyArguments.__new__(_PyArguments)
         pyargs.args, pyargs.kwargs = unpack_lua_table(runtime, L)
         return py_to_lua_custom(runtime, L, pyargs, 0)
     except:
-        try: runtime.store_raised_exception(L, b'error while calling python.args()')
-        finally: return -1
+        return py_to_lua_error(runtime, L, b'error creating Python arguments')
 
 cdef int py_args(lua_State* L) nogil:
     cdef PyObject* runtime
@@ -2157,6 +2219,198 @@ cdef int py_set_overflow_handler(lua_State* L) nogil:
     lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, LUPAOFH)  #
     return 0
 
+# type checking for Python objects in Lua
+
+cdef int py_is_error_with_gil(lua_State* L, py_object* py_obj) with gil:
+    cdef LuaRuntime runtime = None
+    try:
+        runtime = <LuaRuntime?>py_obj.runtime
+        obj = <object>py_obj.obj
+        lua.lua_pushboolean(L, isinstance(obj, _PyException))
+        return 1
+    except:
+        return py_to_lua_error(runtime, L, b'error checking if object is Python error')
+
+cdef int py_is_error(lua_State* L) nogil:
+    cdef py_object* py_obj = unpack_userdata(L, 1)
+    if not py_obj:
+        lua.lua_pushboolean(L, 0)
+        return 1
+    result = py_is_error_with_gil(L, py_obj)
+    if result < 0:
+        return lua.lua_error(L) # never returns!
+    return result
+
+cdef int py_is_object(lua_State* L) nogil:
+    cdef py_object* py_obj
+    if lua.lua_isuserdata(L, 1):
+        py_obj = unpack_userdata(L, 1)
+    else:
+        py_obj = unpack_wrapped_pyfunction(L, 1)
+    lua.lua_pushboolean(L, py_obj != NULL)
+    return 1
+
+# raising Python errors from Lua
+
+cdef object tb_set_next(object tb, object tb_next):
+    cdef PyObject* prev_tb_next
+    c_tb = <PyTracebackObject*>tb
+    if tb.tb_next is not None:
+        prev_tb_next = <PyObject*>c_tb.tb_next
+        c_tb.tb_next = NULL
+        cpython.ref.Py_XDECREF(prev_tb_next)
+    if tb_next is not None:
+        cpython.ref.Py_INCREF(tb_next)
+        c_tb.tb_next = <PyTracebackObject*>tb_next
+    return tb
+
+cdef object fake_traceback(object exc, object filename, object name, int lineno):
+    scope = {
+            "__name__": filename,
+            "__file__": filename,
+            "__lupa_exception__": exc,
+    }
+    code = compile("\n" * (lineno - 1) + "raise __lupa_exception__", filename, "exec")
+    try:
+        code_args = []
+        for attr in (
+            "argcount",
+            "posonlyargcount",  # Python 3.8
+            "kwonlyargcount",
+            "nlocals",
+            "stacksize",
+            "flags",
+            "code",  # codestring
+            "consts",  # constants
+            "names",
+            "varnames",
+            ("filename", filename),
+            ("name", name),
+            "firstlineno",
+            "lnotab",
+            "freevars",
+            "cellvars",
+            "linetable",  # Python 3.10
+        ):
+            if isinstance(attr, tuple):
+                # Replace with given value.
+                code_args.append(attr[1])
+                continue
+            try:
+                # Copy original value if it exists.
+                code_args.append(getattr(code, "co_" + attr))
+            except AttributeError:
+                # Some arguments were added later.
+                continue
+
+        code = CodeType(*code_args)
+    except Exception:
+        # Some environments such as Google App Engine don't support
+        # modifying code objects.
+        pass
+
+    # Execute the new code, which is guaranteed to raise, and return
+    # the new traceback without this frame.
+    try:
+        exec(code, scope, {})
+    except BaseException:
+        return exc_info()[2].tb_next
+
+cdef object py_traceback_from_lua(lua_State* L, int level, object exc):
+    cdef lua.lua_Debug ar
+    cdef int lineno
+    cdef object name
+
+    cdef list stack = []
+
+    # Get stack information from Lua C API Debug interface
+    while lua.lua_getstack(L, level, &ar):
+        level += 1
+
+        # Get further information...
+        lua.lua_getinfo(L, "Snl", &ar)
+
+        # Get line number
+        if ar.currentline > 0:
+            lineno = ar.currentline
+        else:
+            lineno = ar.linedefined
+
+        # Get name
+        if ar.namewhat[0] != '\0':
+            name = ar.name
+        else:
+            whatc = ar.what[0]
+            if whatc == 'm':
+                name = "main chunk"
+            elif whatc == 'C' or whatc == 't':
+                name = "?"
+            else:
+                name = f"function <{ar.short_src}:{ar.linedefined}>"
+
+        # Generate traceback
+        fake_tb = fake_traceback(exc, ar.short_src, name, lineno)
+
+        # Append traceback to stack
+        stack.append(fake_tb)
+
+    # Link tracebacks together
+    tb_next = None
+
+    for tb in reversed(stack):
+        tb_next = tb_set_next(tb, tb_next)
+
+    # Return most recent traceback
+    return tb_next
+
+# error handler for calls to Lua functions from Python
+
+cdef int py_error_with_gil(PyObject* runtime_obj, lua_State* L, py_object* py_obj) with gil:
+    cdef LuaRuntime runtime = None
+    cdef _PyException pyexc
+    cdef object exc
+    try:
+        runtime = <LuaRuntime?>runtime_obj
+        if py_obj:
+            exc = <object>py_obj.obj
+            if isinstance(exc, _PyException):
+                return 1  # leave the _PyException as it is
+            elif isinstance(exc, BaseException):
+                pass  # use BaseException itself
+            else:
+                exc = LuaError(exc)  # make it an exception
+        elif lua.lua_isnil(L, 1):
+            exc = LuaError()  # new empty Lua error
+        else:
+            errobj = py_from_lua(runtime, L, 1)
+            exc = LuaError(errobj)  # convert error object
+
+        pyexc = _PyException.__new__(_PyException)
+        pyexc.etype = type(exc)
+        pyexc.value = exc
+        pyexc.traceback = py_traceback_from_lua(L, 1, exc)
+        py_to_lua_custom(runtime, L, pyexc, 0)
+        return 1
+    except:
+        return py_to_lua_error(runtime, L, b'error raising Python exception from Lua')
+
+cdef int py_error(lua_State* L) nogil:
+    cdef py_object* py_obj
+    cdef PyObject* runtime
+    runtime = <PyObject*>lua.lua_touserdata(L, lua.lua_upvalueindex(1))
+    if not runtime:
+        return lua.luaL_error(L, "missing runtime")
+    lua.lua_settop(L, 1)
+    if lua.lua_isuserdata(L, 1):
+        py_obj = unpack_python_argument_or_jump(L, 1)
+    else:
+        py_obj = NULL
+    result = py_error_with_gil(runtime, L, py_obj)
+    if result < 0:
+        return lua.lua_error(L) # never returns!
+    return result
+
+
 # 'python' module functions in Lua
 
 cdef lua.luaL_Reg *py_lib = [
@@ -2167,6 +2421,8 @@ cdef lua.luaL_Reg *py_lib = [
     lua.luaL_Reg(name = "iterex",               func = <lua.lua_CFunction> py_iterex),
     lua.luaL_Reg(name = "enumerate",            func = <lua.lua_CFunction> py_enumerate),
     lua.luaL_Reg(name = "set_overflow_handler", func = <lua.lua_CFunction> py_set_overflow_handler),
+    lua.luaL_Reg(name = "is_error",             func = <lua.lua_CFunction> py_is_error),
+    lua.luaL_Reg(name = "is_object",            func = <lua.lua_CFunction> py_is_object),
     lua.luaL_Reg(name = NULL, func = NULL),
 ]
 
