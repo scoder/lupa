@@ -333,7 +333,12 @@ ext_modules = [
     )]
 
 if cythonize is not None:
-    ext_modules = cythonize(ext_modules)
+    ext_modules = cythonize(ext_modules, compiler_directives={
+        "always_allow_keywords": True,
+        "cdivision": True,
+        "boundscheck": False,
+        "wraparound": False
+    })
 
 
 def read_file(filename):

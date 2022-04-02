@@ -48,10 +48,11 @@ cdef object exc_info
 from sys import exc_info
 
 cdef object Mapping
+cdef object Sequence
 try:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 except ImportError:
-    from collections import Mapping  # Py2
+    from collections import Mapping, Sequence  # Py2
 
 cdef object wraps
 from functools import wraps
@@ -408,7 +409,7 @@ cdef class LuaRuntime:
         """
         return self.table_from(items, kwargs)
 
-    def table_from(self, *args):
+    def table_from(self, *args, bint recursive=False):
         """Create a new table from Python mapping or iterable.
 
         table_from() accepts either a dict/mapping or an iterable with items.
@@ -416,7 +417,7 @@ cdef class LuaRuntime:
         are placed in the table in order.
 
         Nested mappings / iterables are passed to Lua as userdata
-        (wrapped Python objects); they are not converted to Lua tables.
+        (wrapped Python objects) if recursive is False; they are not converted to Lua tables.
         """
         assert self._state is not NULL
         cdef lua_State *L = self._state
@@ -426,12 +427,12 @@ cdef class LuaRuntime:
         try:
             check_lua_stack(L, 5)
             lua.lua_newtable(L)
-            # FIXME: how to check for failure?
+            # FIXME: how to check for failure? and nested dict
             for obj in args:
                 if isinstance(obj, dict):
-                    for key, value in obj.iteritems():
-                        py_to_lua(self, L, key)
-                        py_to_lua(self, L, value)
+                    for key, value in obj.iteritems():  # in python3, this is called items
+                        py_to_lua(self, L, key, False, recursive)
+                        py_to_lua(self, L, value, False, recursive)
                         lua.lua_rawset(L, -3)
 
                 elif isinstance(obj, _LuaTable):
@@ -447,12 +448,12 @@ cdef class LuaRuntime:
                 elif isinstance(obj, Mapping):
                     for key in obj:
                         value = obj[key]
-                        py_to_lua(self, L, key)
-                        py_to_lua(self, L, value)
+                        py_to_lua(self, L, key, False, recursive)
+                        py_to_lua(self, L, value, False, recursive)
                         lua.lua_rawset(L, -3)
                 else:
                     for arg in obj:
-                        py_to_lua(self, L, arg)
+                        py_to_lua(self, L, arg, False, recursive)
                         lua.lua_rawseti(L, -2, i)
                         i += 1
             return py_from_lua(self, L, -1)
@@ -508,12 +509,12 @@ cdef class LuaRuntime:
         luaL_openlib(L, "python", py_lib, 0)       # lib
         lua.lua_pushlightuserdata(L, <void*>self)  # lib udata
         lua.lua_pushcclosure(L, py_args, 1)        # lib function
-        lua.lua_setfield(L, -2, "args")            # lib 
+        lua.lua_setfield(L, -2, "args")            # lib
 
         # register our own object metatable
         lua.luaL_newmetatable(L, POBJECT)          # lib metatbl
         luaL_openlib(L, NULL, py_object_lib, 0)
-        lua.lua_pop(L, 1)                          # lib 
+        lua.lua_pop(L, 1)                          # lib
 
         # create and store the python references table
         lua.lua_newtable(L)                                  # lib tbl
@@ -1135,7 +1136,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
             # already terminated
             raise StopIteration
         if args:
-            nargs = len(args)
+            nargs = <int>len(args)
             push_lua_arguments(thread._runtime, co, args)
         with nogil:
             status = lua.lua_resume(co, L, nargs, &nres)
@@ -1381,7 +1382,7 @@ cdef py_object* unpack_userdata(lua_State *L, int n) nogil:
 cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) except -1:
      if runtime._unpack_returned_tuples and isinstance(o, tuple):
          push_lua_arguments(runtime, L, <tuple>o)
-         return len(<tuple>o)
+         return <int>len(<tuple>o)
      check_lua_stack(L, 1)
      return py_to_lua(runtime, L, o)
 
@@ -1410,7 +1411,7 @@ cdef int py_to_lua_handle_overflow(LuaRuntime runtime, lua_State *L, object o) e
         lua.lua_settop(L, old_top)
         raise
 
-cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False) except -1:
+cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False, bint recursive=False) except -1:
     """Converts Python object to Lua
     Preconditions:
         1 extra slot in the Lua stack
@@ -1461,6 +1462,19 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         pushed_values_count = 1
     elif isinstance(o, float):
         lua.lua_pushnumber(L, <lua.lua_Number><double>o)
+        pushed_values_count = 1
+    elif recursive and isinstance(o, Sequence):
+        lua.lua_createtable(L, <int>len(o), 0)   # create a table at the top of stack, with narr already known
+        for i, v in enumerate(o):
+            py_to_lua(runtime, L, v, wrap_none, recursive)
+            lua.lua_rawseti(L, -2, i+1)
+        pushed_values_count = 1
+    elif recursive and isinstance(o, Mapping):
+        lua.lua_createtable(L, 0, <int>len(o))  # create a table at the top of stack, with nrec already known
+        for key, value in o.iteritems(): # to compatible with py2
+            py_to_lua(runtime, L, key, wrap_none, recursive)
+            py_to_lua(runtime, L, value, wrap_none, recursive)
+            lua.lua_rawset(L, -3)
         pushed_values_count = 1
     else:
         if isinstance(o, _PyProtocolWrapper):
@@ -1626,7 +1640,7 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
                 lua.lua_replace(L, -2)
                 lua.lua_insert(L, 1)
                 errfunc = 1
-        result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, errfunc)
+        result_status = lua.lua_pcall(L, <int>nargs, lua.LUA_MULTRET, errfunc)
         if errfunc:
             lua.lua_remove(L, 1)
     results = unpack_lua_results(runtime, L)
@@ -1736,7 +1750,7 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) with gil:
         return 0
     finally:
         py_obj.obj = NULL
-    
+
 cdef int py_object_gc(lua_State* L) nogil:
     if not lua.lua_isuserdata(L, 1):
         return 0
@@ -1762,7 +1776,6 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
     else:
         args = ()
         kwargs = {}
-        
         for i in range(nargs):
             arg = py_from_lua(runtime, L, i+2)
             if isinstance(arg, _PyArguments):
