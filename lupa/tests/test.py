@@ -24,7 +24,6 @@ unicode_type = type('abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
 if IS_PYTHON2:
     unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
 
-
 class SetupLuaRuntimeMixin(object):
     lua_runtime_kwargs = {}
 
@@ -98,7 +97,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(2, self.lua.eval('1+1'))
 
     def test_eval_multi(self):
-        self.assertEqual((1, 2, 3), self.lua.eval('1,2,3'))
+        self.assertEqual((1,2,3), self.lua.eval('1,2,3'))
 
     def test_eval_args(self):
         self.assertEqual(2, self.lua.eval('...', 2))
@@ -171,7 +170,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         return fac
         ''')
         self.assertNotEqual(None, fac)
-        self.assertEqual(6, fac(3))
+        self.assertEqual(6,       fac(3))
         self.assertEqual(3628800, fac(10))
 
     def test_double_recursive_function(self):
@@ -186,8 +185,8 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         '''
         calc = self.lua.execute(func_code)
         self.assertNotEqual(None, calc)
-        self.assertEqual(3, calc(3))
-        self.assertEqual(109, calc(10))
+        self.assertEqual(3,     calc(3))
+        self.assertEqual(109,   calc(10))
         self.assertEqual(13529, calc(20))
 
     def test_double_recursive_function_pycallback(self):
@@ -200,15 +199,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         end
         return calc
         '''
-
         def pycallback(i):
-            return i ** 2
+            return i**2
 
         calc = self.lua.execute(func_code)
 
         self.assertNotEqual(None, calc)
-        self.assertEqual(12, calc(pycallback, 3))
-        self.assertEqual(1342, calc(pycallback, 10))
+        self.assertEqual(12,     calc(pycallback, 3))
+        self.assertEqual(1342,   calc(pycallback, 10))
         self.assertEqual(185925, calc(pycallback, 20))
 
     def test_none(self):
@@ -245,7 +243,6 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_call_str_class(self):
         called = [False]
-
         class test(object):
             def __str__(self):
                 called[0] = True
@@ -270,7 +267,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_len_table_dict(self):
         table = self.lua.eval('{a=1, b=2, c=3}')
-        self.assertEqual(0, len(table))  # as returned by Lua's "#" operator
+        self.assertEqual(0, len(table)) # as returned by Lua's "#" operator
 
     def test_table_delattr(self):
         table = self.lua.eval('{a=1, b=2, c=3}')
@@ -296,27 +293,27 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_iter_table(self):
         table = self.lua.eval('{2,3,4,5,6}')
-        self.assertEqual([1, 2, 3, 4, 5], list(table))
+        self.assertEqual([1,2,3,4,5], list(table))
 
     def test_iter_table_list_repeat(self):
         table = self.lua.eval('{2,3,4,5,6}')
-        self.assertEqual([1, 2, 3, 4, 5], list(table))  # 1
-        self.assertEqual([1, 2, 3, 4, 5], list(table))  # 2
-        self.assertEqual([1, 2, 3, 4, 5], list(table))  # 3
+        self.assertEqual([1,2,3,4,5], list(table))  # 1
+        self.assertEqual([1,2,3,4,5], list(table))  # 2
+        self.assertEqual([1,2,3,4,5], list(table))  # 3
 
     def test_iter_array_table_values(self):
         table = self.lua.eval('{2,3,4,5,6}')
-        self.assertEqual([2, 3, 4, 5, 6], list(table.values()))
+        self.assertEqual([2,3,4,5,6], list(table.values()))
 
     def test_iter_array_table_repeat(self):
         table = self.lua.eval('{2,3,4,5,6}')
-        self.assertEqual([2, 3, 4, 5, 6], list(table.values()))  # 1
-        self.assertEqual([2, 3, 4, 5, 6], list(table.values()))  # 2
-        self.assertEqual([2, 3, 4, 5, 6], list(table.values()))  # 3
+        self.assertEqual([2,3,4,5,6], list(table.values()))  # 1
+        self.assertEqual([2,3,4,5,6], list(table.values()))  # 2
+        self.assertEqual([2,3,4,5,6], list(table.values()))  # 3
 
     def test_iter_multiple_tables(self):
         count = 10
-        table_values = [self.lua.eval('{%s}' % ','.join(map(str, range(2, count + 2)))).values()
+        table_values = [self.lua.eval('{%s}' % ','.join(map(str, range(2, count+2)))).values()
                         for _ in range(4)]
 
         # round robin
@@ -325,11 +322,11 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             for table in table_values:
                 sublist.append(_next(table))
 
-        self.assertEqual([[i] * len(table_values) for i in range(2, count + 2)], l)
+        self.assertEqual([[i]*len(table_values) for i in range(2, count+2)], l)
 
     def test_iter_table_repeat(self):
         count = 10
-        table_values = [self.lua.eval('{%s}' % ','.join(map(str, range(2, count + 2)))).values()
+        table_values = [self.lua.eval('{%s}' % ','.join(map(str, range(2, count+2)))).values()
                         for _ in range(4)]
 
         # one table after the other
@@ -338,7 +335,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             for sublist in l:
                 sublist.append(_next(table))
 
-        self.assertEqual([[i] * len(table_values) for i in range(2, count + 2)], l)
+        self.assertEqual([[i]*len(table_values) for i in range(2,count+2)], l)
 
     def test_iter_table_refcounting(self):
         lua_func = self.lua.eval('''
@@ -390,20 +387,20 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         table = self.lua.eval('{%s}' % ','.join('[%d]=%d' % (i, -i) for i in range(10)))
         l = list(table.values())
         l.sort()
-        self.assertEqual(list(range(-9, 1)), l)
+        self.assertEqual(list(range(-9,1)), l)
 
     def test_iter_table_items(self):
         keys = list('abcdefg')
         table = self.lua.eval('{%s}' % ','.join('%s=%d' % (c, i) for i, c in enumerate(keys)))
         l = list(table.items())
         l.sort()
-        self.assertEqual(list(zip(keys, range(len(keys)))), l)
+        self.assertEqual(list(zip(keys,range(len(keys)))), l)
 
     def test_iter_table_items_int_keys(self):
         table = self.lua.eval('{%s}' % ','.join('[%d]=%d' % (i, -i) for i in range(10)))
         l = list(table.items())
         l.sort()
-        self.assertEqual(list(zip(range(10), range(0, -10, -1))), l)
+        self.assertEqual(list(zip(range(10), range(0,-10,-1))), l)
 
     def test_iter_table_values_mixed(self):
         keys = list('abcdefg')
@@ -436,7 +433,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_int_values(self):
         function = self.lua.eval('function(i) return i + 5 end')
-        self.assertEqual(3 + 5, function(3))
+        self.assertEqual(3+5, function(3))
 
     def test_long_values(self):
         try:
@@ -444,11 +441,11 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         except NameError:
             _long = int
         function = self.lua.eval('function(i) return i + 5 end')
-        self.assertEqual(3 + 5, function(_long(3)))
+        self.assertEqual(3+5, function(_long(3)))
 
     def test_float_values(self):
         function = self.lua.eval('function(i) return i + 5 end')
-        self.assertEqual(float(3) + 5, function(float(3)))
+        self.assertEqual(float(3)+5, function(float(3)))
 
     def test_str_function(self):
         func = self.lua.eval('function() return 1 end')
@@ -459,7 +456,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual('<Lua table at ', str(table)[:14])
 
     def test_create_table_args(self):
-        table = self.lua.table(1, 2, 3, 4, 5, 6)
+        table = self.lua.table(1,2,3,4,5,6)
         self.assertEqual(1, table[1])
         self.assertEqual(3, table[3])
         self.assertEqual(6, table[6])
@@ -468,14 +465,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_create_table_kwargs(self):
         table = self.lua.table(a=1, b=20, c=300)
-        self.assertEqual(1, table['a'])
-        self.assertEqual(20, table['b'])
+        self.assertEqual(  1, table['a'])
+        self.assertEqual( 20, table['b'])
         self.assertEqual(300, table['c'])
 
         self.assertEqual(0, len(table))
 
     def test_create_table_args_kwargs(self):
-        table = self.lua.table(1, 2, 3, 4, 5, 6, a=100, b=200, c=300)
+        table = self.lua.table(1,2,3,4,5,6, a=100, b=200, c=300)
         self.assertEqual(1, table[1])
         self.assertEqual(3, table[3])
         self.assertEqual(6, table[6])
@@ -488,8 +485,8 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_table_from_dict(self):
         table = self.lua.table_from({"foo": 1, "bar": 20, "baz": "spam"})
-        self.assertEqual(1, table['foo'])
-        self.assertEqual(20, table['bar'])
+        self.assertEqual(     1, table['foo'])
+        self.assertEqual(    20, table['bar'])
         self.assertEqual("spam", table['baz'])
 
         self.assertEqual(0, len(table))
@@ -510,7 +507,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
     #     self.assertEqual(0, len(table))
 
     def test_table_from_list(self):
-        table = self.lua.table_from([1, 2, 5, 6])
+        table = self.lua.table_from([1,2,5,6])
         self.assertEqual(1, table[1])
         self.assertEqual(2, table[2])
         self.assertEqual(5, table[3])
@@ -646,6 +643,22 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         """)
         del self.lua.globals()["data"]
 
+    def test_table_from_nested_list_bad(self):
+        data = {"a": {"a": "foo"}, "b": [1, 2, 3]}
+        table = self.lua.table_from(data, recursive=False) # in this case, lua will get userdata instead of table
+        self.assertEqual(table["a"]["a"], "foo")
+        self.assertEqual(table["b"][0], 1)
+        self.assertEqual(table["b"][1], 2)
+        self.assertEqual(table["b"][2], 3)
+        self.lua.globals()["data"] = table
+
+        def test():
+            self.lua.eval("assert(type(data.a)=='table', 'failed, expect table, got '..type(data.a))")
+            self.lua.eval("assert(type(data.b)=='table', 'failed, expect table, got '..type(data.b))")
+
+        self.assertRaises(lupa.LuaError, test)
+        del self.lua.globals()["data"]
+
     # FIXME: it segfaults
     # def test_table_from_generator_calling_lua_functions(self):
     #     func = self.lua.eval("function (obj) return obj end")
@@ -669,16 +682,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual('abc', stringlib['lower']('ABC'))
 
     def test_getattr_table(self):
-        table = self.lua.eval(
-            '{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
+        table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
         self.assertEqual(1, table.val)
         self.assertEqual('Pi', table.const.name)
         self.assertEqual('light speed', table.const2.name)
         self.assertEqual(3e8, table.const2.value)
 
     def test_getitem_table(self):
-        table = self.lua.eval(
-            '{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
+        table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
         self.assertEqual(1, table['val'])
         self.assertEqual('Pi', table['const']['name'])
         self.assertEqual('light speed', table['const2']['name'])
@@ -721,8 +732,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(3, len(table))
 
     def test_setattr_table(self):
-        table = self.lua.eval(
-            '{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
+        table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
 
         self.assertEqual(1, table.val)
         table.val = 2
@@ -736,8 +746,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual('POW', table_const_name(table))
 
     def test_setitem_table(self):
-        table = self.lua.eval(
-            '{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
+        table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
 
         self.assertEqual(1, table.val)
         table['val'] = 2
@@ -766,20 +775,16 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_pygetattr(self):
         lua_func = self.lua.eval('function(x) return x.ATTR end')
-
         class test(object):
             def __init__(self):
                 self.ATTR = 5
-
         self.assertEqual(test().ATTR, lua_func(test()))
 
     def test_pysetattr(self):
         lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
-
         class test(object):
             def __init__(self):
                 self.ATTR = 5
-
         t = test()
         self.assertEqual(5, t.ATTR)
         lua_func(t)
@@ -787,17 +792,13 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_pygetattr_function(self):
         lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
-
         def test(): pass
-
         lua_func(test)
         self.assertEqual(123, test.ATTR)
 
     def test_pysetattr_function(self):
         lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
-
         def test(): pass
-
         lua_func(test)
         self.assertEqual(123, test.ATTR)
 
@@ -822,44 +823,34 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_callable_values(self):
         function = self.lua.eval('function(f) return f() + 5 end')
-
         def test():
             return 3
-
-        self.assertEqual(3 + 5, function(test))
+        self.assertEqual(3+5, function(test))
 
     def test_callable_values_pass_through(self):
         function = self.lua.eval('function(f, n) return f(n) + 5 end')
-
         def test(n):
             return n
-
-        self.assertEqual(2 + 5, function(test, 2))
+        self.assertEqual(2+5, function(test, 2))
 
     def test_callable_passthrough(self):
         passthrough = self.lua.eval('function(f) f(); return f end')
         called = [False]
-
         def test():
             called[0] = True
-
         self.assertEqual(test, passthrough(test))
         self.assertEqual([True], called)
 
     def test_reraise(self):
         function = self.lua.eval('function(f) return f() + 5 end')
-
         def test():
             raise ValueError("huhu")
-
         self.assertRaises(ValueError, function, test)
 
     def test_reraise_pcall(self):
         exception = Exception('test')
-
         def py_function():
             raise exception
-
         function = self.lua.eval(
             'function(p) local r, err = pcall(p); return r, err end'
         )
@@ -878,7 +869,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertRaises(
             lupa.LuaError,
             function,
-            lambda: 5 / 0,
+            lambda: 5/0,
         )
 
     def test_attribute_filter(self):
@@ -890,13 +881,11 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
         lua = lupa.LuaRuntime(attribute_filter=attr_filter)
         function = lua.eval('function(obj) return obj.__name__ end')
-
         class X(object):
             a = 0
             a1 = 1
             _a = 2
             __a = 3
-
         x = X()
 
         function = self.lua.eval('function(obj) return obj.a end')
@@ -945,7 +934,6 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_call_from_coroutine(self):
         lua = self.lua
-
         def f(*args, **kwargs):
             return lua.eval('tostring(...)', args)
 
@@ -961,7 +949,6 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_call_from_coroutine2(self):
         lua = self.lua
-
         def f(*args, **kwargs):
             return lua.eval('tostring(...)', args)
 
@@ -994,20 +981,16 @@ class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_pygetattr(self):
         lua_func = self.lua.eval('function(x) return x.ATTR end')
-
         class test(object):
             def __init__(self):
                 self.ATTR = 5
-
         self.assertEqual(test().ATTR, lua_func(test()))
 
     def test_pysetattr(self):
         lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
-
         class test(object):
             def __init__(self):
                 self.ATTR = 5
-
         t = test()
         self.assertEqual(5, t.ATTR)
         lua_func(t)
@@ -1027,7 +1010,6 @@ class TestStrNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_call_str_class(self):
         called = [False]
-
         class test(object):
             def __str__(self):
                 called[0] = True
@@ -1221,7 +1203,6 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
 
         def compare(a, b):
             return a < b
-
         self.assertEqual([1, 2, 3, 4, 5], list(lua_func(compare)))
 
     def test_type_conversion(self):
@@ -1235,7 +1216,6 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
 
         class Callable(object):
             def __call__(self): pass
-
             def __getitem__(self, item): pass
 
         self.assertEqual('userdata', lua_type(Callable()))
@@ -1263,7 +1243,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_pylist(self):
         getitem = self.lua.eval('function(L, i) return L[i] end')
-        self.assertEqual(3, getitem([1, 2, 3], 2))
+        self.assertEqual(3, getitem([1,2,3], 2))
 
     def test_python_iter_list(self):
         values = self.lua.eval('''
@@ -1277,7 +1257,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
                 return t
             end
         ''')
-        self.assertEqual([1, 2, 3], list(values([1, 2, 3]).values()))
+        self.assertEqual([1,2,3], list(values([1,2,3]).values()))
 
     def test_python_enumerate_list(self):
         values = self.lua.eval('''
@@ -1289,7 +1269,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
                 return t
             end
         ''')
-        self.assertEqual([1, 2, 3], list(values([1, 2, 3]).values()))
+        self.assertEqual([1,2,3], list(values([1,2,3]).values()))
 
     def test_python_enumerate_list_start(self):
         values = self.lua.eval('''
@@ -1301,7 +1281,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
                 return t
             end
         ''')
-        self.assertEqual([5, 6, 1, 2, 3], list(values([1, 2, 3]).values()))
+        self.assertEqual([5,6,1,2,3], list(values([1,2,3]).values()))
 
     def test_python_enumerate_list_start_invalid(self):
         python_enumerate = self.lua.globals().python.enumerate
@@ -1394,7 +1374,7 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         '''
         f = self.lua.eval(lua_code)
         gen = f.coroutine(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
     def test_coroutine_iter_repeat(self):
         lua_code = '''\
@@ -1406,13 +1386,13 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         '''
         f = self.lua.eval(lua_code)
         gen = f.coroutine(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
         gen = f.coroutine(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
         gen = f.coroutine(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
     def test_coroutine_create_iter(self):
         lua_code = '''\
@@ -1426,7 +1406,7 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         '''
         co = self.lua.eval(lua_code)
         gen = co(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
     def test_coroutine_create_iter_repeat(self):
         lua_code = '''\
@@ -1441,13 +1421,13 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         co = self.lua.eval(lua_code)
 
         gen = co(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
         gen = co(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
         gen = co(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
     def test_coroutine_lua_iter(self):
         lua_code = '''\
@@ -1463,7 +1443,7 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         '''
         gen, status, first_value = self.lua.execute(lua_code)
         self.assertTrue(status)
-        self.assertEqual([0, 1, 0, 1, 0, 1], [first_value] + list(gen))
+        self.assertEqual([0,1,0,1,0,1], [first_value] + list(gen))
 
     def test_coroutine_lua_iter_independent(self):
         lua_code = '''\
@@ -1483,17 +1463,17 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
 
         # f
         gen = f.coroutine(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
         # co
         gen = co(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
         gen = co(5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
         # lua_gen
         self.assertTrue(status)
-        self.assertEqual([0, 1, 0, 1, 0, 1], [first_value] + list(lua_gen))
+        self.assertEqual([0,1,0,1,0,1], [first_value] + list(lua_gen))
         self.assertEqual([], list(lua_gen))
 
     def test_coroutine_iter_pycall(self):
@@ -1509,10 +1489,9 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         co = self.lua.eval(lua_code)
 
         def pyfunc(i):
-            return i % 2 == 0
-
+            return i%2 == 0
         gen = co(pyfunc, 5)
-        self.assertEqual([0, 1, 0, 1, 0, 1], list(gen))
+        self.assertEqual([0,1,0,1,0,1], list(gen))
 
     def test_coroutine_send(self):
         lua_code = '''\
@@ -1558,15 +1537,15 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
             )
         '''
         co = self.lua.eval(lua_code)
-        self.assertTrue(bool(co))  # 1
+        self.assertTrue(bool(co)) # 1
         gen = co(1)
-        self.assertTrue(bool(gen))  # 2
+        self.assertTrue(bool(gen)) # 2
         self.assertEqual(0, _next(gen))
-        self.assertTrue(bool(gen))  # 3
+        self.assertTrue(bool(gen)) # 3
         self.assertEqual(1, _next(gen))
-        self.assertTrue(bool(gen))  # 4
+        self.assertTrue(bool(gen)) # 4
         self.assertRaises(StopIteration, _next, gen)
-        self.assertFalse(bool(gen))  # 5
+        self.assertFalse(bool(gen)) # 5
         self.assertRaises(StopIteration, _next, gen)
         self.assertRaises(StopIteration, _next, gen)
         self.assertRaises(StopIteration, _next, gen)
@@ -1584,15 +1563,15 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         '''
         co = self.lua.eval(lua_code)
 
-        self.assertTrue(bool(co))  # 1
+        self.assertTrue(bool(co)) # 1
         gen = co(1)
-        self.assertTrue(bool(gen))  # 2
+        self.assertTrue(bool(gen)) # 2
         self.assertEqual(0, _next(gen))
-        self.assertTrue(bool(gen))  # 3
+        self.assertTrue(bool(gen)) # 3
         self.assertEqual(1, _next(gen))
-        self.assertTrue(bool(gen))  # 4
+        self.assertTrue(bool(gen)) # 4
         self.assertEqual(99, _next(gen))
-        self.assertFalse(bool(gen))  # 5
+        self.assertFalse(bool(gen)) # 5
         self.assertRaises(StopIteration, _next, gen)
         self.assertRaises(StopIteration, _next, gen)
         self.assertRaises(StopIteration, _next, gen)
@@ -1615,7 +1594,7 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         # StopIteration in the last call
         while gen:
             result.append(_next(gen))
-        self.assertEqual([0, 1, 0, 1, 0, 1], result)
+        self.assertEqual([0,1,0,1,0,1], result)
 
 
 class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
@@ -1632,7 +1611,6 @@ class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
                 coroutine.yield(function() return 123 end)
             end
         ''')
-
         def _check():
             coro = self.lua.eval('func').coroutine()
             cb = next(coro)
@@ -1652,7 +1630,6 @@ class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
                 coroutine.yield(function() return 123 end)
             end
         ''')
-
         def _check():
             coro = self.lua.eval('func').coroutine()
             ok, cb = resume(coro)
@@ -1673,7 +1650,6 @@ class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
                 coroutine.yield()
             end
         ''')
-
         def _check(dct):
             coro = self.lua.eval('func').coroutine(dct)
             next(coro)
@@ -1700,7 +1676,6 @@ class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
                 coroutine.yield()
             end
         ''')
-
         def _check():
             dct = {}
             coro = self.lua.eval('func').coroutine()
@@ -1757,7 +1732,7 @@ end
         image_size = 128
         result_bytes = lua_mandelbrot(image_size)
         self.assertEqual(type(result_bytes), type(''.encode('ASCII')))
-        self.assertEqual(image_size * image_size // 8, len(result_bytes))
+        self.assertEqual(image_size*image_size//8, len(result_bytes))
 
         # if we have PIL, check that it can read the image
         ## try:
@@ -1847,7 +1822,7 @@ class TestThreading(unittest.TestCase):
         for thread in threads:
             thread.start()
         if starter is not None:
-            time.sleep(0.1)  # give some time to start up
+            time.sleep(0.1) # give some time to start up
             starter.set()
         for thread in threads:
             thread.join()
@@ -1863,17 +1838,16 @@ class TestThreading(unittest.TestCase):
         return calc
         '''
         lua = lupa.LuaRuntime()
-        functions = [lua.execute(func_code) for _ in range(10)]
+        functions = [ lua.execute(func_code) for _ in range(10) ]
         results = [None] * len(functions)
 
         starter = threading.Event()
-
         def test(i, func, *args):
             starter.wait()
             results[i] = func(*args)
 
-        threads = [threading.Thread(target=test, args=(i, func, 25))
-                   for i, func in enumerate(functions)]
+        threads = [ threading.Thread(target=test, args=(i, func, 25))
+                    for i, func in enumerate(functions) ]
 
         self._run_threads(threads, starter)
 
@@ -1890,16 +1864,16 @@ class TestThreading(unittest.TestCase):
         end
         return calc
         '''
-        runtimes = [lupa.LuaRuntime() for _ in range(10)]
-        functions = [lua.execute(func_code) for lua in runtimes]
+        runtimes  = [ lupa.LuaRuntime() for _ in range(10) ]
+        functions = [ lua.execute(func_code) for lua in runtimes ]
 
         results = [None] * len(runtimes)
 
         def test(i, func, *args):
             results[i] = func(*args)
 
-        threads = [threading.Thread(target=test, args=(i, func, 20))
-                   for i, func in enumerate(functions)]
+        threads = [ threading.Thread(target=test, args=(i, func, 20))
+                    for i, func in enumerate(functions) ]
 
         self._run_threads(threads)
 
@@ -1916,19 +1890,19 @@ class TestThreading(unittest.TestCase):
         end
         return calc
         '''
-        runtimes = [lupa.LuaRuntime() for _ in range(10)]
-        functions = [lua.execute(func_code) for lua in runtimes]
+        runtimes  = [ lupa.LuaRuntime() for _ in range(10) ]
+        functions = [ lua.execute(func_code) for lua in runtimes ]
 
         results = [None] * len(runtimes)
 
         def pycallback(i):
-            return i ** 2
+            return i**2
 
         def test(i, func, *args):
             results[i] = func(*args)
 
-        threads = [threading.Thread(target=test, args=(i, luafunc, pycallback, 20))
-                   for i, luafunc in enumerate(functions)]
+        threads = [ threading.Thread(target=test, args=(i, luafunc, pycallback, 20))
+                    for i, luafunc in enumerate(functions) ]
 
         self._run_threads(threads)
 
@@ -1936,7 +1910,7 @@ class TestThreading(unittest.TestCase):
         self.assertEqual(185925, results[0])
 
     def test_threading_iter(self):
-        values = list(range(1, 100))
+        values = list(range(1,100))
         lua = lupa.LuaRuntime()
         table = lua.eval('{%s}' % ','.join(map(str, values)))
         self.assertEqual(values, list(table))
@@ -1946,7 +1920,6 @@ class TestThreading(unittest.TestCase):
         state_lock = threading.Lock()
         running = []
         iterations_done = {}
-
         def sync(i):
             state_lock.acquire()
             try:
@@ -1962,8 +1935,7 @@ class TestThreading(unittest.TestCase):
 
         l = []
         start_event = threading.Event()
-
-        def extract(n, append=l.append):
+        def extract(n, append = l.append):
             running.append(n)
             if len(running) < len(threads):
                 start_event.wait()
@@ -1975,8 +1947,8 @@ class TestThreading(unittest.TestCase):
                 sync(i)
             running.remove(n)
 
-        threads = [threading.Thread(target=extract, args=(i,))
-                   for i in range(6)]
+        threads = [ threading.Thread(target=extract, args=(i,))
+                    for i in range(6) ]
         self._run_threads(threads)
 
         orig = l[:]
@@ -2019,26 +1991,25 @@ class TestThreading(unittest.TestCase):
         image_size = 128
         thread_count = 4
 
-        lua_funcs = [lupa.LuaRuntime(encoding=None).eval(code)
-                     for _ in range(thread_count)]
+        lua_funcs = [ lupa.LuaRuntime(encoding=None).eval(code)
+                      for _ in range(thread_count) ]
 
         results = [None] * thread_count
-
         def mandelbrot(i, lua_func):
-            results[i] = lua_func(image_size, i + 1, thread_count)
+            results[i] = lua_func(image_size, i+1, thread_count)
 
-        threads = [threading.Thread(target=mandelbrot, args=(i, lua_func))
-                   for i, lua_func in enumerate(lua_funcs)]
+        threads = [ threading.Thread(target=mandelbrot, args=(i, lua_func))
+                    for i, lua_func in enumerate(lua_funcs) ]
         self._run_threads(threads)
 
         result_bytes = empty_bytes_string.join(results)
 
         self.assertEqual(type(result_bytes), type(empty_bytes_string))
-        self.assertEqual(image_size * image_size // 8, len(result_bytes))
+        self.assertEqual(image_size*image_size//8, len(result_bytes))
 
         # plausability checks - make sure it's not all white or all black
-        self.assertEqual('\0'.encode('ASCII') * (image_size // 8 // 2),
-                         result_bytes[:image_size // 8 // 2])
+        self.assertEqual('\0'.encode('ASCII')*(image_size//8//2),
+                         result_bytes[:image_size//8//2])
         if IS_PYTHON2:
             self.assertTrue('\xFF' in result_bytes)
         else:
@@ -2062,7 +2033,6 @@ class TestDontUnpackTuples(unittest.TestCase):
         # and is accessible from Lua as fun().
         def tuple_fun():
             return "one", "two", "three", "four"
-
         self.lua.globals()['fun'] = tuple_fun
 
     def tearDown(self):
@@ -2088,7 +2058,6 @@ class TestUnpackTuples(unittest.TestCase):
         # and is accessible from Lua as fun().
         def tuple_fun():
             return "one", "two", "three", "four"
-
         self.lua.globals()['fun'] = tuple_fun
 
     def tearDown(self):
@@ -2180,6 +2149,7 @@ class TestUnpackTuples(unittest.TestCase):
 
 class TestMethodCall(unittest.TestCase):
     def setUp(self):
+
         self.lua = lupa.LuaRuntime(unpack_returned_tuples=True)
 
         class C(object):
@@ -2218,7 +2188,7 @@ class TestMethodCall(unittest.TestCase):
         self.lua.globals()['x'] = x
         self.lua.globals()['f'] = f
         self.lua.globals()['g'] = g
-        self.lua.globals()['d'] = {'F': f, "G": g}
+        self.lua.globals()['d'] = { 'F': f, "G": g }
         self.lua.globals()['bound0'] = x.getx
         self.lua.globals()['bound1'] = x.getx1
 
@@ -2299,7 +2269,7 @@ class TestMethodCall(unittest.TestCase):
 
 @lupa.unpacks_lua_table
 def func_1(x):
-    return ("x=%s" % (x,))
+    return ("x=%s" % (x, ))
 
 
 @lupa.unpacks_lua_table
@@ -2350,7 +2320,7 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertResult(self.arg2, "{x=1, y=2}", "x=1, y=2")
         self.assertResult(self.arg2, "{x=2, y=1}", "x=2, y=1")
         self.assertResult(self.arg2, "{y=1, x=2}", "x=2, y=1")
-        self.assertResult(self.arg2, "(1, 2)", "x=1, y=2")
+        self.assertResult(self.arg2, "(1, 2)",     "x=1, y=2")
 
     def test_single_arg(self):
         self.assertResult(self.arg1, "{x=1}", "x=1")
@@ -2439,6 +2409,7 @@ class KwargsDecoratorTest(SetupLuaRuntimeMixin, unittest.TestCase):
     #     self.assertResult(self.arg3, "{nil, nil, 6}", "x=None, y=None, z=6")
 
 
+
 class MethodKwargsDecoratorTest(KwargsDecoratorTest):
 
     def __init__(self, *args, **kwargs):
@@ -2482,7 +2453,6 @@ def _wait():
 class TestFastRLock(unittest.TestCase):
     """Copied from CPython's test.lock_tests module
     """
-
     def setUp(self):
         from lupa._lupa import FastRLock
         self.locktype = FastRLock
@@ -2494,7 +2464,6 @@ class TestFastRLock(unittest.TestCase):
         """
         A bunch of threads.
         """
-
         def __init__(self, f, n, wait_before_exit=False):
             """
             Construct a bunch of `n` threads running the same function `f`.
@@ -2506,7 +2475,6 @@ class TestFastRLock(unittest.TestCase):
             self.started = []
             self.finished = []
             self._can_exit = not wait_before_exit
-
             def task():
                 tid = get_ident()
                 self.started.append(tid)
@@ -2516,7 +2484,6 @@ class TestFastRLock(unittest.TestCase):
                     self.finished.append(tid)
                     while not self._can_exit:
                         _wait()
-
             for i in range(n):
                 start_new_thread(task, ())
 
@@ -2530,6 +2497,7 @@ class TestFastRLock(unittest.TestCase):
 
         def do_finish(self):
             self._can_exit = True
+
 
     # the locking tests
 
@@ -2561,10 +2529,8 @@ class TestFastRLock(unittest.TestCase):
         lock = self.locktype()
         lock.acquire()
         result = []
-
         def f():
             result.append(lock.acquire(False))
-
         self.Bunch(f, 1).wait_for_finished()
         self.assertFalse(result[0])
         lock.release()
@@ -2573,7 +2539,6 @@ class TestFastRLock(unittest.TestCase):
         lock = self.locktype()
         lock.acquire()
         N = 5
-
         def f():
             lock.acquire()
             lock.release()
@@ -2606,11 +2571,9 @@ class TestFastRLock(unittest.TestCase):
         # The lock shouldn't leak a Thread instance when used from a foreign
         # (non-threading) thread.
         lock = self.locktype()
-
         def f():
             lock.acquire()
             lock.release()
-
         n = len(threading.enumerate())
         # We run many threads in the hope that existing threads ids won't
         # be recycled.
@@ -2626,13 +2589,11 @@ class TestFastRLock(unittest.TestCase):
         # Lock needs to be released before re-acquiring.
         lock = self.locktype()
         phase = []
-
         def f():
             lock.acquire()
             phase.append(None)
             lock.acquire()
             phase.append(None)
-
         start_new_thread(f, ())
         while len(phase) == 0:
             _wait()
@@ -2647,10 +2608,8 @@ class TestFastRLock(unittest.TestCase):
         # Lock can be released from a different thread.
         lock = self.locktype()
         lock.acquire()
-
         def f():
             lock.release()
-
         b = self.Bunch(f, 1)
         b.wait_for_finished()
         lock.acquire()
@@ -2659,7 +2618,6 @@ class TestFastRLock(unittest.TestCase):
     """
     Tests for recursive locks.
     """
-
     def test_reacquire(self):
         lock = self.locktype()
         lock.acquire()
@@ -2684,10 +2642,8 @@ class TestFastRLock(unittest.TestCase):
     def test_different_thread_release_fails(self):
         # Cannot release from a different thread
         lock = self.locktype()
-
         def f():
             lock.acquire()
-
         b = self.Bunch(f, 1, True)
         try:
             self.assertRaises(RuntimeError, lock.release)
@@ -2702,10 +2658,8 @@ class TestFastRLock(unittest.TestCase):
         lock.acquire()
         self.assertTrue(lock._is_owned())
         result = []
-
         def f():
             result.append(lock._is_owned())
-
         self.Bunch(f, 1).wait_for_finished()
         self.assertFalse(result[0])
         lock.release()
@@ -2816,7 +2770,7 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
         }
         ''')
         self.lua.globals()['args'] = args
-        self.assertResult('python.args(args)', tuple(args[i + 1] for i in range(len(args))), {})
+        self.assertResult('python.args(args)', tuple(args[i+1] for i in range(len(args))), {})
 
         # Keyword arguments
         kwargs = self.lua.table()
@@ -2832,7 +2786,7 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
         for objtype in kwargs:
             if objtype != 'table':
                 self.assertIncorrect('python.args(kwargs["%s"])' % objtype,
-                                     error=lupa.LuaError, regex="bad argument #1 to 'args'")
+                        error=lupa.LuaError, regex="bad argument #1 to 'args'")
 
         # Invalid table keys
         self.assertIncorrect('python.args{[0] = true}', error=IndexError, regex='table index out of range')
@@ -2841,11 +2795,10 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, unittest.TestCase):
         for objtype in kwargs:
             if objtype not in {'number', 'string'}:
                 self.assertIncorrect('python.args{[kwargs["%s"]] = true}' % objtype,
-                                     regex='table key is neither an integer nor a string')
+                        regex='table key is neither an integer nor a string')
 
     def test_kwargs_merge(self):
-        self.assertResult('python.args{1, a=1}, python.args{2}, python.args{}, python.args{b=2}', (1, 2),
-                          dict(a=1, b=2))
+        self.assertResult('python.args{1, a=1}, python.args{2}, python.args{}, python.args{b=2}', (1, 2), dict(a=1, b=2))
 
     def test_kwargs_merge_conflict(self):
         self.assertIncorrect('python.args{a=1}, python.args{a=2}', regex='multiple values')
@@ -2865,7 +2818,7 @@ class PythonArgumentsInLuaMethodsTest(PythonArgumentsInLuaTest):
     def test_self_arg(self):
         self.lua.globals()['self'] = self
         self.assertResult('python.args{self}', (), {})
-        self.assertResult('python.args{self, 1, a=2}', (1,), dict(a=2))
+        self.assertResult('python.args{self, 1, a=2}', (1, ), dict(a=2))
         self.assertIncorrect('python.args{self=self}', regex='multiple values')
         self.assertIncorrect('python.args{self, self=self}', regex='multiple values')
 
@@ -2892,11 +2845,11 @@ class TestTableAccessError(SetupLuaRuntimeMixin, unittest.TestCase):
 # tests for handling overflow
 
 class TestOverflowMixin(SetupLuaRuntimeMixin):
-    maxinteger = lupa.LUA_MAXINTEGER  # maximum value for Lua integer
-    mininteger = lupa.LUA_MININTEGER  # minimum value for Lua integer
+    maxinteger = lupa.LUA_MAXINTEGER    # maximum value for Lua integer
+    mininteger = lupa.LUA_MININTEGER    # minimum value for Lua integer
     biginteger = (maxinteger + 1) << 1  # value too big to fit in a Lua integer
-    maxfloat = sys.float_info.max  # maximum value for Python float
-    bigfloat = int(maxfloat) * 2  # value too big to fit in Python float
+    maxfloat = sys.float_info.max       # maximum value for Python float
+    bigfloat = int(maxfloat) * 2        # value too big to fit in Python float
 
     assert biginteger <= maxfloat, "%d can't be cast to float" % biginteger
 
@@ -3054,21 +3007,21 @@ class TestMissingReference(SetupLuaRuntimeMixin, unittest.TestCase):
         def assign(var):
             var = None
 
-        self.testmissingref({}, lambda o: str(o))  # __tostring
-        self.testmissingref({}, lambda o: o[1])  # __index
-        self.testmissingref({}, lambda o: lupa.as_itemgetter(o)[1])  # __index (itemgetter)
-        self.testmissingref({}, lambda o: lupa.as_attrgetter(o).items)  # __index (attrgetter)
-        self.testmissingref({}, lambda o: assign(o[1]))  # __newindex
+        self.testmissingref({}, lambda o: str(o))                            # __tostring
+        self.testmissingref({}, lambda o: o[1])                              # __index
+        self.testmissingref({}, lambda o: lupa.as_itemgetter(o)[1])          # __index (itemgetter)
+        self.testmissingref({}, lambda o: lupa.as_attrgetter(o).items)       # __index (attrgetter)
+        self.testmissingref({}, lambda o: assign(o[1]))                      # __newindex
         self.testmissingref({}, lambda o: assign(lupa.as_itemgetter(o)[1]))  # __newindex (itemgetter)
         self.testmissingref(X(), lambda o: assign(lupa.as_attrgetter(o).a))  # __newindex (attrgetter)
-        self.testmissingref(X(), lambda o: o())  # __call
+        self.testmissingref(X(), lambda o: o())                              # __call
 
     def test_functions(self):
-        self.testmissingref({}, print)  # reflection
-        self.testmissingref({}, iter)  # iteration
-        self.testmissingref({}, enumerate)  # enumerate
-        self.testmissingref({}, lupa.as_itemgetter)  # item getter protocol
-        self.testmissingref({}, lupa.as_attrgetter)  # attribute getter protocol
+        self.testmissingref({}, print)              # reflection
+        self.testmissingref({}, iter)               # iteration
+        self.testmissingref({}, enumerate)          # enumerate
+        self.testmissingref({}, lupa.as_itemgetter) # item getter protocol
+        self.testmissingref({}, lupa.as_attrgetter) # attribute getter protocol
 
 
 ################################################################################
@@ -3078,12 +3031,11 @@ class TestLuaObjectString(SetupLuaRuntimeMixin, unittest.TestCase):
     def test_normal_string(self):
         self.assertIn('Lua table', str(self.lua.eval('{}')))
         self.assertIn('Lua function', str(self.lua.eval('print')))
-        self.assertIn('Lua thread', str(self.lua.execute(
-            'local t = coroutine.create(function() end); coroutine.resume(t); return t')))
+        self.assertIn('Lua thread', str(self.lua.execute('local t = coroutine.create(function() end); coroutine.resume(t); return t')))
 
     def test_bad_tostring(self):
         self.assertRaisesRegex(TypeError, '__tostring returned non-string object',
-                               str, self.lua.eval('setmetatable({}, {__tostring = function() end})'))
+                str, self.lua.eval('setmetatable({}, {__tostring = function() end})'))
 
     def test_tostring_err(self):
         self.assertRaises(lupa.LuaError, str, self.lua.eval('setmetatable({}, {__tostring = function() error() end})'))
@@ -3093,7 +3045,6 @@ if __name__ == '__main__':
     def print_version():
         version = lupa.LuaRuntime().lua_implementation
         print('Running Lupa %s tests against %s.' % (lupa.__version__, version))
-
 
     print_version()
     unittest.main()

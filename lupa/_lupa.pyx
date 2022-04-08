@@ -157,6 +157,10 @@ def lua_type(obj):
         lua.lua_settop(L, old_top)
         unlock_runtime(lua_object._runtime)
 
+cdef int _len_as_int(Py_ssize_t obj) except -1:
+    if obj > <Py_ssize_t>LONG_MAX:
+        raise OverflowError
+    return <int>obj
 
 @cython.no_gc_clear
 cdef class LuaRuntime:
@@ -430,9 +434,9 @@ cdef class LuaRuntime:
             # FIXME: how to check for failure? and nested dict
             for obj in args:
                 if isinstance(obj, dict):
-                    for key, value in obj.iteritems():  # in python3, this is called items
-                        py_to_lua(self, L, key, False, recursive)
-                        py_to_lua(self, L, value, False, recursive)
+                    for key, value in obj.iteritems():
+                        py_to_lua(self, L, key, wrap_none=False, recursive=recursive)
+                        py_to_lua(self, L, value, wrap_none=False, recursive=recursive)
                         lua.lua_rawset(L, -3)
 
                 elif isinstance(obj, _LuaTable):
@@ -1136,6 +1140,8 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
             # already terminated
             raise StopIteration
         if args:
+            if len(args) > LONG_MAX:
+                raise OverflowError
             nargs = <int>len(args)
             push_lua_arguments(thread._runtime, co, args)
         with nogil:
@@ -1463,6 +1469,10 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
     elif isinstance(o, float):
         lua.lua_pushnumber(L, <lua.lua_Number><double>o)
         pushed_values_count = 1
+    elif isinstance(o, _PyProtocolWrapper):
+        type_flags = (<_PyProtocolWrapper> o)._type_flags
+        o = (<_PyProtocolWrapper> o)._obj
+        pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
     elif recursive and isinstance(o, Sequence):
         lua.lua_createtable(L, <int>len(o), 0)   # create a table at the top of stack, with narr already known
         for i, v in enumerate(o):
@@ -1471,18 +1481,14 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         pushed_values_count = 1
     elif recursive and isinstance(o, Mapping):
         lua.lua_createtable(L, 0, <int>len(o))  # create a table at the top of stack, with nrec already known
-        for key, value in o.iteritems(): # to compatible with py2
+        for key, value in o.items():
             py_to_lua(runtime, L, key, wrap_none, recursive)
             py_to_lua(runtime, L, value, wrap_none, recursive)
             lua.lua_rawset(L, -3)
         pushed_values_count = 1
     else:
-        if isinstance(o, _PyProtocolWrapper):
-            type_flags = (<_PyProtocolWrapper>o)._type_flags
-            o = (<_PyProtocolWrapper>o)._obj
-        else:
-            # prefer __getitem__ over __getattr__ by default
-            type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
+        # prefer __getitem__ over __getattr__ by default
+        type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
     return pushed_values_count
 
