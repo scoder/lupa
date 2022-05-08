@@ -1650,7 +1650,7 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
     return execute_lua_call(runtime, L, len(args))
 
 # adapted from https://stackoverflow.com/a/9672205
-cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize):
+cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize) nogil:
     cdef size_t* left = <size_t*>ud
 
     if ptr is NULL:
