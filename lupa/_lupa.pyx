@@ -244,6 +244,8 @@ cdef class LuaRuntime:
     cdef object _attribute_getter
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
+    cdef size_t _max_memory
+    cdef size_t* _memory_left
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
@@ -251,15 +253,15 @@ cdef class LuaRuntime:
                   bint register_builtins=True, overflow_handler=None,
                   max_memory=None):
         cdef lua_State* L
-        cdef size_t* ud
+        cdef size_t* memory_left
         if max_memory is None:
             L = lua.luaL_newstate()
         else:
-            ud = <size_t*>malloc(sizeof(size_t))
-            if ud is NULL:
+            memory_left = <size_t*>malloc(sizeof(size_t))
+            if memory_left is NULL:
                 raise LuaError("Failed to allocate Lua runtime memory limiter")
-            ud[0] = <size_t>max_memory
-            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, ud)
+            memory_left[0] = <size_t>max_memory
+            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, memory_left)
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L
@@ -271,6 +273,8 @@ cdef class LuaRuntime:
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
         self._unpack_returned_tuples = unpack_returned_tuples
+        self._max_memory = max_memory
+        self._memory_left = memory_left
 
         if attribute_handlers:
             raise_error = False
@@ -300,6 +304,10 @@ cdef class LuaRuntime:
         if self._state is not NULL:
             lua.lua_close(self._state)
             self._state = NULL
+
+    @property
+    def max_memory(self):
+        return self._max_memory
 
     @property
     def lua_version(self):
@@ -473,6 +481,13 @@ cdef class LuaRuntime:
         finally:
             lua.lua_settop(L, old_top)
             unlock_runtime(self)
+
+    def set_max_memory(self, max_memory):
+        if self._max_memory is None:
+            raise RuntimeError("max_memory must be set on LuaRuntime creation")
+        used = self._max_memory - self._memory_left[0]
+        self._memory_left[0] = max_memory - used
+        self._max_memory = max_memory
 
     def set_overflow_handler(self, overflow_handler):
         """Set the overflow handler function that is called on failures to pass large numbers to Lua.
