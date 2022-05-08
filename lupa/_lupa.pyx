@@ -9,6 +9,7 @@ from __future__ import absolute_import
 cimport cython
 
 from libc.string cimport strlen, strchr
+from libc.stdlib cimport malloc, free, realloc
 from lupa cimport lua
 from .lua cimport lua_State
 
@@ -246,8 +247,18 @@ cdef class LuaRuntime:
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
-                  bint register_builtins=True, overflow_handler=None):
-        cdef lua_State* L = lua.luaL_newstate()
+                  bint register_builtins=True, overflow_handler=None,
+                  max_memory=None):
+        cdef lua_State* L
+        cdef size_t* ud
+        if max_memory is None:
+            L = lua.luaL_newstate()
+        else:
+            ud = <size_t*>malloc(sizeof(size_t))
+            if ud is NULL:
+                raise LuaError("Failed to allocate Lua runtime memory limiter")
+            ud[0] = <size_t>max_memory
+            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, ud)
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L
@@ -1608,6 +1619,31 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
     """
     push_lua_arguments(runtime, L, args)
     return execute_lua_call(runtime, L, len(args))
+
+# adapted from https://stackoverflow.com/a/9672205
+cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize) nogil:
+    cdef size_t* left = <size_t*>ud
+
+    if ptr is NULL:
+        # <http://www.lua.org/manual/5.2/manual.html#lua_Alloc>:
+        # When ptr is NULL, osize encodes the kind of object that Lua is
+        # allocating.
+        # Since we don’t care about that, just mark it as 0.
+        osize = 0
+
+    if nsize == 0:
+        free(ptr)
+        left[0] += osize # add old size to available memory
+        return NULL
+    elif nsize == osize:
+        return ptr
+    else:
+        if nsize > osize and left[0] < nsize - osize: # reached the limit
+            return NULL
+        ptr = realloc(ptr, nsize)
+        if ptr: # reallocation successful?
+            left[0] -= nsize + osize
+        return ptr
 
 cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
     cdef int result_status
