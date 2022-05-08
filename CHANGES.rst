@@ -4,6 +4,9 @@ Lupa change log
 2.0a1 (2022-??-??)
 ------------------
 
+* GH#211: Option to limit memory usage
+  (patch by Leo Developer)
+
 * GH#171: Python references in Lua are now more safely reference counted
   to prevent garbage collection glitches.
   (patch by Guilherme Dantas)

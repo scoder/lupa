@@ -219,6 +219,10 @@ cdef class LuaRuntime:
       Normally, it should return the now well-behaved object that can be
       converted/wrapped to a Lua type. If the object cannot be precisely
       represented in Lua, it should raise an ``OverflowError``.
+    
+    * ``max_memory``: max memory usage this LuaRuntime can use in bytes.
+      Values below 40kb may cause lua panics.
+      (default: None, new in Lupa 2.0)
 
     Example usage::
 
