@@ -123,6 +123,11 @@ class LuaSyntaxError(LuaError):
     """
 
 
+class LuaMemoryError(LuaError):
+    """Memory error in Lua code.
+    """
+
+
 def lua_type(obj):
     """
     Return the Lua type name of a wrapped object as string, as provided
@@ -387,6 +392,8 @@ cdef class LuaRuntime:
             else:
                 err = lua.lua_tolstring(L, -1, &size)
                 error = err[:size] if self._encoding is None else err[:size].decode(self._encoding)
+                if error == (b"not enough memory" if self._encoding is None else "not enough memory"):
+                    raise LuaMemoryError(error)
                 raise LuaSyntaxError(error)
         finally:
             lua.lua_settop(L, old_top)
@@ -617,7 +624,7 @@ cdef int check_lua_stack(lua_State* L, int extra) except -1:
     """
     assert extra >= 0
     if not lua.lua_checkstack(L, extra):
-        raise MemoryError
+        raise LuaMemoryError
     return 0
 
 
@@ -1591,11 +1598,11 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
     if result == 0:
         return 0
     elif result == lua.LUA_ERRMEM:
-        raise MemoryError()
+        raise LuaMemoryError()
     else:
         raise LuaError(build_lua_error_message(runtime, L, None, -1))
 
-cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message, int n):
+cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, int n):
     """Removes the string at the given stack index ``n`` to build an error message.
     If ``err_message`` is provided, it is used as a %-format string to build the error message.
     """
@@ -1609,10 +1616,7 @@ cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_messa
     else:
         py_ustring = s[:size].decode('ISO-8859-1')
     lua.lua_remove(L, n)
-    if err_message is None:
-        return py_ustring
-    else:
-        return err_message % py_ustring
+    return py_ustring
 
 # calling into Lua
 
@@ -1624,8 +1628,10 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code, tuple args):
     try:
         check_lua_stack(L, 1)
         if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
-            raise LuaSyntaxError(build_lua_error_message(
-                runtime, L, u"error loading code: %s", -1))
+            error = build_lua_error_message(runtiem, L, -1)
+            if error == "not enough memory":
+                raise LuaMemoryError(error)
+            raise LuaSyntaxError(u"error loading code: %s" % error)
         return call_lua(runtime, L, args)
     finally:
         lua.lua_settop(L, old_top)
