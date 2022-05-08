@@ -2985,7 +2985,7 @@ class TestMaxMemory(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_decrease_memory(self):
         self.lua.set_max_memory(1_000_000)
-        self.lua.execute("local a = ('a'):rep(50000)")
+        self.lua.execute("a = ('a'):rep(50000)")
         self.lua.set_max_memory(10_000)
         with self.assertRaises(lupa.LuaMemoryError):
             self.lua.eval("'a'")
