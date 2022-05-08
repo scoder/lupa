@@ -60,7 +60,7 @@ from functools import wraps
 
 
 __all__ = ['LUA_VERSION', 'LUA_MAXINTEGER', 'LUA_MININTEGER',
-            'LuaRuntime', 'LuaError', 'LuaSyntaxError',
+            'LuaRuntime', 'LuaError', 'LuaSyntaxError', 'LuaMemoryError',
            'as_itemgetter', 'as_attrgetter', 'lua_type',
            'unpacks_lua_table', 'unpacks_lua_table_method']
 
@@ -226,8 +226,8 @@ cdef class LuaRuntime:
       represented in Lua, it should raise an ``OverflowError``.
     
     * ``max_memory``: max memory usage this LuaRuntime can use in bytes.
-      Values below 40kb may cause lua panics.
-      (default: None, new in Lupa 2.0)
+      Builtins are not counted towards this limit.
+      (default: 0, new in Lupa 2.0)
 
     Example usage::
 
@@ -254,25 +254,21 @@ cdef class LuaRuntime:
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
     cdef size_t _max_memory
-    cdef size_t* _memory_left
+    cdef size_t _memory_left
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
                   bint register_builtins=True, overflow_handler=None,
-                  max_memory=None):
+                  max_memory=0):
         cdef lua_State* L
-        cdef size_t* memory_left
-        if max_memory is None:
-            L = lua.luaL_newstate()
-        else:
-            memory_left = <size_t*>malloc(sizeof(size_t))
-            if memory_left is NULL:
-                raise LuaError("Failed to allocate Lua runtime memory limiter")
-            memory_left[0] = <size_t>max_memory
-            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, memory_left)
+
+        self._memory_left = 0
+
+        L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, &self._memory_left)
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
+
         self._state = L
         self._lock = FastRLock()
         self._pyrefs_in_lua = {}
@@ -283,7 +279,6 @@ cdef class LuaRuntime:
         self._attribute_filter = attribute_filter
         self._unpack_returned_tuples = unpack_returned_tuples
         self._max_memory = max_memory
-        self._memory_left = memory_left
 
         if attribute_handlers:
             raise_error = False
@@ -301,13 +296,15 @@ cdef class LuaRuntime:
                 raise ValueError("attribute_filter and attribute_handlers are mutually exclusive")
             self._attribute_getter, self._attribute_setter = getter, setter
 
-        if max_memory is not None:
-            # luaL_newstate already registers a panic handler
-            lua.lua_atpanic(L, &_lua_panic)
+        lua.lua_atpanic(L, &_lua_panic)
         lua.luaL_openlibs(L)
         self.init_python_lib(register_eval, register_builtins)
 
         self.set_overflow_handler(overflow_handler)
+
+        # lupa init done, set real limit
+        if max_memory > 0:
+            self._memory_left = 1 + <size_t>max_memory
 
     def __dealloc__(self):
         if self._state is not NULL:
@@ -317,6 +314,10 @@ cdef class LuaRuntime:
     @property
     def max_memory(self):
         return self._max_memory
+    
+    @property
+    def memory_left(self):  # TODO: remove
+        return self._memory_left
 
     @property
     def lua_version(self):
@@ -494,10 +495,14 @@ cdef class LuaRuntime:
             unlock_runtime(self)
 
     def set_max_memory(self, max_memory):
-        if self._max_memory is None:
-            raise RuntimeError("max_memory must be set on LuaRuntime creation")
-        used = self._max_memory - self._memory_left[0]
-        self._memory_left[0] = max_memory - used
+        if self._max_memory == 0 or max_memory == 0:
+            self._memory_left = 1 + max_memory if max_memory else 0
+        else:
+            used = self._max_memory - self._memory_left + 1
+            if used > max_memory:
+                self._memory_left = 1
+            else:
+                self._memory_left = 1 + max_memory - used
         self._max_memory = max_memory
 
     def set_overflow_handler(self, overflow_handler):
@@ -1600,7 +1605,7 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
     elif result == lua.LUA_ERRMEM:
         raise LuaMemoryError()
     else:
-        raise LuaError(build_lua_error_message(runtime, L, None, -1))
+        raise LuaError(build_lua_error_message(runtime, L, -1))
 
 cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, int n):
     """Removes the string at the given stack index ``n`` to build an error message.
@@ -1628,7 +1633,7 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code, tuple args):
     try:
         check_lua_stack(L, 1)
         if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
-            error = build_lua_error_message(runtiem, L, -1)
+            error = build_lua_error_message(runtime, L, -1)
             if error == "not enough memory":
                 raise LuaMemoryError(error)
             raise LuaSyntaxError(u"error loading code: %s" % error)
@@ -1661,15 +1666,16 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize
 
     if nsize == 0:
         free(ptr)
-        left[0] += osize # add old size to available memory
+        if left[0] > 0:
+            left[0] += osize # add old size to available memory
         return NULL
     elif nsize == osize:
         return ptr
     else:
-        if nsize > osize and left[0] < nsize - osize: # reached the limit
+        if left[0] > 0 and nsize > osize and left[0] <= nsize - osize: # reached the limit
             return NULL
         ptr = realloc(ptr, nsize)
-        if ptr: # reallocation successful?
+        if ptr and left[0] > 0: # reallocation successful?
             left[0] -= nsize + osize
         return ptr
 
