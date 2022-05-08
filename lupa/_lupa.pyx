@@ -314,10 +314,6 @@ cdef class LuaRuntime:
     @property
     def max_memory(self):
         return self._max_memory
-    
-    @property
-    def memory_left(self):  # TODO: remove
-        return self._memory_left
 
     @property
     def lua_version(self):
