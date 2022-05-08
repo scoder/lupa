@@ -9,7 +9,7 @@ from __future__ import absolute_import
 cimport cython
 
 from libc.string cimport strlen, strchr
-from libc.stdlib cimport malloc, free, realloc
+from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 from libc.stdio cimport fprintf, stderr, fflush
 from lupa cimport lua
 from .lua cimport lua_State
@@ -1654,7 +1654,7 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
     return execute_lua_call(runtime, L, len(args))
 
 # adapted from https://stackoverflow.com/a/9672205
-cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize) nogil:
+cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize):
     cdef size_t* left = <size_t*>ud
 
     if ptr is NULL:
@@ -1665,7 +1665,7 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize
         osize = 0
 
     if nsize == 0:
-        free(ptr)
+        PyMem_Free(ptr)
         if left[0] > 0:
             left[0] += osize # add old size to available memory
         return NULL
@@ -1674,10 +1674,12 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize
     else:
         if left[0] > 0 and nsize > osize and left[0] <= nsize - osize: # reached the limit
             return NULL
-        ptr = realloc(ptr, nsize)
-        if ptr and left[0] > 0: # reallocation successful?
+        new_ptr = PyMem_Realloc(ptr, nsize)
+        if new_ptr is NULL:
+            PyMem_Free(ptr)
+        elif left[0] > 0:
             left[0] -= nsize + osize
-        return ptr
+        return new_ptr
 
 cdef int _lua_panic(lua_State *L) nogil:
     cdef const char* msg = lua.lua_tostring(L, -1)
