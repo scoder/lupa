@@ -2973,6 +2973,24 @@ class TestLuaObjectString(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertRaises(lupa.LuaError, str, self.lua.eval('setmetatable({}, {__tostring = function() error() end})'))
 
 
+################################################################################
+# test LuaRuntime max_memory
+
+class TestMaxMemory(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_not_enough_memory(self):
+        self.lua.set_max_memory(10_000)
+        self.lua.eval("('a'):rep(50)")
+        with self.assertRaises(lupa.LuaMemoryError):
+            self.lua.eval("('a'):rep(50000)")
+
+    def test_decrease_memory(self):
+        self.lua.set_max_memory(1_000_000)
+        self.lua.execute("local a = ('a'):rep(50000)")
+        self.lua.set_max_memory(10_000)
+        with self.assertRaises(lupa.LuaMemoryError):
+            self.lua.eval("'a'")
+
+
 if __name__ == '__main__':
     def print_version():
         version = lupa.LuaRuntime().lua_implementation
