@@ -10,6 +10,7 @@ cimport cython
 
 from libc.string cimport strlen, strchr
 from libc.stdlib cimport malloc, free, realloc
+from libc.stdio cimport fprintf, stderr, fflush
 from lupa cimport lua
 from .lua cimport lua_State
 
@@ -287,9 +288,11 @@ cdef class LuaRuntime:
                 raise ValueError("attribute_filter and attribute_handlers are mutually exclusive")
             self._attribute_getter, self._attribute_setter = getter, setter
 
+        if max_memory is not None:
+            # luaL_newstate already registers a panic handler
+            lua.lua_atpanic(L, &_lua_panic)
         lua.luaL_openlibs(L)
         self.init_python_lib(register_eval, register_builtins)
-        lua.lua_atpanic(L, <lua.lua_CFunction>1)
 
         self.set_overflow_handler(overflow_handler)
 
@@ -1644,6 +1647,15 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize
         if ptr: # reallocation successful?
             left[0] -= nsize + osize
         return ptr
+
+cdef int _lua_panic(lua_State *L) nogil:
+    cdef char* msg = lua.lua_tostring(L, -1)
+    if msg == NULL:
+        msg = "error object is not a string"
+    cdef char* message = "PANIC: unprotected error in call to Lua API (%s)\n"
+    fprintf(stderr, message, msg)
+    fflush(stderr)
+    return 0 # return to Lua to abort
 
 cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
     cdef int result_status
