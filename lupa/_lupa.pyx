@@ -9,7 +9,7 @@ from __future__ import absolute_import
 cimport cython
 
 from libc.string cimport strlen, strchr
-from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
+from libc.stdlib cimport malloc, free, realloc
 from libc.stdio cimport fprintf, stderr, fflush
 from lupa cimport lua
 from .lua cimport lua_State
@@ -1665,7 +1665,7 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize
         osize = 0
 
     if nsize == 0:
-        PyMem_Free(ptr)
+        free(ptr)
         if left[0] > 0:
             left[0] += osize # add old size to available memory
         return NULL
@@ -1674,9 +1674,9 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize
     else:
         if left[0] > 0 and nsize > osize and left[0] <= nsize - osize: # reached the limit
             return NULL
-        new_ptr = PyMem_Realloc(ptr, nsize)
+        new_ptr = realloc(ptr, nsize)
         if new_ptr is NULL:
-            PyMem_Free(ptr)
+            free(ptr)
         elif left[0] > 0:
             left[0] -= nsize + osize
         return new_ptr
