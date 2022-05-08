@@ -1674,7 +1674,7 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize
         return ptr
 
 cdef int _lua_panic(lua_State *L) nogil:
-    cdef char* msg = lua.lua_tostring(L, -1)
+    cdef const char* msg = lua.lua_tostring(L, -1)
     if msg == NULL:
         msg = "error object is not a string"
     cdef char* message = "PANIC: unprotected error in call to Lua API (%s)\n"
