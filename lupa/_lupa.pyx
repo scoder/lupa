@@ -227,7 +227,7 @@ cdef class LuaRuntime:
     
     * ``max_memory``: max memory usage this LuaRuntime can use in bytes.
       Builtins are not counted towards this limit.
-      (default: 0, new in Lupa 2.0)
+      (default: 0, i.e. no limitation. New in Lupa 2.0)
 
     Example usage::
 
@@ -1651,7 +1651,7 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
 
 # adapted from https://stackoverflow.com/a/9672205
 cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize) nogil:
-    cdef size_t* left = <size_t*>ud
+    cdef size_t* memory_left = <size_t*>ud
 
     if ptr is NULL:
         # <http://www.lua.org/manual/5.2/manual.html#lua_Alloc>:
@@ -1662,19 +1662,19 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize
 
     if nsize == 0:
         free(ptr)
-        if left[0] > 0:
-            left[0] += osize # add old size to available memory
+        if memory_left[0] > 0:
+            memory_left[0] += osize # add old size to available memory
         return NULL
     elif nsize == osize:
         return ptr
     else:
-        if left[0] > 0 and nsize > osize and left[0] <= nsize - osize: # reached the limit
+        if memory_left[0] > 0 and nsize > osize and memory_left[0] <= nsize - osize: # reached the limit
             return NULL
         new_ptr = realloc(ptr, nsize)
         if new_ptr is NULL:
             free(ptr)
-        elif left[0] > 0:
-            left[0] -= nsize + osize
+        elif memory_left[0] > 0:
+            memory_left[0] -= nsize + osize
         return new_ptr
 
 cdef int _lua_panic(lua_State *L) nogil:
