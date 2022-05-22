@@ -336,7 +336,7 @@ cdef class LuaRuntime:
 
     @property
     def memory_used(self):
-        """"
+        """
         Memory currently in use.
         This is None if the default lua allocator is used and 0 if
         ``max_memory`` is 0.
