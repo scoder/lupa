@@ -335,6 +335,17 @@ cdef class LuaRuntime:
         return self._max_memory
 
     @property
+    def memory_used(self):
+        """"
+        Memory currently in use.
+        This is None if the default lua allocator is used and 0 if
+        ``max_memory`` is 0.
+        """
+        if self._max_memory == 0:
+            return None if self._memory_left == 1 else 0
+        return self._max_memory - self._memory_left + 1
+
+    @property
     def lua_version(self):
         """
         The Lua runtime/language version as tuple, e.g. (5, 3) for Lua 5.3.
