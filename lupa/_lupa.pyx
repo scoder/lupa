@@ -226,10 +226,10 @@ cdef class LuaRuntime:
       represented in Lua, it should raise an ``OverflowError``.
     
     * ``max_memory``: max memory usage this LuaRuntime can use in bytes.
-      If max_memory is 0, the default lua allocator is used and calls to
+      If max_memory is None, the default lua allocator is used and calls to
       ``set_max_memory(limit)`` will fail.
       Note: Not supported on 64bit LuaJIT.
-      (default: 0, i.e. no limitation. New in Lupa 2.0)
+      (default: None, i.e. no limitation. New in Lupa 2.0)
 
     Example usage::
 
