@@ -2977,19 +2977,28 @@ class TestLuaObjectString(SetupLuaRuntimeMixin, unittest.TestCase):
 # test LuaRuntime max_memory
 
 class TestMaxMemory(SetupLuaRuntimeMixin, unittest.TestCase):
+    lua_runtime_kwargs = {"max_memory": 10_000}
+
     def test_not_enough_memory(self):
-        self.lua.set_max_memory(10_000)
         self.lua.eval("('a'):rep(50)")
-        with self.assertRaises(lupa.LuaMemoryError):
-            self.lua.eval("('a'):rep(50000)")
+        self.assertRaises(lupa.LuaMemoryError, self.lua.eval, "('a'):rep(50000)")
 
     def test_decrease_memory(self):
         self.lua.set_max_memory(1_000_000)
         self.lua.execute("a = ('a'):rep(50000)")
         self.lua.set_max_memory(10_000)
-        with self.assertRaises(lupa.LuaMemoryError):
-            self.lua.eval("'a'")
+        self.assertGreater(self.lua.max_memory, 10_000)
+        self.assertRaises(lupa.LuaMemoryError, self.lua.eval, "1")
+    
+    def test_decrease_strict(self):
+        self.lua.set_max_memory(1_000_000)
+        self.lua.execute("a = ('a'):rep(50000)")
+        self.assertRaises(lupa.LuaMemoryError, self.lua.set_max_memory, 10_000, True)
 
+
+class TestMaxMemoryWithoutSettingIt(SetupLuaRuntimeMixin, unittest.TestCase):
+    def test_set_max(self):
+        self.assertRaises(RuntimeError, self.lua.set_max_memory, 10_000)
 
 if __name__ == '__main__':
     def print_version():

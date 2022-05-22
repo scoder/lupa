@@ -226,7 +226,9 @@ cdef class LuaRuntime:
       represented in Lua, it should raise an ``OverflowError``.
     
     * ``max_memory``: max memory usage this LuaRuntime can use in bytes.
-      Builtins are not counted towards this limit.
+      If max_memory is 0, the default lua allocator is used and calls to
+      ``set_max_memory(limit)`` will fail.
+      Note: Not supported on 64bit LuaJIT.
       (default: 0, i.e. no limitation. New in Lupa 2.0)
 
     Example usage::
@@ -260,12 +262,15 @@ cdef class LuaRuntime:
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
                   bint register_builtins=True, overflow_handler=None,
-                  max_memory=0):
+                  max_memory=None):
         cdef lua_State* L
 
         self._memory_left = 0
 
-        L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, &self._memory_left)
+        if max_memory is None:
+            L = lua.luaL_newstate()
+        else:
+            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, &self._memory_left)
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
 
@@ -278,7 +283,7 @@ cdef class LuaRuntime:
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
         self._unpack_returned_tuples = unpack_returned_tuples
-        self._max_memory = max_memory
+        self._max_memory = 0 if max_memory is None else max_memory
 
         if attribute_handlers:
             raise_error = False
@@ -303,7 +308,14 @@ cdef class LuaRuntime:
         self.set_overflow_handler(overflow_handler)
 
         # lupa init done, set real limit
-        if max_memory > 0:
+        if max_memory is None:
+            # memory_left is either 0 to indicate infinite memory
+            # or 1 + the limit
+            # since a limit of 0 is 0 instead of 1, 1 is unused
+            # and used as a flag for differentiating between max_memory=None
+            # and max_memory=0
+            self._memory_left = 1
+        elif max_memory > 0:
             self._memory_left = 1 + <size_t>max_memory
 
     def __dealloc__(self):
@@ -313,6 +325,13 @@ cdef class LuaRuntime:
 
     @property
     def max_memory(self):
+        """
+        Maximum memory allowed to be used by this LuaRuntime.
+        0 indicates no limit meanwhile None indicates that the default lua
+        allocator is being used and ``set_max_memory()`` cannot be used.
+        """
+        if self._max_memory == 0 and self._memory_left == 1:
+            return None
         return self._max_memory
 
     @property
@@ -490,13 +509,29 @@ cdef class LuaRuntime:
             lua.lua_settop(L, old_top)
             unlock_runtime(self)
 
-    def set_max_memory(self, max_memory):
+    def set_max_memory(self, max_memory, strict=False):
+        """Set maximum allowed memory for this LuaRuntime.
+
+        Setting max_memory to a value lower than currently in use, will set
+        max_memory to the current usage. Use strict=True to throw a
+        LuaMemoryError instead.
+
+        If max_memory was set to None during creation, this will raise a
+        RuntimeError.
+        """
+        if self._max_memory == 0 and self._memory_left == 1:
+            raise RuntimeError("max_memory must be set on LuaRuntime creation")
         if self._max_memory == 0 or max_memory == 0:
             self._memory_left = 1 + max_memory if max_memory else 0
         else:
             used = self._max_memory - self._memory_left + 1
             if used > max_memory:
+                if strict:
+                    raise LuaMemoryError(
+                        "setting max_memory to less than currently in use"
+                    )
                 self._memory_left = 1
+                max_memory = used
             else:
                 self._memory_left = 1 + max_memory - used
         self._max_memory = max_memory
