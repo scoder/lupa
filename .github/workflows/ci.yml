@@ -10,9 +10,9 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [windows-2019, ubuntu-18.04, macos-10.15]
-        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "3.5", "pypy-2.7", "pypy-3.7", "pypy-3.8"]
-        lua-version: ["bundle", "lua5.2", "lua5.3", "luajit-5.1"]
+        os: [windows-2019, ubuntu-20.04, macos-11]
+        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "pypy-2.7", "pypy-3.7", "pypy-3.8"]
+        lua-version: ["bundle", "lua5.4", "lua5.3", "lua5.2", "luajit-5.1"]
 
         exclude:
           - os: windows-2019
@@ -24,14 +24,18 @@ jobs:
           - os: windows-2019
             lua-version: lua5.3
           - os: windows-2019
+            lua-version: lua5.4
+          - os: windows-2019
             lua-version: luajit-5.1
-          - os: macos-10.15
+          - os: macos-11
             python-version: 2.7
-          - os: macos-10.15
+          - os: macos-11
             lua-version: lua5.2
-          - os: macos-10.15
+          - os: macos-11
             lua-version: lua5.3
-          - os: macos-10.15
+          - os: macos-11
+            lua-version: lua5.4
+          - os: macos-11
             lua-version: luajit-5.1
 
     runs-on: ${{ matrix.os }}
@@ -39,7 +43,7 @@ jobs:
     env:
       CFLAGS_LTO: ${{ contains(matrix.lua-version, 'bundle')  && (contains(matrix.os, 'windows') && '/LTCG' || '-flto') || '' }}
       CFLAGS: ${{ contains(matrix.os, 'windows') && '/O2' || '-O2 -fPIC' }} -g
-      MACOSX_DEPLOYMENT_TARGET: "10.14"
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
 
     steps:
     - uses: actions/checkout@v2
