@@ -1,12 +1,15 @@
-[submodule "third-party/lua53"]
-	path = third-party/lua53
-	url = https://github.com/lua/lua.git
 [submodule "third-party/lua54"]
 	path = third-party/lua54
 	url = https://github.com/lua/lua.git
-[submodule "third-party/luajit20"]
-	path = third-party/luajit20
-	url = https://luajit.org/git/luajit.git
+[submodule "third-party/lua53"]
+	path = third-party/lua53
+	url = https://github.com/lua/lua.git
+[submodule "third-party/lua52"]
+	path = third-party/lua52
+	url = https://github.com/lua/lua.git
 [submodule "third-party/luajit21"]
 	path = third-party/luajit21
+	url = https://luajit.org/git/luajit.git
+[submodule "third-party/luajit20"]
+	path = third-party/luajit20
 	url = https://luajit.org/git/luajit.git

@@ -10,9 +10,9 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [windows-2019, ubuntu-18.04, macos-10.15]
-        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "3.5", "pypy-2.7", "pypy-3.7", "pypy-3.8"]
-        lua-version: ["bundle", "lua5.2", "lua5.3", "luajit-5.1"]
+        os: [windows-2019, ubuntu-20.04, macos-11]
+        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "pypy-2.7", "pypy-3.7", "pypy-3.8"]
+        lua-version: ["bundle", "lua5.3", "lua5.2", "luajit-5.1"]
 
         exclude:
           - os: windows-2019
@@ -24,20 +24,26 @@ jobs:
           - os: windows-2019
             lua-version: lua5.3
           - os: windows-2019
+            lua-version: lua5.4
+          - os: windows-2019
             lua-version: luajit-5.1
-          - os: macos-10.15
+          - os: macos-11
             python-version: 2.7
-          - os: macos-10.15
+          - os: macos-11
             lua-version: lua5.2
-          - os: macos-10.15
+          - os: macos-11
             lua-version: lua5.3
-          - os: macos-10.15
+          - os: macos-11
+            lua-version: lua5.4
+          - os: macos-11
             lua-version: luajit-5.1
 
     runs-on: ${{ matrix.os }}
 
     env:
       CFLAGS_LTO: ${{ contains(matrix.lua-version, 'bundle')  && (contains(matrix.os, 'windows') && '/LTCG' || '-flto') || '' }}
+      CFLAGS: ${{ contains(matrix.os, 'windows') && '/O2' || '-O2 -fPIC' }} -g
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
 
     steps:
     - uses: actions/checkout@v2
@@ -58,10 +64,10 @@ jobs:
       run: sudo apt-get install lib${{ matrix.lua-version }}-dev
 
     - name: Build wheel
-      run: python -m pip install -r requirements.txt && python setup.py sdist bdist_wheel
+      run: python -m pip install -r requirements.txt && python setup.py sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j5' || '' }} bdist_wheel
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
-        CFLAGS: ${{ env.CFLAGS_LTO }} -g
+        CFLAGS: ${{ env.CFLAGS }} ${{ env.CFLAGS_LTO }}
         LDFLAGS: ${{ env.CFLAGS_LTO }}
 
     - name: Run tests
@@ -69,7 +75,7 @@ jobs:
       continue-on-error: ${{ contains(matrix.python-version, 'pypy') }}
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
-        CFLAGS: ${{ env.CFLAGS_LTO }} -g
+        CFLAGS: ${{ env.CFLAGS }} ${{ env.CFLAGS_LTO }}
         LDFLAGS: ${{ env.CFLAGS_LTO }}
 
     - name: Upload wheels

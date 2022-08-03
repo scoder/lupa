@@ -3,10 +3,11 @@ image: Visual Studio 2019
 
 environment:
   matrix:
-  - python: 27
-    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
-  - python: 27-x64
-    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
+# Disable Py27 builds since they run into certificate issues when retrieving the LuaJIT git submodule.
+#  - python: 27
+#    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
+#  - python: 27-x64
+#    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
   - python: 310
   - python: 310-x64
   - python: 39
