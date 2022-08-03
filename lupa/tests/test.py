@@ -2992,7 +2992,7 @@ class TestMaxMemory(SetupLuaRuntimeMixin, unittest.TestCase):
         self.lua.set_max_memory(1_000_000)
         self.lua.execute("a = ('a'):rep(50000)")
         self.lua.set_max_memory(10_000)
-        self.assertGreaterEqual(self.lua.max_memory, 10_000)
+        self.assertGreater(self.lua.max_memory, 10_000)
         self.assertGreaterEqual(self.lua.memory_used, 50_000)
         self.assertRaises(lupa.LuaMemoryError, self.lua.eval, "'1'")
 
