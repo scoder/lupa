@@ -4,11 +4,22 @@ Lupa change log
 2.0a1 (2022-??-??)
 ------------------
 
+* GH#217: Lua stack traces in Python exception messages are now reversed to
+  match the order of Python stack traces.
+
+* GH#196: Lupa now ships separate extension modules built with Lua 5.3,
+  Lua 5.4, LuaJIT 2.0 and LuaJIT 2.1 beta.  Note that this is build specific
+  and may depend on the platform.  A normal Python import cascade can be used.
+
 * GH#171: Python references in Lua are now more safely reference counted
   to prevent garbage collection glitches.
   (patch by Guilherme Dantas)
 
 * GH#146: Lua integers in Lua 5.3+ are converted from and to Python integers.
+  (patch by Guilherme Dantas)
+
+* GH#180: The ``python.enumerate()`` function now returns indices as integers
+  if supported by Lua.
   (patch by Guilherme Dantas)
 
 * GH#178: The Lua integer limits can be read from the module as
@@ -26,7 +37,7 @@ Lupa change log
 * GH#177: Tables that are not sequences raise ``IndexError`` when unpacking
   them.  Previously, non-sequential items were simply ignored.
 
-* GH#165: Resolve some C compiler warnings about signed/unsigned comparisons.
+* GH#179: Resolve some C compiler warnings about signed/unsigned comparisons.
   (patch by Guilherme Dantas)
 
 
