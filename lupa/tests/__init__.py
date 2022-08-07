@@ -9,6 +9,68 @@ import sys
 import lupa
 
 
+class LupaTestCase(unittest.TestCase):
+    """
+    Subclasses can use 'self.lupa' to get the test module, which build_suite_for_module() below will vary.
+    """
+    lupa = lupa
+
+
+def find_lua_modules():
+    modules = [lupa]
+    imported = set()
+    for filename in os.listdir(os.path.dirname(os.path.dirname(__file__))):
+        if not filename.startswith('lua'):
+            continue
+        module_name = "lupa." + filename.partition('.')[0]
+        if module_name in imported:
+            continue
+        try:
+            module = __import__(module_name, fromlist='*', level=0)
+        except ImportError:
+            pass
+        else:
+            imported.add(module_name)
+            modules.append(module)
+
+    return modules
+
+
+def build_suite_for_modules(loader, test_module_globals):
+    suite = unittest.TestSuite()
+    all_lua_modules = find_lua_modules()
+
+    for module in all_lua_modules[1:]:
+        suite.addTests(doctest.DocTestSuite(module))
+
+    def add_tests(cls):
+        tests = loader.loadTestsFromTestCase(cls)
+        suite.addTests(tests)
+
+    for name, test_class in test_module_globals.items():
+        if (not isinstance(test_class, type) or
+                not name.startswith('Test') or
+                not issubclass(test_class, unittest.TestCase)):
+            continue
+
+        if issubclass(test_class, LupaTestCase):
+            prefix = test_class.__name__ + "_"
+            qprefix = getattr(test_class, '__qualname__', test_class.__name__) + "_"
+
+            for module in all_lua_modules:
+                class TestClass(test_class):
+                    lupa = module
+
+                module_name = module.__name__.rpartition('.')[2]
+                TestClass.__name__ = prefix + module_name
+                TestClass.__qualname__ = qprefix + module_name
+                add_tests(TestClass)
+        else:
+            add_tests(test_class)
+
+    return suite
+
+
 def suite():
     test_dir = os.path.abspath(os.path.dirname(__file__))
 
@@ -18,7 +80,6 @@ def suite():
             tests.append('lupa.tests.'  + filename[:-3])
 
     suite = unittest.defaultTestLoader.loadTestsFromNames(tests)
-    suite.addTest(doctest.DocTestSuite(lupa._lupa))
 
     # Long version of
     # suite.addTest(doctest.DocFileSuite('../../README.rst'))

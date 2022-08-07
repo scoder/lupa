@@ -37,8 +37,8 @@ Major features
 
 * tested with Python 2.7/3.5 and later
 
-* written for LuaJIT2 (tested with LuaJIT 2.0.2), but also works
-  with the normal Lua interpreter (5.1 and later)
+* ships with Lua 5.3 and 5.4 (works with Lua 5.1 and later)
+  as well as LuaJIT 2.0 and 2.1 on systems that support it.
 
 * easy to hack on and extend as it is written in Cython, not C
 
@@ -78,6 +78,31 @@ Lupa is a very fast and thin wrapper around Lua or LuaJIT.  It makes it
 easy to write dynamic Lua code that accompanies dynamic Python code by
 switching between the two languages at runtime, based on the tradeoff
 between simplicity and speed.
+
+
+Which Lua version?
+------------------
+
+The binary wheels include different Lua versions as well as LuaJIT, if supported.
+By default, ``import lupa`` uses the latest Lua version, but you can choose
+a specific one via import:
+
+.. code:: python
+
+    try:
+        import lupa.luajit20 as lupa
+    except ImportError:
+        try:
+            import lupa.lua54 as lupa
+        except ImportError:
+            try:
+                import lupa.lua53 as lupa
+            except ImportError:
+                import lupa
+
+    print(f"Using {lupa.LuaRuntime().lua_implementation} (compiled with {lupa.LUA_VERSION})")
+
+Note that LuaJIT 2.1 may also be included (as ``luajit21``) but is currently in Alpha state.
 
 
 Examples
