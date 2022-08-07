@@ -419,7 +419,8 @@ cdef class LuaRuntime:
             else:
                 err = lua.lua_tolstring(L, -1, &size)
                 error = err[:size] if self._encoding is None else err[:size].decode(self._encoding)
-                if error == (b"not enough memory" if self._encoding is None else "not enough memory"):
+                not_enough_memory = (b"not enough memory" if self._encoding is None else "not enough memory")
+                if error.startswith(not_enough_memory):
                     raise LuaMemoryError(error)
                 raise LuaSyntaxError(error)
         finally:
@@ -1645,7 +1646,10 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
     elif result == lua.LUA_ERRMEM:
         raise LuaMemoryError()
     else:
-        raise LuaError(build_lua_error_message(runtime, L))
+        error_message = build_lua_error_message(runtime, L)
+        if u"not enough memory" in error_message:
+            raise LuaMemoryError(error_message)
+        raise LuaError(error_message)
 
 
 cdef bint _looks_like_traceback_line(unicode line):
@@ -1713,7 +1717,7 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code, tuple args):
         check_lua_stack(L, 1)
         if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
             error = build_lua_error_message(runtime, L)
-            if error == "not enough memory":
+            if error.startswith("not enough memory"):
                 raise LuaMemoryError(error)
             raise LuaSyntaxError(u"error loading code: " + error)
         return call_lua(runtime, L, args)
