@@ -538,9 +538,7 @@ cdef class LuaRuntime:
             used = self._max_memory - self._memory_left + 1
             if used > max_memory:
                 if strict:
-                    raise LuaMemoryError(
-                        "setting max_memory to less than currently in use"
-                    )
+                    raise LuaMemoryError("setting max_memory to less than currently in use")
                 self._memory_left = 1
                 max_memory = used
             else:
@@ -1717,7 +1715,7 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code, tuple args):
             error = build_lua_error_message(runtime, L)
             if error == "not enough memory":
                 raise LuaMemoryError(error)
-            raise LuaSyntaxError(u"error loading code: %s" % error)
+            raise LuaSyntaxError(u"error loading code: " + error)
         return call_lua(runtime, L, args)
     finally:
         lua.lua_settop(L, old_top)
