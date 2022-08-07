@@ -3009,6 +3009,12 @@ def load_tests(loader, standard_tests, pattern):
 class TestMaxMemory(SetupLuaRuntimeMixin, LupaTestCase):
     lua_runtime_kwargs = {"max_memory": 10000}
 
+    def setUp(self):
+        # need to test in here because the creation of the LuaRuntime fails
+        if "luajit" in self.lupa.LuaRuntime().lua_implementation.lower():
+            self.skipTest("not supported in LuaJIT")
+        return super().setUp()
+
     def test_property(self):
         self.assertEqual(self.lua.max_memory, 10000)
         self.lua.set_max_memory(1000000)
