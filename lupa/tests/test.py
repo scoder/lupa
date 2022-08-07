@@ -2624,21 +2624,22 @@ class TestFastRLock(LupaTestCase):
 # tests for error stacktrace
 
 class TestErrorStackTrace(LupaTestCase):
-    if not hasattr(unittest.TestCase, 'assertIn'):
-        def assertIn(self, member, container, msg=None):
-            self.assertTrue(member in container, msg)
-
-    if not hasattr(unittest.TestCase, 'assertNotIn'):
-        def assertNotIn(self, member, container, msg=None):
-            self.assertFalse(member in container, msg)
-
     def test_stacktrace(self):
         lua = self.lupa.LuaRuntime()
         try:
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except self.lupa.LuaError as e:
-            self.assertIn("stack traceback:", e.args[0])
+            exc_message = e.args[0]
+            self.assertIn("stack traceback:", exc_message)
+            self.assertIn("main chunk", exc_message)
+            self.assertIn("error", exc_message)  # function name
+            # check for reordered stack trace
+            msg_lines = exc_message.splitlines()
+            self.assertIn("error", msg_lines[-1])  # function name
+            self.assertNotIn("main chunk", msg_lines[-1])
+            self.assertIn("main chunk", msg_lines[-2])
+            self.assertIn("stack traceback:", msg_lines[-3])
 
     def test_nil_debug(self):
         lua = self.lupa.LuaRuntime()
