@@ -227,7 +227,7 @@ cdef class LuaRuntime:
     
     * ``max_memory``: max memory usage this LuaRuntime can use in bytes.
       If max_memory is None, the default lua allocator is used and calls to
-      ``set_max_memory(limit)`` will fail.
+      ``set_max_memory(limit)`` will fail with a ``LuaMemoryError``.
       Note: Not supported on 64bit LuaJIT.
       (default: None, i.e. no limitation. New in Lupa 2.0)
 
