@@ -123,7 +123,7 @@ class LuaSyntaxError(LuaError):
     """
 
 
-class LuaMemoryError(LuaError):
+class LuaMemoryError(LuaError, MemoryError):
     """Memory error in Lua code.
     """
 
