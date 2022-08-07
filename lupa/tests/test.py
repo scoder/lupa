@@ -3006,38 +3006,39 @@ def load_tests(loader, standard_tests, pattern):
 ################################################################################
 # test LuaRuntime max_memory
 
-class TestMaxMemory(SetupLuaRuntimeMixin, unittest.TestCase):
-    lua_runtime_kwargs = {"max_memory": 10_000}
+class TestMaxMemory(SetupLuaRuntimeMixin, LupaTestCase):
+    lua_runtime_kwargs = {"max_memory": 10000}
 
     def test_property(self):
-        self.assertEqual(self.lua.max_memory, 10_000)
-        self.lua.set_max_memory(1_000_000)
-        self.assertEqual(self.lua.max_memory, 1_000_000)
+        self.assertEqual(self.lua.max_memory, 10000)
+        self.lua.set_max_memory(1000000)
+        self.assertEqual(self.lua.max_memory, 1000000)
 
     def test_not_enough_memory(self):
         self.lua.eval("('a'):rep(50)")
         self.assertRaises(lupa.LuaMemoryError, self.lua.eval, "('a'):rep(50000)")
 
     def test_decrease_memory(self):
-        self.lua.set_max_memory(1_000_000)
+        self.lua.set_max_memory(1000000)
         self.lua.execute("a = ('a'):rep(50000)")
-        self.lua.set_max_memory(10_000)
-        self.assertGreater(self.lua.max_memory, 10_000)
-        self.assertGreaterEqual(self.lua.memory_used, 50_000)
+        self.lua.set_max_memory(10000)
+        self.assertGreater(self.lua.max_memory, 10000)
+        self.assertGreaterEqual(self.lua.memory_used, 50000)
         self.assertRaises(lupa.LuaMemoryError, self.lua.eval, "'1'")
 
     def test_decrease_strict(self):
-        self.lua.set_max_memory(1_000_000)
+        self.lua.set_max_memory(1000000)
         self.lua.execute("a = ('a'):rep(50000)")
-        self.assertRaises(lupa.LuaMemoryError, self.lua.set_max_memory, 10_000, True)
+        self.assertRaises(lupa.LuaMemoryError, self.lua.set_max_memory, 10000, True)
 
 
-class TestMaxMemoryWithoutSettingIt(SetupLuaRuntimeMixin, unittest.TestCase):
+class TestMaxMemoryWithoutSettingIt(SetupLuaRuntimeMixin, LupaTestCase):
     def test_property(self):
         self.assertEqual(self.lua.max_memory, None)
 
     def test_set_max(self):
-        self.assertRaises(RuntimeError, self.lua.set_max_memory, 10_000)
+        self.assertRaises(RuntimeError, self.lua.set_max_memory, 10000)
+
 
 if __name__ == '__main__':
     def print_version():
