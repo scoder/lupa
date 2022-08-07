@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [windows-2019, ubuntu-20.04, macos-11]
+        os: [windows-2019, ubuntu-20.04, macos-11, macos-12]
         python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "pypy-2.7", "pypy-3.7", "pypy-3.8"]
         lua-version: ["bundle", "lua5.3", "lua5.2", "luajit-5.1"]
 
@@ -37,6 +37,16 @@ jobs:
             lua-version: lua5.4
           - os: macos-11
             lua-version: luajit-5.1
+          - os: macos-12
+            python-version: 2.7
+          - os: macos-12
+            lua-version: lua5.2
+          - os: macos-12
+            lua-version: lua5.3
+          - os: macos-12
+            lua-version: lua5.4
+          - os: macos-12
+            lua-version: luajit-5.1
 
     runs-on: ${{ matrix.os }}
 
@@ -57,14 +67,14 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Set up Python packages
-      run: python -m pip install -U "pip<21" "setuptools<45" wheel && python -m pip install -U tox virtualenv
+      run: python -m pip install -U "pip<21" "setuptools<45" wheel && python -m pip install -U tox virtualenv -r requirements.txt
 
     - name: Set up Lua ${{ matrix.lua-version }}
       if: ${{ contains(matrix.os, 'ubuntu') && !contains(matrix.lua-version, 'bundle') }}
       run: sudo apt-get install lib${{ matrix.lua-version }}-dev
 
     - name: Build wheel
-      run: python -m pip install -r requirements.txt && python setup.py sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j5' || '' }} bdist_wheel
+      run: python setup.py sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j5' || '' }} bdist_wheel ${{ contains(matrix.os, 'macos-12') && '--universal' || '' }}
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
         CFLAGS: ${{ env.CFLAGS }} ${{ env.CFLAGS_LTO }}
