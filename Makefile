@@ -27,7 +27,7 @@ sdist dist/lupa-$(VERSION).tar.gz:
 	${PYTHON} setup.py sdist
 
 test: local
-	PYTHONPATH=. $(PYTHON) -m lupa.tests.test
+	PYTHONPATH=. $(PYTHON) -m unittest lupa.tests.test
 
 clean:
 	rm -fr build lupa/_lupa*.so lupa/lua*.pyx lupa/*.c
