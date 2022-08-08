@@ -2995,14 +2995,6 @@ class TestLuaObjectString(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertRaises(self.lupa.LuaError, str, self.lua.eval('setmetatable({}, {__tostring = function() error() end})'))
 
 
-
-################################################################################
-# Load tests for different Lua version modules
-
-def load_tests(loader, standard_tests, pattern):
-    return lupa.tests.build_suite_for_modules(loader, globals())
-
-
 ################################################################################
 # test LuaRuntime max_memory
 
@@ -3048,6 +3040,14 @@ class TestMaxMemoryWithoutSettingIt(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_set_max(self):
         self.assertRaises(RuntimeError, self.lua.set_max_memory, 10000)
+
+
+################################################################################
+# Load tests for different Lua version modules
+
+def load_tests(loader, standard_tests, pattern):
+    return lupa.tests.build_suite_for_modules(loader, globals())
+
 
 
 if __name__ == '__main__':
