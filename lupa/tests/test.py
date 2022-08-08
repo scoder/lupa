@@ -3030,7 +3030,7 @@ class TestMaxMemory(SetupLuaRuntimeMixin, LupaTestCase):
         self.lua.set_max_memory(10000)
         self.assertGreater(self.lua.max_memory, 10000)
         self.assertGreaterEqual(self.lua.memory_used, 50000)
-        self.assertRaises(self.lupa.LuaMemoryError, self.lua.eval, "('a'):rep(10)")
+        self.assertRaises(self.lupa.LuaMemoryError, self.lua.eval, "('b'):rep(10)")
 
     def test_decrease_strict(self):
         self.lua.set_max_memory(1000000)
