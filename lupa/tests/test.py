@@ -3037,6 +3037,10 @@ class TestMaxMemory(SetupLuaRuntimeMixin, LupaTestCase):
         self.lua.execute("a = ('a'):rep(50000)")
         self.assertRaises(self.lupa.LuaMemoryError, self.lua.set_max_memory, 10000, True)
 
+    def test_compile_not_enough_memory(self):
+        self.lua.set_max_memory(10)
+        self.assertRaises(self.lupa.LuaMemoryError, self.lua.compile, "_G.a = function() return 'test abcdef' end")
+
 
 class TestMaxMemoryWithoutSettingIt(SetupLuaRuntimeMixin, LupaTestCase):
     def test_property(self):

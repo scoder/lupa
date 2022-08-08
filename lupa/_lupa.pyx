@@ -420,7 +420,7 @@ cdef class LuaRuntime:
                 err = lua.lua_tolstring(L, -1, &size)
                 error = err[:size] if self._encoding is None else err[:size].decode(self._encoding)
                 not_enough_memory = (b"not enough memory" if self._encoding is None else "not enough memory")
-                if error.startswith(not_enough_memory):
+                if not_enough_memory in error:
                     raise LuaMemoryError(error)
                 raise LuaSyntaxError(error)
         finally:
