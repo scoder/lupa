@@ -452,12 +452,12 @@ cdef class LuaRuntime:
                 elif isinstance(obj, Mapping):
                     for key in obj:
                         value = obj[key]
-                        py_to_lua(self, L, key, False, recursive)
-                        py_to_lua(self, L, value, False, recursive)
+                        py_to_lua(self, L, key, wrap_none=False, recursive=recursive)
+                        py_to_lua(self, L, value, wrap_none=False, recursive=recursive)
                         lua.lua_rawset(L, -3)
                 else:
                     for arg in obj:
-                        py_to_lua(self, L, arg, False, recursive)
+                        py_to_lua(self, L, arg, wrap_none=False, recursive=recursive)
                         lua.lua_rawseti(L, -2, i)
                         i += 1
             return py_from_lua(self, L, -1)
@@ -513,12 +513,12 @@ cdef class LuaRuntime:
         luaL_openlib(L, "python", py_lib, 0)       # lib
         lua.lua_pushlightuserdata(L, <void*>self)  # lib udata
         lua.lua_pushcclosure(L, py_args, 1)        # lib function
-        lua.lua_setfield(L, -2, "args")            # lib
+        lua.lua_setfield(L, -2, "args")            # lib 
 
         # register our own object metatable
         lua.luaL_newmetatable(L, POBJECT)          # lib metatbl
         luaL_openlib(L, NULL, py_object_lib, 0)
-        lua.lua_pop(L, 1)                          # lib
+        lua.lua_pop(L, 1)                          # lib 
 
         # create and store the python references table
         lua.lua_newtable(L)                                  # lib tbl
@@ -1822,6 +1822,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
     else:
         args = ()
         kwargs = {}
+
         for i in range(nargs):
             arg = py_from_lua(runtime, L, i+2)
             if isinstance(arg, _PyArguments):
