@@ -1821,7 +1821,9 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 
 cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t new_size) nogil:
     # adapted from https://stackoverflow.com/a/9672205
-    cdef size_t* memory_left = <size_t*>ud
+    cdef size_t* memory_left_status = <size_t*>ud
+    cdef size_t memory_left = memory_left_status[0]
+    memory_is_counted = memory_left > 0
 
     if ptr is NULL:
         # <http://www.lua.org/manual/5.2/manual.html#lua_Alloc>:
@@ -1829,20 +1831,22 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t ne
         # Since we don’t care about that, just mark it as 0.
         old_size = 0
 
+    cdef void* new_ptr
     if new_size == 0:
         free(ptr)
-        if memory_left[0] > 0:
-            memory_left[0] += old_size  # add old size to available memory
-        return NULL
+        if memory_is_counted:
+            memory_left += old_size  # add deallocated old size to available memory
+        new_ptr = NULL
     elif new_size == old_size:
-        return ptr
+        new_ptr = ptr
     else:
-        if memory_left[0] > 0 and new_size > old_size and memory_left[0] <= new_size - old_size:  # reached the limit
+        if memory_is_counted and new_size > old_size and memory_left <= new_size - old_size:  # reached the limit
             return NULL
         new_ptr = realloc(ptr, new_size)
-        if new_ptr is not NULL and memory_left[0] > 0:
-            memory_left[0] += new_size - old_size
-        return new_ptr
+
+    if new_ptr is not NULL and memory_is_counted:
+        memory_left_status[0] = memory_left - (new_size - old_size)
+    return new_ptr
 
 
 cdef int _lua_panic(lua_State *L) nogil:
