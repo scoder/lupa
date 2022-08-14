@@ -11,8 +11,8 @@ cimport cython
 from libc.string cimport strlen, strchr
 from libc.stdlib cimport malloc, free, realloc
 from libc.stdio cimport fprintf, stderr, fflush
-from lupa cimport lua
-from .lua cimport lua_State
+from . cimport luaapi as lua
+from .luaapi cimport lua_State
 
 cimport cpython.ref
 cimport cpython.tuple
