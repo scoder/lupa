@@ -158,7 +158,7 @@ def lua_type(obj):
         unlock_runtime(lua_object._runtime)
 
 cdef inline int _len_as_int(Py_ssize_t obj) except -1:
-    if obj > <Py_ssize_t>LONG_MAX:
+    if obj > <Py_ssize_t>INT_MAX:
         raise OverflowError
     return <int>obj
 
@@ -1471,13 +1471,13 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         type_flags = (<_PyProtocolWrapper> o)._type_flags
         o = (<_PyProtocolWrapper> o)._obj
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
-    elif recursive and isinstance(o, Sequence):
+    elif recursive and isinstance(o, (list, Sequence)):
         lua.lua_createtable(L, _len_as_int(len(o)), 0)   # create a table at the top of stack, with narr already known
-        for i, v in enumerate(o):
+        for i, v in enumerate(o, 1):
             py_to_lua(runtime, L, v, wrap_none, recursive)
-            lua.lua_rawseti(L, -2, i+1)
+            lua.lua_rawseti(L, -2, i)
         pushed_values_count = 1
-    elif recursive and isinstance(o, Mapping):
+    elif recursive and isinstance(o, (dict, Mapping)):
         lua.lua_createtable(L, 0, _len_as_int(len(o)))  # create a table at the top of stack, with nrec already known
         for key, value in o.items():
             py_to_lua(runtime, L, key, wrap_none, recursive)
