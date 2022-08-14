@@ -13,7 +13,8 @@ MANYLINUX_IMAGES= \
 	manylinux_2_24_aarch64 \
 	manylinux_2_24_ppc64le \
 	manylinux_2_24_s390x \
-	musllinux_1_1_x86_64
+	musllinux_1_1_x86_64 \
+	musllinux_1_1_aarch64
 
 .PHONY: all local sdist test clean realclean
 
@@ -26,10 +27,11 @@ sdist dist/lupa-$(VERSION).tar.gz:
 	${PYTHON} setup.py sdist
 
 test: local
-	PYTHONPATH=. $(PYTHON) -m lupa.tests.test
+	PYTHONPATH=. $(PYTHON) -m unittest lupa.tests.test
 
 clean:
-	rm -fr build lupa/_lupa.so
+	rm -fr build lupa/_lupa*.so lupa/lua*.pyx lupa/*.c
+	@for dir in third-party/*/; do $(MAKE) -C $${dir} clean; done
 
 realclean: clean
 	rm -fr lupa/_lupa.c

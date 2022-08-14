@@ -9,8 +9,8 @@ from __future__ import absolute_import
 cimport cython
 
 from libc.string cimport strlen, strchr
-from lupa cimport lua
-from .lua cimport lua_State
+from . cimport luaapi as lua
+from .luaapi cimport lua_State
 
 cimport cpython.ref
 cimport cpython.tuple
@@ -1580,14 +1580,49 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
     elif result == lua.LUA_ERRMEM:
         raise MemoryError()
     else:
-        raise LuaError(build_lua_error_message(runtime, L, None, -1))
+        raise LuaError(build_lua_error_message(runtime, L))
 
-cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message, int n):
+
+cdef bint _looks_like_traceback_line(unicode line):
+    # Lua tracebacks look like this (using tabs as indentation):
+    # stack traceback:
+    #    [C]: in function 'error'
+    #    [string "<python>"]:1: in main chunk
+    cdef Py_UCS4 ch
+    cdef bint indentation_seen = False
+    for ch in line:
+        if ch.isspace():
+            indentation_seen = True
+        else:
+            return indentation_seen and ch == u"["
+    return False
+
+
+cdef unicode _reorder_lua_stack_trace(unicode error_message):
+    # Lua tracebacks look like this (using tabs as indentation):
+    # stack traceback:
+    #    [C]: in function 'error'
+    #    [string "<python>"]:1: in main chunk
+    cdef Py_ssize_t i, traceback_start = 0
+    lines = []
+    for i, line in enumerate(error_message.splitlines(), 1):
+        if traceback_start > 0 and _looks_like_traceback_line(line):
+            lines.insert(traceback_start, line)
+        else:
+            traceback_start = i if line == u"stack traceback:" else 0
+            lines.append(line)
+
+    if traceback_start > 0 and len(lines) > traceback_start + 1:
+        error_message = u"\n".join(lines)
+    return error_message
+
+
+cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_message=None, int stack_index=-1):
     """Removes the string at the given stack index ``n`` to build an error message.
     If ``err_message`` is provided, it is used as a %-format string to build the error message.
     """
     cdef size_t size = 0
-    cdef const char *s = lua.lua_tolstring(L, n, &size)
+    cdef const char *s = lua.lua_tolstring(L, stack_index, &size)
     if runtime._encoding is not None:
         try:
             py_ustring = s[:size].decode(runtime._encoding)
@@ -1595,11 +1630,16 @@ cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, unicode err_messa
             py_ustring = s[:size].decode('ISO-8859-1') # safe 'fake' decoding
     else:
         py_ustring = s[:size].decode('ISO-8859-1')
-    lua.lua_remove(L, n)
-    if err_message is None:
-        return py_ustring
-    else:
-        return err_message % py_ustring
+    lua.lua_remove(L, stack_index)
+
+    if u"stack traceback:" in py_ustring:
+        py_ustring = _reorder_lua_stack_trace(py_ustring)
+
+    if err_message is not None:
+        py_ustring = err_message % py_ustring
+
+    return py_ustring
+
 
 # calling into Lua
 
@@ -1612,7 +1652,7 @@ cdef run_lua(LuaRuntime runtime, bytes lua_code, tuple args):
         check_lua_stack(L, 1)
         if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
             raise LuaSyntaxError(build_lua_error_message(
-                runtime, L, u"error loading code: %s", -1))
+                runtime, L, err_message=u"error loading code: %s"))
         return call_lua(runtime, L, args)
     finally:
         lua.lua_settop(L, old_top)
@@ -1633,7 +1673,7 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
     cdef int result_status
     cdef object result
     # call into Lua
-    cdef int errfunc = 0
+    cdef bint has_lua_traceback_func = False
     with nogil:
         lua.lua_getglobal(L, "debug")
         if not lua.lua_istable(L, -1):
@@ -1645,9 +1685,9 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
             else:
                 lua.lua_replace(L, -2)
                 lua.lua_insert(L, 1)
-                errfunc = 1
-        result_status = lua.lua_pcall(L, <int>nargs, lua.LUA_MULTRET, errfunc)
-        if errfunc:
+                has_lua_traceback_func = True
+        result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, has_lua_traceback_func)
+        if has_lua_traceback_func:
             lua.lua_remove(L, 1)
     results = unpack_lua_results(runtime, L)
     if result_status:
