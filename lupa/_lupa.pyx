@@ -343,7 +343,7 @@ cdef class LuaRuntime:
         """
         if self._max_memory == 0:
             return None if self._memory_left == 1 else 0
-        return self._max_memory - self._memory_left + 1
+        return self._max_memory - (self._memory_left - 1)
 
     @property
     def lua_version(self):
@@ -418,9 +418,13 @@ cdef class LuaRuntime:
                 return py_from_lua(self, L, -1)
             else:
                 err = lua.lua_tolstring(L, -1, &size)
-                error = err[:size] if self._encoding is None else err[:size].decode(self._encoding)
-                not_enough_memory = (b"not enough memory" if self._encoding is None else "not enough memory")
-                if not_enough_memory in error:
+                if self._encoding is None:
+                    error = err[:size]  # bytes
+                    is_memory_error = b"not enough memory" in error
+                else:
+                    error = err[:size].decode(self._encoding)
+                    is_memory_error = u"not enough memory" in error
+                if is_memory_error:
                     raise LuaMemoryError(error)
                 raise LuaSyntaxError(error)
         finally:
@@ -521,7 +525,7 @@ cdef class LuaRuntime:
             lua.lua_settop(L, old_top)
             unlock_runtime(self)
 
-    def set_max_memory(self, max_memory, strict=False):
+    def set_max_memory(self, size_t max_memory, bint strict=False):
         """Set maximum allowed memory for this LuaRuntime.
 
         Setting max_memory to a value lower than currently in use, will set
@@ -531,19 +535,20 @@ cdef class LuaRuntime:
         If max_memory was set to None during creation, this will raise a
         RuntimeError.
         """
+        cdef size_t used
         if self._max_memory == 0 and self._memory_left == 1:
             raise RuntimeError("max_memory must be set on LuaRuntime creation")
         if self._max_memory == 0 or max_memory == 0:
             self._memory_left = 1 + max_memory if max_memory else 0
         else:
-            used = self._max_memory - self._memory_left + 1
+            used = self._max_memory - (self._memory_left - 1)
             if used > max_memory:
                 if strict:
                     raise LuaMemoryError("setting max_memory to less than currently in use")
                 self._memory_left = 1
                 max_memory = used
             else:
-                self._memory_left = 1 + max_memory - used
+                self._memory_left = 1 + (max_memory - used)
         self._max_memory = max_memory
 
     def set_overflow_handler(self, overflow_handler):
@@ -1736,43 +1741,6 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
     push_lua_arguments(runtime, L, args)
     return execute_lua_call(runtime, L, len(args))
 
-# adapted from https://stackoverflow.com/a/9672205
-cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t osize, size_t nsize) nogil:
-    cdef size_t* memory_left = <size_t*>ud
-
-    if ptr is NULL:
-        # <http://www.lua.org/manual/5.2/manual.html#lua_Alloc>:
-        # When ptr is NULL, osize encodes the kind of object that Lua is
-        # allocating.
-        # Since we don’t care about that, just mark it as 0.
-        osize = 0
-
-    if nsize == 0:
-        free(ptr)
-        if memory_left[0] > 0:
-            memory_left[0] += osize # add old size to available memory
-        return NULL
-    elif nsize == osize:
-        return ptr
-    else:
-        if memory_left[0] > 0 and nsize > osize and memory_left[0] <= nsize - osize: # reached the limit
-            return NULL
-        new_ptr = realloc(ptr, nsize)
-        if new_ptr is NULL:
-            free(ptr)
-        elif memory_left[0] > 0:
-            memory_left[0] -= nsize + osize
-        return new_ptr
-
-cdef int _lua_panic(lua_State *L) nogil:
-    cdef const char* msg = lua.lua_tostring(L, -1)
-    if msg == NULL:
-        msg = "error object is not a string"
-    cdef char* message = "PANIC: unprotected error in call to Lua API (%s)\n"
-    fprintf(stderr, message, msg)
-    fflush(stderr)
-    return 0 # return to Lua to abort
-
 cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
     cdef int result_status
     cdef object result
@@ -1847,6 +1815,44 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
         cpython.ref.Py_INCREF(arg)
         cpython.tuple.PyTuple_SET_ITEM(args, i, arg)
     return args
+
+
+# bounded memory allocation
+
+cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t new_size) nogil:
+    # adapted from https://stackoverflow.com/a/9672205
+    cdef size_t* memory_left = <size_t*>ud
+
+    if ptr is NULL:
+        # <http://www.lua.org/manual/5.2/manual.html#lua_Alloc>:
+        # When ptr is NULL, old_size encodes the kind of object that Lua is allocating.
+        # Since we don’t care about that, just mark it as 0.
+        old_size = 0
+
+    if new_size == 0:
+        free(ptr)
+        if memory_left[0] > 0:
+            memory_left[0] += old_size  # add old size to available memory
+        return NULL
+    elif new_size == old_size:
+        return ptr
+    else:
+        if memory_left[0] > 0 and new_size > old_size and memory_left[0] <= new_size - old_size:  # reached the limit
+            return NULL
+        new_ptr = realloc(ptr, new_size)
+        if new_ptr is not NULL and memory_left[0] > 0:
+            memory_left[0] += new_size - old_size
+        return new_ptr
+
+
+cdef int _lua_panic(lua_State *L) nogil:
+    cdef const char* msg = lua.lua_tostring(L, -1)
+    if msg == NULL:
+        msg = "error object is not a string"
+    cdef char* message = "PANIC: unprotected error in call to Lua API (%s)\n"
+    fprintf(stderr, message, msg)
+    fflush(stderr)
+    return 0  # return to Lua to abort
 
 
 ################################################################################
