@@ -2740,7 +2740,7 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, LupaTestCase):
             if objtype != 'table':
                 self.assertIncorrect('python.args(kwargs["%s"])' % objtype,
                         error=self.lupa.LuaError, regex="bad argument #1 to 'args'")
-        
+
         # Invalid table keys
         self.assertIncorrect('python.args{[0] = true}', error=IndexError, regex='table index out of range')
         self.assertIncorrect('python.args{[2] = true}', error=IndexError, regex='table index out of range')
