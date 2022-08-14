@@ -11,7 +11,7 @@ Lupa change log
   Lua 5.4, LuaJIT 2.0 and LuaJIT 2.1 beta.  Note that this is build specific
   and may depend on the platform.  A normal Python import cascade can be used.
 
-* GH#211: Option to limit memory usage
+* GH#211: A new option `max_memory` allows to limit the memory usage of Lua code.
   (patch by Leo Developer)
 
 * GH#171: Python references in Lua are now more safely reference counted
