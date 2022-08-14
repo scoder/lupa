@@ -9,8 +9,8 @@ from __future__ import absolute_import
 cimport cython
 
 from libc.string cimport strlen, strchr
-from lupa cimport lua
-from .lua cimport lua_State
+from . cimport luaapi as lua
+from .luaapi cimport lua_State
 
 cimport cpython.ref
 cimport cpython.tuple
