@@ -292,6 +292,8 @@ def use_bundled_lua(path, macros):
         os.path.splitext(obj_file)[0] + '.c' if obj_file != 'lj_vm.o' else 'lj_vm.s'
         for obj_file in obj_files
     ]
+    if 'lua52' in path:
+        lua_sources.extend(['lbitlib.c', 'lcorolib.c', 'lctype.c'])
     src_dir = os.path.dirname(makefile)
     ext_libraries = [
         [libname, {
@@ -344,8 +346,6 @@ if not configs and not option_no_bundle:
         for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'lua*' + os.sep))
         if not (
             False
-            # Lua 5.2.3 fails to build
-            or lua_bundle_path.endswith('lua52' + os.sep)
             # LuaJIT 2.0 on macOS requires a CPython linked with "-pagezero_size 10000 -image_base 100000000"
             # http://t-p-j.blogspot.com/2010/11/lupa-on-os-x-with-macports-python-26.html
             # LuaJIT 2.1-alpha3 fails at runtime.
