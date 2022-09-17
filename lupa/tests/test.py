@@ -566,6 +566,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertRaises(TypeError, self.lua.table_from, 5)
         self.assertRaises(TypeError, self.lua.table_from, None)
         self.assertRaises(TypeError, self.lua.table_from, {"a": 5}, 123)
+        self.assertRaises(TypeError, self.lua.table_from, {None: 0})
 
     # def test_table_from_nested(self):
     #     table = self.lua.table_from({"obj": {"foo": "bar"}})
