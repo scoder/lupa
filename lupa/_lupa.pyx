@@ -9,7 +9,7 @@ from __future__ import absolute_import
 cimport cython
 
 from libc.string cimport strlen, strchr
-from libc.stdlib cimport malloc, free, realloc
+from libc.stdlib cimport malloc, calloc, free, realloc
 from libc.stdio cimport fprintf, stderr, fflush
 from . cimport luaapi as lua
 from .luaapi cimport lua_State
@@ -255,8 +255,7 @@ cdef class LuaRuntime:
     cdef object _attribute_getter
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
-    cdef size_t _max_memory
-    cdef size_t _memory_left
+    cdef MemoryStatus* _memory_status
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
@@ -265,12 +264,15 @@ cdef class LuaRuntime:
                   max_memory=None):
         cdef lua_State* L
 
-        self._memory_left = 0
-
         if max_memory is None:
             L = lua.luaL_newstate()
         else:
-            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, &self._memory_left)
+            memory_status = <MemoryStatus*>calloc(1, sizeof(MemoryStatus))
+            self._memory_status = memory_status
+            self._memory_status.used = 0
+            self._memory_status.base_usage = 0
+            self._memory_status.limit = 0
+            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, <void*>self._memory_status)
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
 
@@ -283,7 +285,6 @@ cdef class LuaRuntime:
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
         self._unpack_returned_tuples = unpack_returned_tuples
-        self._max_memory = 0 if max_memory is None else max_memory
 
         if attribute_handlers:
             raise_error = False
@@ -308,42 +309,47 @@ cdef class LuaRuntime:
         self.set_overflow_handler(overflow_handler)
 
         # lupa init done, set real limit
-        if max_memory is None:
-            # memory_left is either 0 to indicate infinite memory
-            # or 1 + the limit
-            # since a limit of 0 is 0 instead of 1, 1 is unused
-            # and used as a flag for differentiating between max_memory=None
-            # and max_memory=0
-            self._memory_left = 1
-        elif max_memory > 0:
-            self._memory_left = 1 + <size_t>max_memory
+        if max_memory is not None:
+            self._memory_status.base_usage = self._memory_status.used
+            self._memory_status.limit =  self._memory_status.base_usage + <size_t>max_memory
 
     def __dealloc__(self):
         if self._state is not NULL:
             lua.lua_close(self._state)
             self._state = NULL
+        if self._memory_status is not NULL:
+            free(self._memory_status)
+            self._memory_status = NULL
 
-    @property
-    def max_memory(self):
+    def get_max_memory(self, count_base=False):
         """
         Maximum memory allowed to be used by this LuaRuntime.
         0 indicates no limit meanwhile None indicates that the default lua
         allocator is being used and ``set_max_memory()`` cannot be used.
-        """
-        if self._max_memory == 0 and self._memory_left == 1:
-            return None
-        return self._max_memory
 
-    @property
-    def memory_used(self):
+        If ``count_base`` is True, the base memory used by the lua runtime
+        will be included in the limit.
+        """
+        if self._memory_status is NULL:
+            return None
+        elif count_base:
+            return self._memory_status.limit
+        return self._memory_status.limit - self._memory_status.base_usage
+
+    def get_memory_used(self, count_base=False):
         """
         Memory currently in use.
         This is None if the default lua allocator is used and 0 if
         ``max_memory`` is 0.
+
+        If ``count_base`` is True, the base memory used by the lua runtime
+        will be included.
         """
-        if self._max_memory == 0:
-            return None if self._memory_left == 1 else 0
-        return self._max_memory - (self._memory_left - 1)
+        if self._memory_status is NULL:
+            return None
+        elif count_base:
+            return self._memory_status.used
+        return self._memory_status.used - self._memory_status.base_usage
 
     @property
     def lua_version(self):
@@ -525,7 +531,7 @@ cdef class LuaRuntime:
             lua.lua_settop(L, old_top)
             unlock_runtime(self)
 
-    def set_max_memory(self, size_t max_memory, bint strict=False):
+    def set_max_memory(self, size_t max_memory, count_base=False):
         """Set maximum allowed memory for this LuaRuntime.
 
         Setting max_memory to a value lower than currently in use, will set
@@ -536,20 +542,12 @@ cdef class LuaRuntime:
         RuntimeError.
         """
         cdef size_t used
-        if self._max_memory == 0 and self._memory_left == 1:
+        if self._memory_status is NULL:
             raise RuntimeError("max_memory must be set on LuaRuntime creation")
-        if self._max_memory == 0 or max_memory == 0:
-            self._memory_left = 1 + max_memory if max_memory else 0
+        elif count_base:
+            self._memory_status.limit = max_memory
         else:
-            used = self._max_memory - (self._memory_left - 1)
-            if used > max_memory:
-                if strict:
-                    raise LuaMemoryError("setting max_memory to less than currently in use")
-                self._memory_left = 1
-                max_memory = used
-            else:
-                self._memory_left = 1 + (max_memory - used)
-        self._max_memory = max_memory
+            self._memory_status.limit = self._memory_status.base_usage + max_memory
 
     def set_overflow_handler(self, overflow_handler):
         """Set the overflow handler function that is called on failures to pass large numbers to Lua.
@@ -1819,11 +1817,16 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 
 # bounded memory allocation
 
+cdef struct MemoryStatus:
+    size_t used
+    size_t base_usage
+    size_t limit
+
 cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t new_size) nogil:
     # adapted from https://stackoverflow.com/a/9672205
-    cdef size_t* memory_left_status = <size_t*>ud
-    cdef size_t memory_left = memory_left_status[0]
-    memory_is_counted = memory_left > 0
+    # print(<size_t>ud, <size_t>ptr, old_size, new_size)
+    cdef MemoryStatus* memory_status = <MemoryStatus*>ud
+    # print("  ", memory_status.used, memory_status.base_usage, memory_status.limit)
 
     if ptr is NULL:
         # <http://www.lua.org/manual/5.2/manual.html#lua_Alloc>:
@@ -1834,20 +1837,20 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t ne
     cdef void* new_ptr
     if new_size == 0:
         free(ptr)
-        if memory_is_counted:
-            memory_left += old_size  # add deallocated old size to available memory
-        new_ptr = NULL
+        memory_status.used -= old_size  # add deallocated old size to available memory
+        return NULL
     elif new_size == old_size:
-        new_ptr = ptr
-    else:
-        if memory_is_counted and new_size > old_size and memory_left <= new_size - old_size:  # reached the limit
-            return NULL
-        new_ptr = realloc(ptr, new_size)
-
-    if new_ptr is not NULL and memory_is_counted:
-        memory_left_status[0] = memory_left - (new_size - old_size)
+        return ptr
+        
+    if memory_status.limit > 0 and new_size > old_size and memory_status.limit <= memory_status.used + new_size - old_size:  # reached the limit
+        # print("REACHED LIMIT")
+        return NULL
+    # print("  realloc()...")
+    new_ptr = realloc(ptr, new_size)
+    # print("  ", memory_status.used, new_size - old_size, memory_status.used + new_size - old_size)
+    if new_ptr is not NULL:
+        memory_status.used += new_size - old_size
     return new_ptr
-
 
 cdef int _lua_panic(lua_State *L) nogil:
     cdef const char* msg = lua.lua_tostring(L, -1)
