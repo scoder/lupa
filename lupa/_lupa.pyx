@@ -269,9 +269,6 @@ cdef class LuaRuntime:
         else:
             memory_status = <MemoryStatus*>calloc(1, sizeof(MemoryStatus))
             self._memory_status = memory_status
-            self._memory_status.used = 0
-            self._memory_status.base_usage = 0
-            self._memory_status.limit = 0
             L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, <void*>self._memory_status)
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
