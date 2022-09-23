@@ -3009,16 +3009,16 @@ class TestMaxMemory(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_getters(self):
         self.assertEqual(self.lua.get_memory_used(), 0)
-        self.assertGreater(self.lua.get_memory_used(True), 0)
+        self.assertGreater(self.lua.get_memory_used(count_base=True), 0)
         self.assertEqual(self.lua.get_max_memory(), 10000)
-        self.assertGreater(self.lua.get_max_memory(True), 10000)
+        self.assertGreater(self.lua.get_max_memory(count_base=True), 10000)
         self.lua.set_max_memory(1000000)
         self.assertEqual(self.lua.get_memory_used(), 0)
-        self.assertGreater(self.lua.get_memory_used(True), 0)
+        self.assertGreater(self.lua.get_memory_used(count_base=True), 0)
         self.assertEqual(self.lua.get_max_memory(), 1000000)
-        self.assertGreater(self.lua.get_max_memory(True), 1000000)
-        self.lua.set_max_memory(1000000, True)
-        self.assertEqual(self.lua.get_max_memory(True), 1000000)
+        self.assertGreater(self.lua.get_max_memory(count_base=True), 1000000)
+        self.lua.set_max_memory(1000000, count_base=True)
+        self.assertEqual(self.lua.get_max_memory(count_base=True), 1000000)
         self.assertLess(self.lua.get_max_memory(), 1000000)
 
     def test_not_enough_memory(self):
