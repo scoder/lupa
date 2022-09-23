@@ -531,9 +531,8 @@ cdef class LuaRuntime:
     def set_max_memory(self, size_t max_memory, count_base=False):
         """Set maximum allowed memory for this LuaRuntime.
 
-        Setting max_memory to a value lower than currently in use, will set
-        max_memory to the current usage. Use strict=True to throw a
-        LuaMemoryError instead.
+        If ``count_base`` is True, the base memory used by the LuaRuntime itself
+        will be included in the memory limit.
 
         If max_memory was set to None during creation, this will raise a
         RuntimeError.
