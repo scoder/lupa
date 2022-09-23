@@ -308,7 +308,8 @@ cdef class LuaRuntime:
         # lupa init done, set real limit
         if max_memory is not None:
             self._memory_status.base_usage = self._memory_status.used
-            self._memory_status.limit =  self._memory_status.base_usage + <size_t>max_memory
+            if max_memory > 0:
+                self._memory_status.limit =  self._memory_status.base_usage + <size_t>max_memory
 
     def __dealloc__(self):
         if self._state is not NULL:
@@ -531,6 +532,7 @@ cdef class LuaRuntime:
     def set_max_memory(self, size_t max_memory, count_base=False):
         """Set maximum allowed memory for this LuaRuntime.
 
+        If `max_memory` is 0, there will be no limit.
         If ``count_base`` is True, the base memory used by the LuaRuntime itself
         will be included in the memory limit.
 
@@ -540,6 +542,8 @@ cdef class LuaRuntime:
         cdef size_t used
         if self._memory_status is NULL:
             raise RuntimeError("max_memory must be set on LuaRuntime creation")
+        elif max_memory <= 0:
+            self._memory_status.limit = 0
         elif count_base:
             self._memory_status.limit = max_memory
         else:
