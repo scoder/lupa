@@ -942,8 +942,8 @@ calculations unless you specify ``total=True``.
         >>> lua = LuaRuntime(max_memory=0)  # 0 for unlimited, default is None
         >>> lua.get_memory_used()  # memory used by your code
         0
-        >>> lua.get_memory_used(total=True)  # includes memory used by the runtime itself
-        21358  # this will depend on your lua version and other factors
+        >>> total_lua_memory = lua.get_memory_used(total=True)  # includes memory used by the runtime itself
+        >>> assert total_lua_memory > 0  # exact amount depends on your lua version and other factors
 
 
 Lua code hitting the memory limit will receive memory errors:
