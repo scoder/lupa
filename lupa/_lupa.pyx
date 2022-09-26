@@ -270,10 +270,13 @@ cdef class LuaRuntime:
                   max_memory=None):
         cdef lua_State* L
 
+        self._memory_status.used = 0  # these need to be initiliazed
+        self._memory_status.base_usage = 0
         if max_memory is None:
             L = lua.luaL_newstate()
             self._memory_status.limit = -1
         else:
+            self._memory_status.limit = 0
             L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, <void*>&self._memory_status)
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
@@ -330,7 +333,7 @@ cdef class LuaRuntime:
         If ``total`` is True, the base memory used by the lua runtime
         will be included in the limit.
         """
-        if self._memory_status.limit < 0:
+        if self._memory_status.limit == <size_t> -1:
             return None
         elif total:
             return self._memory_status.limit
@@ -345,7 +348,7 @@ cdef class LuaRuntime:
         If ``total`` is True, the base memory used by the lua runtime
         will be included.
         """
-        if self._memory_status.limit < 0:
+        if self._memory_status.limit == <size_t> -1:
             return None
         elif total:
             return self._memory_status.used
@@ -542,7 +545,7 @@ cdef class LuaRuntime:
         RuntimeError.
         """
         cdef size_t used
-        if self._memory_status.limit < 0:
+        if self._memory_status.limit == <size_t> -1:
             raise RuntimeError("max_memory must be set on LuaRuntime creation")
         elif max_memory <= 0:
             self._memory_status.limit = 0
