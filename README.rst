@@ -954,7 +954,7 @@ Lua code hitting the memory limit will receive memory errors:
         >>> lua.eval("string.rep('a', 1000)")   # doctest: +ELLIPSIS
         Traceback (most recent call last):
          ...
-        lupa...LuaMemoryError: not enough memory
+        ...LuaMemoryError: not enough memory
 
 ``LuaMemoryError`` inherits from ``LuaError`` and ``MemoryError``.
 
