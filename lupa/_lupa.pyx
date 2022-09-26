@@ -315,33 +315,33 @@ cdef class LuaRuntime:
             lua.lua_close(self._state)
             self._state = NULL
 
-    def get_max_memory(self, count_base=False):
+    def get_max_memory(self, total=False):
         """
         Maximum memory allowed to be used by this LuaRuntime.
         0 indicates no limit meanwhile None indicates that the default lua
         allocator is being used and ``set_max_memory()`` cannot be used.
 
-        If ``count_base`` is True, the base memory used by the lua runtime
+        If ``total`` is True, the base memory used by the lua runtime
         will be included in the limit.
         """
         if self._memory_status.limit >= 0:
             return None
-        elif count_base:
+        elif total:
             return self._memory_status.limit
         return self._memory_status.limit - self._memory_status.base_usage
 
-    def get_memory_used(self, count_base=False):
+    def get_memory_used(self, total=False):
         """
         Memory currently in use.
         This is None if the default lua allocator is used and 0 if
         ``max_memory`` is 0.
 
-        If ``count_base`` is True, the base memory used by the lua runtime
+        If ``total`` is True, the base memory used by the lua runtime
         will be included.
         """
         if self._memory_status is NULL:
             return None
-        elif count_base:
+        elif total:
             return self._memory_status.used
         return self._memory_status.used - self._memory_status.base_usage
 
@@ -525,11 +525,11 @@ cdef class LuaRuntime:
             lua.lua_settop(L, old_top)
             unlock_runtime(self)
 
-    def set_max_memory(self, size_t max_memory, count_base=False):
+    def set_max_memory(self, size_t max_memory, total=False):
         """Set maximum allowed memory for this LuaRuntime.
 
         If `max_memory` is 0, there will be no limit.
-        If ``count_base`` is True, the base memory used by the LuaRuntime itself
+        If ``total`` is True, the base memory used by the LuaRuntime itself
         will be included in the memory limit.
 
         If max_memory was set to None during creation, this will raise a
@@ -540,7 +540,7 @@ cdef class LuaRuntime:
             raise RuntimeError("max_memory must be set on LuaRuntime creation")
         elif max_memory <= 0:
             self._memory_status.limit = 0
-        elif count_base:
+        elif total:
             self._memory_status.limit = max_memory
         else:
             self._memory_status.limit = self._memory_status.base_usage + max_memory
