@@ -934,8 +934,8 @@ memory usage:
    Values below or equal to 0 mean no limit.
 
 There is always some memory used by the LuaRuntime itself (around ~20KiB,
-depends on your lua version and other factors) which is excluded from all
-calculations unless specifying ``total=True``.
+depending on your lua version and other factors) which is excluded from all
+calculations unless you specify ``total=True``.
 
 .. code:: python
 
