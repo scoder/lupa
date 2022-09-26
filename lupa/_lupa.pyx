@@ -9,7 +9,7 @@ from __future__ import absolute_import
 cimport cython
 
 from libc.string cimport strlen, strchr
-from libc.stdlib cimport malloc, calloc, free, realloc
+from libc.stdlib cimport malloc, free, realloc
 from libc.stdio cimport fprintf, stderr, fflush
 from . cimport luaapi as lua
 from .luaapi cimport lua_State
@@ -255,7 +255,7 @@ cdef class LuaRuntime:
     cdef object _attribute_getter
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
-    cdef MemoryStatus* _memory_status
+    cdef MemoryStatus _memory_status
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
@@ -266,10 +266,9 @@ cdef class LuaRuntime:
 
         if max_memory is None:
             L = lua.luaL_newstate()
+            self._memory_status.limit = -1
         else:
-            memory_status = <MemoryStatus*>calloc(1, sizeof(MemoryStatus))
-            self._memory_status = memory_status
-            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, <void*>self._memory_status)
+            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, <void*>&self._memory_status)
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
 
@@ -315,9 +314,6 @@ cdef class LuaRuntime:
         if self._state is not NULL:
             lua.lua_close(self._state)
             self._state = NULL
-        if self._memory_status is not NULL:
-            free(self._memory_status)
-            self._memory_status = NULL
 
     def get_max_memory(self, count_base=False):
         """
@@ -328,7 +324,7 @@ cdef class LuaRuntime:
         If ``count_base`` is True, the base memory used by the lua runtime
         will be included in the limit.
         """
-        if self._memory_status is NULL:
+        if self._memory_status.limit >= 0:
             return None
         elif count_base:
             return self._memory_status.limit
@@ -540,7 +536,7 @@ cdef class LuaRuntime:
         RuntimeError.
         """
         cdef size_t used
-        if self._memory_status is NULL:
+        if self._memory_status.limit < 0:
             raise RuntimeError("max_memory must be set on LuaRuntime creation")
         elif max_memory <= 0:
             self._memory_status.limit = 0
