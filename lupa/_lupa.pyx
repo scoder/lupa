@@ -324,7 +324,7 @@ cdef class LuaRuntime:
         If ``total`` is True, the base memory used by the lua runtime
         will be included in the limit.
         """
-        if self._memory_status.limit >= 0:
+        if self._memory_status.limit < 0:
             return None
         elif total:
             return self._memory_status.limit
@@ -339,7 +339,7 @@ cdef class LuaRuntime:
         If ``total`` is True, the base memory used by the lua runtime
         will be included.
         """
-        if self._memory_status is NULL:
+        if self._memory_status.limit < 0:
             return None
         elif total:
             return self._memory_status.used
