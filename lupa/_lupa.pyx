@@ -113,6 +113,12 @@ else:  # probably not smaller
     LUA_MININTEGER, LUA_MAXINTEGER = (CHAR_MIN, CHAR_MAX)
 
 
+cdef struct MemoryStatus:
+    size_t used
+    size_t base_usage
+    size_t limit
+
+
 class LuaError(Exception):
     """Base class for errors in the Lua runtime.
     """
@@ -1812,11 +1818,6 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 
 
 # bounded memory allocation
-
-cdef struct MemoryStatus:
-    size_t used
-    size_t base_usage
-    size_t limit
 
 cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t new_size) nogil:
     # adapted from https://stackoverflow.com/a/9672205
