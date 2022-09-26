@@ -921,8 +921,8 @@ usage of the Lua Runtime since version 2.0.
 By default Lupa does not interfere with Lua's memory allocation, to opt-in
 you must set the ``max_memory`` when creating the LuaRuntime.
 
-Lupa provides three helper functions for controlling and getting the
-memory usage of the LuaRuntime:
+The ``LuaRuntime`` provides three methods for controlling and reading the
+memory usage:
 
 1. ``get_memory_used(total=False)`` to get the current memory
    usage of the LuaRuntime.
