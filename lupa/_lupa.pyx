@@ -6,6 +6,9 @@ A fast Python wrapper around Lua and LuaJIT2.
 
 from __future__ import absolute_import
 
+import inspect
+import traceback
+
 cimport cython
 
 from libc.string cimport strlen, strchr
@@ -538,10 +541,26 @@ cdef class LuaRuntime:
         lua.lua_setmetatable(L, -2)                          # lib tbl
         lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # lib 
 
+        def safe_eval(code):
+            try:
+                return eval(code, globals())
+            except Exception as e:
+                traceback.print_exc()
+                raise
+
+        def safe_import(name):
+            try:
+                g = globals()
+                g[name] = __import__(name, globals=g)
+            except Exception as e:
+                traceback.print_exc()
+                raise
+
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
         if register_eval:
-            self.register_py_object(b'eval',     b'eval', eval)
+            self.register_py_object(b'eval',     b'eval', safe_eval)
+            self.register_py_object(b'import',     b'import', safe_import)
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', builtins)
 
