@@ -21,6 +21,9 @@ from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
 from cpython.bytes cimport PyBytes_FromFormat
 
+cdef extern from "Python.h":
+    void *PyLong_AsVoidPtr(object)
+
 #from libc.stdint cimport uintptr_t
 cdef extern from *:
     """
@@ -249,11 +252,14 @@ cdef class LuaRuntime:
                   bint register_eval=True, bint unpack_returned_tuples=False,
                   bint register_builtins=True, overflow_handler=None):
 
-        cdef lua_State *L = <lua_State*>state;
-        self._lua_allocated = False
+        cdef lua_State *L
+        
         if state is None:
             self._lua_allocated = True
             L = lua.luaL_newstate()
+        else:
+            self._lua_allocated = False
+            L = <lua_State *> PyLong_AsVoidPtr(state)
 
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
