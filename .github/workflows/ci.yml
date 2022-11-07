@@ -11,7 +11,7 @@ jobs:
 
       matrix:
         os: [windows-2019, ubuntu-20.04, macos-11, macos-12]
-        python-version: ["2.7", "3.10", "3.9", "3.8", "3.7", "3.6", "pypy-2.7", "pypy-3.7", "pypy-3.8"]
+        python-version: ["2.7", "3.11", "3.10", "3.9", "3.8", "3.7", "3.6", "pypy-2.7", "pypy-3.7", "pypy-3.8"]
         lua-version: ["bundle", "lua5.3", "lua5.2", "luajit-5.1"]
 
         exclude:
@@ -56,13 +56,13 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: "10.15"
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Check out recursively
       run: git submodule update --init --recursive
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -90,7 +90,7 @@ jobs:
 
     - name: Upload wheels
       if: ${{ contains(matrix.lua-version, 'bundle') }}
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: wheels-${{ runner.os }}
         path: dist/*.whl
