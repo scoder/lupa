@@ -41,6 +41,12 @@ Lupa change log
   (patch by Guilherme Dantas)
 
 
+1.14 (2022-11-09)
+-----------------
+
+* Rebuild with Cython 0.29.32 to support Python 3.11.
+
+
 1.13 (2022-03-01)
 -----------------
 

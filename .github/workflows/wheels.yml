@@ -86,7 +86,7 @@ jobs:
           - image: musllinux_1_1_aarch64
             pyversion: "cp310*"
           - image: musllinux_1_1_aarch64
-            pyversion: "cp311"
+            pyversion: "cp311*"
 
     steps:
     - uses: actions/checkout@v3
