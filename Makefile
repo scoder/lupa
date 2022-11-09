@@ -13,7 +13,8 @@ MANYLINUX_IMAGES= \
 	manylinux_2_24_aarch64 \
 	manylinux_2_24_ppc64le \
 	manylinux_2_24_s390x \
-	musllinux_1_1_x86_64
+	musllinux_1_1_x86_64 \
+	musllinux_1_1_aarch64
 
 .PHONY: all local sdist test clean realclean
 

@@ -138,7 +138,7 @@ jobs:
             python_version: 3.5
 
     runs-on: ${{ matrix.os }}
-    env: { MACOSX_DEPLOYMENT_TARGET: 10.14 }
+    env: { MACOSX_DEPLOYMENT_TARGET: 10.15 }
 
     steps:
     - uses: actions/checkout@v3
