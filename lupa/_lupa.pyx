@@ -544,7 +544,7 @@ cdef class LuaRuntime:
         cdef size_t used
         if self._memory_status.limit == <size_t> -1:
             raise RuntimeError("max_memory must be set on LuaRuntime creation")
-        elif max_memory <= 0:
+        elif max_memory == 0:
             self._memory_status.limit = 0
         elif total:
             self._memory_status.limit = max_memory
