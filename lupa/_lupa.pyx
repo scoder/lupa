@@ -315,6 +315,9 @@ cdef class LuaRuntime:
             self._memory_status.base_usage = self._memory_status.used
             if max_memory > 0:
                 self._memory_status.limit =  self._memory_status.base_usage + <size_t>max_memory
+                # Prevent accidental (or deliberate) usage of our special value.
+                if self._memory_status.limit == <size_t> -1:
+                    self._memory_status.limit -= 1
 
     def __dealloc__(self):
         if self._state is not NULL:
@@ -550,6 +553,9 @@ cdef class LuaRuntime:
             self._memory_status.limit = max_memory
         else:
             self._memory_status.limit = self._memory_status.base_usage + max_memory
+            # Prevent accidental (or deliberate) usage of our special value.
+            if self._memory_status.limit == <size_t> -1:
+                self._memory_status.limit -= 1
 
     def set_overflow_handler(self, overflow_handler):
         """Set the overflow handler function that is called on failures to pass large numbers to Lua.
