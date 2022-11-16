@@ -124,18 +124,28 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [macos-12, windows-latest]
+        os:
+          - macos-12
+          - windows-latest
         #os: [macos-11, windows-latest, macOS-M1]
         #os: [macos-11, macOS-M1]
         #os: [macos-11]
-        python_version: ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "pypy-3.7-v7.3.3", "pypy-3.8-v7.3.7"]
+        python_version:
+          - "2.7"
+          - "3.6"
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "pypy-3.7-v7.3.7"
+          - "pypy-3.8-v7.3.7"
+          - "pypy-3.9-v7.3.7"
 
         exclude:
           # outdated compilers and probably not worth supporting anymore
           - os: windows-latest
             python_version: 2.7
-          - os: windows-latest
-            python_version: 3.5
 
     runs-on: ${{ matrix.os }}
     env: { MACOSX_DEPLOYMENT_TARGET: 10.15 }
