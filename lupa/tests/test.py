@@ -494,10 +494,11 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertEqual(6, len(table))
 
     def test_table_from_dict(self):
-        table = self.lua.table_from({"foo": 1, "bar": 20, "baz": "spam"})
+        table = self.lua.table_from({"foo": 1, "bar": 20, "baz": "spam", None: "python.none"})
         self.assertEqual(     1, table['foo'])
         self.assertEqual(    20, table['bar'])
         self.assertEqual("spam", table['baz'])
+        self.assertEqual("python.none", table[None])
 
         self.assertEqual(0, len(table))
 

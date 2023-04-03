@@ -430,7 +430,7 @@ cdef class LuaRuntime:
             for obj in args:
                 if isinstance(obj, dict):
                     for key, value in obj.iteritems():
-                        py_to_lua(self, L, key)
+                        py_to_lua(self, L, key, wrap_none=True)
                         py_to_lua(self, L, value)
                         lua.lua_rawset(L, -3)
 
@@ -447,7 +447,7 @@ cdef class LuaRuntime:
                 elif isinstance(obj, Mapping):
                     for key in obj:
                         value = obj[key]
-                        py_to_lua(self, L, key)
+                        py_to_lua(self, L, key, wrap_none=True)
                         py_to_lua(self, L, value)
                         lua.lua_rawset(L, -3)
                 else:
