@@ -2996,12 +2996,69 @@ class TestLuaObjectString(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertRaises(self.lupa.LuaError, str, self.lua.eval('setmetatable({}, {__tostring = function() error() end})'))
 
 
+################################################################################
+# test LuaRuntime max_memory
+
+class TestMaxMemory(SetupLuaRuntimeMixin, LupaTestCase):
+    lua_runtime_kwargs = {"max_memory": 10000}
+
+    def setUp(self):
+        # need to test in here because the creation of the LuaRuntime fails
+        if "luajit" in self.lupa.LuaRuntime().lua_implementation.lower():
+            return self.skipTest("not supported in LuaJIT")
+        return super(TestMaxMemory, self).setUp()
+
+    def test_getters(self):
+        self.assertEqual(self.lua.get_memory_used(), 0)
+        self.assertGreater(self.lua.get_memory_used(total=True), 0)
+        self.assertEqual(self.lua.get_max_memory(), 10000)
+        self.assertGreater(self.lua.get_max_memory(total=True), 10000)
+        self.lua.set_max_memory(1000000)
+        self.assertEqual(self.lua.get_memory_used(), 0)
+        self.assertGreater(self.lua.get_memory_used(total=True), 0)
+        self.assertEqual(self.lua.get_max_memory(), 1000000)
+        self.assertGreater(self.lua.get_max_memory(total=True), 1000000)
+        self.lua.set_max_memory(1000000, total=True)
+        self.assertEqual(self.lua.get_max_memory(total=True), 1000000)
+        self.assertLess(self.lua.get_max_memory(), 1000000)
+
+    def test_not_enough_memory(self):
+        self.lua.eval("('a'):rep(50)")
+        self.assertRaises(self.lupa.LuaMemoryError, self.lua.eval, "('a'):rep(50000)")
+
+    def test_decrease_memory(self):
+        self.lua.set_max_memory(1000000)
+        self.lua.execute("a = ('a'):rep(50000)")
+        self.lua.set_max_memory(10000)
+        self.assertEqual(self.lua.get_max_memory(), 10000)
+        self.assertGreaterEqual(self.lua.get_memory_used(), 50000)
+        self.assertRaises(self.lupa.LuaMemoryError, self.lua.eval, "('b'):rep(10)")
+        del self.lua.globals()["a"]
+        self.lua.eval("('b'):rep(10)")
+
+    def test_compile_not_enough_memory(self):
+        self.lua.set_max_memory(10)
+        self.assertRaises(self.lupa.LuaMemoryError, self.lua.compile, "_G.a = function() return 'test abcdef' end")
+
+    def test_unlimited_memory(self):
+        self.lua.set_max_memory(0)
+        self.lua.execute("a = ('a'):rep(50000)")
+
+
+class TestMaxMemoryWithoutSettingIt(SetupLuaRuntimeMixin, LupaTestCase):
+    def test_property(self):
+        self.assertEqual(self.lua.get_max_memory(), None)
+
+    def test_set_max(self):
+        self.assertRaises(RuntimeError, self.lua.set_max_memory, 10000)
+
 
 ################################################################################
 # Load tests for different Lua version modules
 
 def load_tests(loader, standard_tests, pattern):
     return lupa.tests.build_suite_for_modules(loader, globals())
+
 
 
 if __name__ == '__main__':
