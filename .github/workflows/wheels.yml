@@ -172,7 +172,9 @@ jobs:
       run: python -m pip install setuptools wheel -r requirements.txt
 
     - name: Build wheels
-      run: USE_BUNDLE=true python setup.py --with-cython sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j5' || '' }} bdist_wheel ${{ contains(matrix.os, 'macos-12') && '--universal' || '' }}
+      run: |
+        set USE_BUNDLE=true
+        python setup.py --with-cython sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j5' || '' }} bdist_wheel
 
     - name: Release
       uses: softprops/action-gh-release@v1
