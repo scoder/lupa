@@ -3,6 +3,14 @@ name: Wheel build
 on:
   release:
     types: [created]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write  # to create GitHub release (softprops/action-gh-release)
 
 jobs:
   sdist:
