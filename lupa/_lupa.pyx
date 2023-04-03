@@ -6,6 +6,9 @@ A fast Python wrapper around Lua and LuaJIT2.
 
 from __future__ import absolute_import
 
+import inspect
+import traceback
+
 cimport cython
 
 from libc.string cimport strlen, strchr
@@ -20,6 +23,9 @@ from cpython.ref cimport PyObject
 from cpython.method cimport (
     PyMethod_Check, PyMethod_GET_SELF, PyMethod_GET_FUNCTION)
 from cpython.bytes cimport PyBytes_FromFormat
+
+cdef extern from "Python.h":
+    void *PyLong_AsVoidPtr(object)
 
 #from libc.stdint cimport uintptr_t
 cdef extern from *:
@@ -232,6 +238,7 @@ cdef class LuaRuntime:
       >>> lua_func(py_add1, 2)
       3
     """
+    cdef bint _lua_allocated
     cdef lua_State *_state
     cdef FastRLock _lock
     cdef dict _pyrefs_in_lua
@@ -243,11 +250,20 @@ cdef class LuaRuntime:
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
 
-    def __cinit__(self, encoding='UTF-8', source_encoding=None,
+    def __cinit__(self, state=None, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
                   bint register_builtins=True, overflow_handler=None):
-        cdef lua_State* L = lua.luaL_newstate()
+
+        cdef lua_State *L
+        
+        if state is None:
+            self._lua_allocated = True
+            L = lua.luaL_newstate()
+        else:
+            self._lua_allocated = False
+            L = <lua_State *> PyLong_AsVoidPtr(state)
+
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L
@@ -276,14 +292,16 @@ cdef class LuaRuntime:
                 raise ValueError("attribute_filter and attribute_handlers are mutually exclusive")
             self._attribute_getter, self._attribute_setter = getter, setter
 
-        lua.luaL_openlibs(L)
+        if self._lua_allocated:
+            lua.luaL_openlibs(L)
+            
         self.init_python_lib(register_eval, register_builtins)
         lua.lua_atpanic(L, <lua.lua_CFunction>1)
 
         self.set_overflow_handler(overflow_handler)
 
     def __dealloc__(self):
-        if self._state is not NULL:
+        if self._state is not NULL and self._lua_allocated:
             lua.lua_close(self._state)
             self._state = NULL
 
@@ -523,10 +541,26 @@ cdef class LuaRuntime:
         lua.lua_setmetatable(L, -2)                          # lib tbl
         lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # lib 
 
+        def safe_eval(code):
+            try:
+                return eval(code, globals())
+            except Exception as e:
+                traceback.print_exc()
+                raise
+
+        def safe_import(name):
+            try:
+                g = globals()
+                g[name] = __import__(name, globals=g)
+            except Exception as e:
+                traceback.print_exc()
+                raise
+
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
         if register_eval:
-            self.register_py_object(b'eval',     b'eval', eval)
+            self.register_py_object(b'eval',     b'eval', safe_eval)
+            self.register_py_object(b'import',     b'import', safe_import)
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', builtins)
 

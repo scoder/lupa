@@ -54,6 +54,22 @@ def try_int(s):
         return s
 
 
+def get_option(name):
+    for i, arg in enumerate(sys.argv[1:-1], 1):
+        if arg == name:
+            sys.argv.pop(i)
+            return sys.argv.pop(i)
+    return ""
+
+
+def has_option(name):
+    if name in sys.argv[1:]:
+        sys.argv.remove(name)
+        return True
+    envvar_name = 'LUPA_' + name.lstrip('-').upper().replace('-', '_')
+    return os.environ.get(envvar_name) == 'true'
+
+
 def cmd_output(command):
     """
     Returns the exit code and output of the program, as a triplet of the form
@@ -130,27 +146,32 @@ def lua_libs(package='luajit'):
     return libs_out.split()
 
 
-def get_lua_build_from_arguments():
-    lua_lib = get_option('--lua-lib')
-    lua_includes = get_option('--lua-includes')
+option_lua_lib = get_option('--lua-lib')
+option_lua_includes = get_option('--lua-includes')
 
-    if not lua_lib or not lua_includes:
+
+def get_lua_build_from_arguments():
+
+    if not option_lua_lib or not option_lua_includes:
         return []
 
-    print('Using Lua library: %s' % lua_lib)
-    print('Using Lua include directory: %s' % lua_includes)
+    print('Using Lua library: %s' % option_lua_lib)
+    print('Using Lua include directory: %s' % option_lua_includes)
 
-    root, ext = os.path.splitext(lua_lib)
+    root, ext = os.path.splitext(option_lua_lib)
+    libname = os.path.basename(root)
     if os.name == 'nt' and ext == '.lib':
         return [
-            dict(extra_objects=[lua_lib],
-                 include_dirs=[lua_includes],
-                 libfile=lua_lib)
+            dict(extra_objects=[option_lua_lib],
+                 include_dirs=[option_lua_includes],
+                 libfile=option_lua_lib,
+                 libversion=libname)
         ]
     else:
         return [
-            dict(extra_objects=[lua_lib],
-                 include_dirs=[lua_includes])
+            dict(extra_objects=[option_lua_lib],
+                 include_dirs=[option_lua_includes],
+                 libversion=libname)
         ]
 
 
@@ -316,22 +337,6 @@ def use_bundled_lua(path, macros):
     }
 
 
-def get_option(name):
-    for i, arg in enumerate(sys.argv[1:-1], 1):
-        if arg == name:
-            sys.argv.pop(i)
-            return sys.argv.pop(i)
-    return ""
-
-
-def has_option(name):
-    if name in sys.argv[1:]:
-        sys.argv.remove(name)
-        return True
-    envvar_name = 'LUPA_' + name.lstrip('-').upper().replace('-', '_')
-    return os.environ.get(envvar_name) == 'true'
-
-
 c_defines = [
     ('CYTHON_CLINE_IN_TRACEBACK', 0),
 ]
@@ -368,6 +373,29 @@ if not configs:
     configs = no_lua_error()
 
 
+try:
+    import Cython.Compiler.Version
+    import Cython.Compiler.Errors as CythonErrors
+    from Cython.Build import cythonize
+    print(f"building with Cython {Cython.Compiler.Version.version}")
+    CythonErrors.LEVEL = 0
+except ImportError:
+    cythonize = None
+    print("ERROR: Can't import cython ... Cython not installed")
+    
+
+def do_cythonize(modules: list[Extension], use_cython: bool = True) -> list[Extension]:
+    if not use_cython:
+        print("building without Cython")
+        return modules
+    
+    if cythonize is None:
+        print("WARNING: trying to build with Cython, but it is not installed")
+        return modules
+        
+    return cythonize(modules)
+
+
 # check if Cython is installed, and use it if requested or necessary
 def prepare_extensions(use_cython=True):
     ext_modules = []
@@ -395,21 +423,7 @@ def prepare_extensions(use_cython=True):
                 print("generated sources not available, need Cython to build")
                 use_cython = True
 
-    cythonize = None
-    if use_cython:
-        try:
-            import Cython.Compiler.Version
-            import Cython.Compiler.Errors as CythonErrors
-            from Cython.Build import cythonize
-            print("building with Cython " + Cython.Compiler.Version.version)
-            CythonErrors.LEVEL = 0
-        except ImportError:
-            print("WARNING: trying to build with Cython, but it is not installed")
-    else:
-        print("building without Cython")
-
-    if cythonize is not None:
-        ext_modules = cythonize(ext_modules)
+        ext_modules = do_cythonize(ext_modules, use_cython)
 
     return ext_modules, ext_libraries
 
@@ -443,6 +457,10 @@ for config in configs:
 
 if dll_files:
     extra_setup_args['package_data'] = {'lupa': dll_files}
+
+# Add proxy embedded module to make portal from lua into Python
+embedded_pyx_path = os.path.join("lupa", "embedded.pyx")
+ext_modules += do_cythonize([Extension("lupa.embedded", sources=[embedded_pyx_path])])
 
 # call distutils
 
