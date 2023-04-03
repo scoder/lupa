@@ -126,7 +126,7 @@ jobs:
 
       matrix:
         os:
-          - macos-12
+          - macos-latest
           - windows-latest
         #os: [macos-11, windows-latest, macOS-M1]
         #os: [macos-11, macOS-M1]
@@ -149,7 +149,7 @@ jobs:
             python_version: 2.7
 
     runs-on: ${{ matrix.os }}
-    env: { MACOSX_DEPLOYMENT_TARGET: 10.15 }
+    env: { MACOSX_DEPLOYMENT_TARGET: 11.0 }
 
     steps:
     - uses: actions/checkout@v3
