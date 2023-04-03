@@ -11,6 +11,7 @@ import sys
 from glob import iglob
 from io import open as io_open
 from sys import platform
+from platform import machine as get_machine
 
 try:
     # use setuptools if available
@@ -360,6 +361,8 @@ if not configs and not option_no_bundle:
             # Couldn't get the Windows build to work. See
             # https://luajit.org/install.html#windows
             or (platform.startswith('win') and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
+            # Let's restrict LuaJIT to x86_64 for now.
+            or (get_machine() != "x86_64" and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
     ]
 if not configs and not option_use_bundle:
