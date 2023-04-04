@@ -7,8 +7,8 @@ PYTHON_BUILD_VERSION?=*
 MANYLINUX_IMAGES= \
 	manylinux1_x86_64 \
 	manylinux1_i686 \
-	manylinux_2_24_x86_64 \
 	manylinux_2_24_i686 \
+	manylinux_2_28_x86_64 \
 	manylinux2014_aarch64 \
 	manylinux_2_24_aarch64 \
 	manylinux_2_28_aarch64 \
