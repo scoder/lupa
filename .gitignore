@@ -18,3 +18,6 @@ lupa/lua*.pyx
 
 # Vim swapfiles
 *.swp
+
+# Track Lua source code
+!third-party/**/*.c
