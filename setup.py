@@ -261,11 +261,17 @@ def use_bundled_lua(path, macros):
 
     print('Using bundled Lua in %s' % libname)
 
-    # Parse .o files from 'makefile'
-    makefile = os.path.join(path, "makefile")
+    # Find Makefile in subrepos and downloaded sources.
+    for makefile_path in [os.path.join("src", "makefile"), os.path.join("src", "Makefile"), "makefile", "Makefile"]:
+        makefile = os.path.join(path, makefile_path)
+        if os.path.exists(makefile):
+            break
+    else:
+        raise RuntimeError("Makefile not found in " + path)
+
+    # Parse .o files from Makefile
     match_var = re.compile(r"(CORE|AUX|LIB|ALL)_O\s*=(.*)").match
     is_indented = re.compile(r"\s+").match
-
     obj_files = []
     continuing = False
     with open(makefile) as f:
@@ -300,7 +306,7 @@ def use_bundled_lua(path, macros):
         os.path.splitext(obj_file)[0] + '.c' if obj_file != 'lj_vm.o' else 'lj_vm.s'
         for obj_file in obj_files
     ]
-    if 'lua52' in path:
+    if libname == 'lua52':
         lua_sources.extend(['lbitlib.c', 'lcorolib.c', 'lctype.c'])
     src_dir = os.path.dirname(makefile)
     ext_libraries = [

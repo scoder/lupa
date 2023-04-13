@@ -3034,7 +3034,9 @@ class TestMaxMemory(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertGreaterEqual(self.lua.get_memory_used(), 50000)
         self.assertRaises(self.lupa.LuaMemoryError, self.lua.eval, "('b'):rep(10)")
         del self.lua.globals()["a"]
-        self.lua.eval("('b'):rep(10)")
+        if self.lua.lua_version >= (5, 2):
+            # Lua 5.1 doesn't free the memory of `a` after deleting it
+            self.lua.eval("('b'):rep(10)")
 
     def test_compile_not_enough_memory(self):
         self.lua.set_max_memory(10)
