@@ -1,6 +1,13 @@
 Lupa change log
 ===============
 
+2.1 (2023-??-??)
+----------------
+
+* The bundled Lua 5.1 was updated to 5.1.5 and Lua 5.2 to 5.2.4.
+  (patch by xxyzz)
+
+
 2.0 (2023-04-03)
 ----------------
 
@@ -45,6 +52,8 @@ Lupa change log
 
 * GH#179: Resolve some C compiler warnings about signed/unsigned comparisons.
   (patch by Guilherme Dantas)
+
+* Built with Cython 0.29.34.
 
 
 1.14.1 (2022-11-16)
