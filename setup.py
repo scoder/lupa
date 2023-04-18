@@ -372,7 +372,7 @@ if not configs and not option_no_bundle:
         )
     ]
 if not configs and not option_use_bundle:
-    configs = find_lua_build(no_luajit=option_no_luajit)
+    configs = [find_lua_build(no_luajit=option_no_luajit)]
 if not configs:
     configs = no_lua_error()
 
