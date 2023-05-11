@@ -685,7 +685,7 @@ cdef int check_lua_stack(lua_State* L, int extra) except -1:
     return 0
 
 
-cdef int get_object_length_from_lua(lua_State* L) nogil:
+cdef int get_object_length_from_lua(lua_State* L) noexcept nogil:
     cdef size_t length = lua.lua_objlen(L, lua.lua_upvalueindex(1))
     lua.lua_pushlightuserdata(L, <void*>length)
     return 1
@@ -789,10 +789,10 @@ cdef tuple _fix_args_kwargs(tuple args):
 ################################################################################
 # fast, re-entrant runtime locking
 
-cdef inline bint lock_runtime(LuaRuntime runtime) with gil:
+cdef inline bint lock_runtime(LuaRuntime runtime) noexcept with gil:
     return lock_lock(runtime._lock, pythread.PyThread_get_thread_ident(), True)
 
-cdef inline void unlock_runtime(LuaRuntime runtime) nogil:
+cdef inline void unlock_runtime(LuaRuntime runtime) noexcept nogil:
     unlock_lock(runtime._lock)
 
 
@@ -967,7 +967,7 @@ cdef _LuaObject new_lua_object(LuaRuntime runtime, lua_State* L, int n):
     init_lua_object(obj, runtime, L, n)
     return obj
 
-cdef void init_lua_object(_LuaObject obj, LuaRuntime runtime, lua_State* L, int n):
+cdef void init_lua_object(_LuaObject obj, LuaRuntime runtime, lua_State* L, int n) noexcept:
     obj._runtime = runtime
     obj._state = L
     lua.lua_pushvalue(L, n)
@@ -1353,7 +1353,7 @@ cdef class _LuaIter:
 
 # type conversions and protocol adaptations
 
-cdef int py_asfunc_call(lua_State *L) nogil:
+cdef int py_asfunc_call(lua_State *L) noexcept nogil:
     if (lua.lua_gettop(L) == 1 and lua.lua_islightuserdata(L, 1)
             and lua.lua_topointer(L, 1) == <void*>unpack_wrapped_pyfunction):
         # special case: unpack_python_argument_or_jump() calls this to find out the Python object
@@ -1363,7 +1363,7 @@ cdef int py_asfunc_call(lua_State *L) nogil:
     lua.lua_insert(L, 1)
     return py_object_call(L)
 
-cdef py_object* unpack_wrapped_pyfunction(lua_State* L, int n) nogil:
+cdef py_object* unpack_wrapped_pyfunction(lua_State* L, int n) noexcept nogil:
     cdef lua.lua_CFunction cfunction = lua.lua_tocfunction(L, n)
     if cfunction is <lua.lua_CFunction>py_asfunc_call:
         lua.lua_pushvalue(L, n)
@@ -1458,7 +1458,7 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
         return new_lua_function(runtime, L, n)
     return new_lua_object(runtime, L, n)
 
-cdef py_object* unpack_userdata(lua_State *L, int n) nogil:
+cdef py_object* unpack_userdata(lua_State *L, int n) noexcept nogil:
     """
     Like luaL_checkudata(), unpacks a userdata object and validates that
     it's a wrapped Python object.  Returns NULL on failure.
@@ -1627,7 +1627,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
 
     return 1  # values pushed
 
-cdef inline int _isascii(unsigned char* s):
+cdef inline int _isascii(unsigned char* s) noexcept:
     cdef unsigned char c = 0
     while s[0]:
         c |= s[0]
@@ -1663,7 +1663,7 @@ cdef int raise_lua_error(LuaRuntime runtime, lua_State* L, int result) except -1
         raise LuaError(error_message)
 
 
-cdef bint _looks_like_traceback_line(unicode line):
+cdef bint _looks_like_traceback_line(unicode line) except -1:
     # Lua tracebacks look like this (using tabs as indentation):
     # stack traceback:
     #    [C]: in function 'error'
@@ -1825,7 +1825,7 @@ cdef tuple unpack_multiple_lua_results(LuaRuntime runtime, lua_State *L, int nar
 
 # bounded memory allocation
 
-cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t new_size) nogil:
+cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t new_size) noexcept nogil:
     # adapted from https://stackoverflow.com/a/9672205
     # print(<size_t>ud, <size_t>ptr, old_size, new_size)
     cdef MemoryStatus* memory_status = <MemoryStatus*>ud
@@ -1855,7 +1855,7 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t ne
         memory_status.used += new_size - old_size
     return new_ptr
 
-cdef int _lua_panic(lua_State *L) nogil:
+cdef int _lua_panic(lua_State *L) noexcept nogil:
     cdef const char* msg = lua.lua_tostring(L, -1)
     if msg == NULL:
         msg = "error object is not a string"
@@ -1896,7 +1896,7 @@ cdef class _PyReference:
     cdef int _ref
 
 
-cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) with gil:
+cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) noexcept with gil:
     cdef _PyReference pyref
     # originally, we just used:
     #cpython.ref.Py_XDECREF(py_obj.obj)
@@ -1917,7 +1917,7 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) with gil:
     finally:
         py_obj.obj = NULL
     
-cdef int py_object_gc(lua_State* L) nogil:
+cdef int py_object_gc(lua_State* L) noexcept nogil:
     if not lua.lua_isuserdata(L, 1):
         return 0
     py_obj = unpack_userdata(L, 1)
@@ -1968,7 +1968,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
 
     return py_function_result_to_lua(runtime, L, result)
 
-cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
+cdef int py_call_with_gil(lua_State* L, py_object *py_obj) noexcept with gil:
     cdef LuaRuntime runtime = None
     cdef lua_State* stored_state = NULL
 
@@ -1985,7 +1985,7 @@ cdef int py_call_with_gil(lua_State* L, py_object *py_obj) with gil:
         if stored_state is not NULL:
             runtime._state = stored_state
 
-cdef int py_object_call(lua_State* L) nogil:
+cdef int py_object_call(lua_State* L) noexcept nogil:
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_call_with_gil(L, py_obj)
     if result < 0:
@@ -1994,7 +1994,7 @@ cdef int py_object_call(lua_State* L) nogil:
 
 # str() support for Python objects
 
-cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
+cdef int py_str_with_gil(lua_State* L, py_object* py_obj) noexcept with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
@@ -2012,7 +2012,7 @@ cdef int py_str_with_gil(lua_State* L, py_object* py_obj) with gil:
         try: runtime.store_raised_exception(L, b'error during Python str() call')
         finally: return -1
 
-cdef int py_object_str(lua_State* L) nogil:
+cdef int py_object_str(lua_State* L) noexcept nogil:
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_str_with_gil(L, py_obj)
     if result < 0:
@@ -2072,7 +2072,7 @@ cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, in
     return 0
 
 
-cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
+cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) noexcept with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
@@ -2084,7 +2084,7 @@ cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         try: runtime.store_raised_exception(L, b'error reading Python attribute/item')
         finally: return -1
 
-cdef int py_object_getindex(lua_State* L) nogil:
+cdef int py_object_getindex(lua_State* L) noexcept nogil:
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_object_getindex_with_gil(L, py_obj)
     if result < 0:
@@ -2092,7 +2092,7 @@ cdef int py_object_getindex(lua_State* L) nogil:
     return result
 
 
-cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
+cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) noexcept with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
@@ -2104,7 +2104,7 @@ cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
         try: runtime.store_raised_exception(L, b'error writing Python attribute/item')
         finally: return -1
 
-cdef int py_object_setindex(lua_State* L) nogil:
+cdef int py_object_setindex(lua_State* L) noexcept nogil:
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_object_setindex_with_gil(L, py_obj)
     if result < 0:
@@ -2124,12 +2124,12 @@ cdef lua.luaL_Reg *py_object_lib = [
 
 ## # Python helper functions for Lua
 
-cdef inline py_object* unpack_single_python_argument_or_jump(lua_State* L) nogil:
+cdef inline py_object* unpack_single_python_argument_or_jump(lua_State* L) noexcept nogil:
     if lua.lua_gettop(L) > 1:
         lua.luaL_argerror(L, 2, "invalid arguments")   # never returns!
     return unpack_python_argument_or_jump(L, 1)
 
-cdef inline py_object* unpack_python_argument_or_jump(lua_State* L, int n) nogil:
+cdef inline py_object* unpack_python_argument_or_jump(lua_State* L, int n) noexcept nogil:
     cdef py_object* py_obj
 
     if lua.lua_isuserdata(L, n):
@@ -2144,7 +2144,7 @@ cdef inline py_object* unpack_python_argument_or_jump(lua_State* L, int n) nogil
 
     return py_obj
 
-cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
+cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int type_flags) noexcept with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
@@ -2153,41 +2153,41 @@ cdef int py_wrap_object_protocol_with_gil(lua_State* L, py_object* py_obj, int t
         try: runtime.store_raised_exception(L, b'error during type adaptation')
         finally: return -1
 
-cdef int py_wrap_object_protocol(lua_State* L, int type_flags) nogil:
+cdef int py_wrap_object_protocol(lua_State* L, int type_flags) noexcept nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
     result = py_wrap_object_protocol_with_gil(L, py_obj, type_flags)
     if result < 0:
         return lua.lua_error(L)  # never returns!
     return result
 
-cdef int py_as_attrgetter(lua_State* L) nogil:
+cdef int py_as_attrgetter(lua_State* L) noexcept nogil:
     return py_wrap_object_protocol(L, 0)
 
-cdef int py_as_itemgetter(lua_State* L) nogil:
+cdef int py_as_itemgetter(lua_State* L) noexcept nogil:
     return py_wrap_object_protocol(L, OBJ_AS_INDEX)
 
-cdef int py_as_function(lua_State* L) nogil:
+cdef int py_as_function(lua_State* L) noexcept nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
     lua.lua_pushcclosure(L, <lua.lua_CFunction>py_asfunc_call, 1)
     return 1
 
 # iteration support for Python objects in Lua
 
-cdef int py_iter(lua_State* L) nogil:
+cdef int py_iter(lua_State* L) noexcept nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
     result = py_iter_with_gil(L, py_obj, 0)
     if result < 0:
         return lua.lua_error(L)  # never returns!
     return result
 
-cdef int py_iterex(lua_State* L) nogil:
+cdef int py_iterex(lua_State* L) noexcept nogil:
     cdef py_object* py_obj = unpack_single_python_argument_or_jump(L) # never returns on error!
     result = py_iter_with_gil(L, py_obj, OBJ_UNPACK_TUPLE)
     if result < 0:
         return lua.lua_error(L)  # never returns!
     return result
 
-cdef int convert_to_lua_Integer(lua_State* L, int idx, lua.lua_Integer* integer) nogil:
+cdef int convert_to_lua_Integer(lua_State* L, int idx, lua.lua_Integer* integer) noexcept nogil:
     cdef int isnum
     cdef lua.lua_Integer temp
     temp = lua.lua_tointegerx(L, idx, &isnum)
@@ -2198,7 +2198,7 @@ cdef int convert_to_lua_Integer(lua_State* L, int idx, lua.lua_Integer* integer)
         lua.lua_pushfstring(L, "Could not convert %s to string", lua.luaL_typename(L, idx))
         return -1
 
-cdef int py_enumerate(lua_State* L) nogil:
+cdef int py_enumerate(lua_State* L) noexcept nogil:
     if lua.lua_gettop(L) > 2:
         lua.luaL_argerror(L, 3, "invalid arguments")   # never returns!
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1)
@@ -2214,7 +2214,7 @@ cdef int py_enumerate(lua_State* L) nogil:
     return result
 
 
-cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj, lua.lua_Integer start) with gil:
+cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj, lua.lua_Integer start) noexcept with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
@@ -2224,7 +2224,7 @@ cdef int py_enumerate_with_gil(lua_State* L, py_object* py_obj, lua.lua_Integer 
         try: runtime.store_raised_exception(L, b'error creating an iterator with enumerate()')
         finally: return -1
 
-cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) with gil:
+cdef int py_iter_with_gil(lua_State* L, py_object* py_obj, int type_flags) noexcept with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_obj.runtime
@@ -2257,7 +2257,7 @@ cdef int py_push_iterator(LuaRuntime runtime, lua_State* L, iterator, int type_f
         lua.lua_pushnil(L)
     return 3
 
-cdef int py_iter_next(lua_State* L) nogil:
+cdef int py_iter_next(lua_State* L) noexcept nogil:
     # first value in the C closure: the Python iterator object
     cdef py_object* py_obj = unpack_python_argument_or_jump(L, 1) # may not return on error!
     result = py_iter_next_with_gil(L, py_obj)
@@ -2265,7 +2265,7 @@ cdef int py_iter_next(lua_State* L) nogil:
         return lua.lua_error(L)  # never returns!
     return result
 
-cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) with gil:
+cdef int py_iter_next_with_gil(lua_State* L, py_object* py_iter) noexcept with gil:
     cdef LuaRuntime runtime
     try:
         runtime = <LuaRuntime?>py_iter.runtime
@@ -2302,7 +2302,7 @@ cdef class _PyArguments:
     cdef tuple args
     cdef dict kwargs
 
-cdef int py_args_with_gil(PyObject* runtime_obj, lua_State* L) with gil:
+cdef int py_args_with_gil(PyObject* runtime_obj, lua_State* L) noexcept with gil:
     cdef _PyArguments pyargs
     cdef LuaRuntime runtime
     try:
@@ -2314,7 +2314,7 @@ cdef int py_args_with_gil(PyObject* runtime_obj, lua_State* L) with gil:
         try: runtime.store_raised_exception(L, b'error while calling python.args()')
         finally: return -1
 
-cdef int py_args(lua_State* L) nogil:
+cdef int py_args(lua_State* L) noexcept nogil:
     cdef PyObject* runtime
     runtime = <PyObject*>lua.lua_touserdata(L, lua.lua_upvalueindex(1))
     if not runtime:
@@ -2327,7 +2327,7 @@ cdef int py_args(lua_State* L) nogil:
 
 # overflow handler setter
 
-cdef int py_set_overflow_handler(lua_State* L) nogil:
+cdef int py_set_overflow_handler(lua_State* L) noexcept nogil:
     if (not lua.lua_isnil(L, 1)
             and not lua.lua_isfunction(L, 1)
             and not unpack_python_argument_or_jump(L, 1)):
@@ -2352,7 +2352,7 @@ cdef lua.luaL_Reg *py_lib = [
 
 # Setup helpers for library tables (removed from C-API in Lua 5.3).
 
-cdef void luaL_setfuncs(lua_State *L, const lua.luaL_Reg *l, int nup):
+cdef void luaL_setfuncs(lua_State *L, const lua.luaL_Reg *l, int nup) noexcept:
     cdef int i
     lua.luaL_checkstack(L, nup, "too many upvalues")
     while l.name != NULL:
@@ -2364,7 +2364,7 @@ cdef void luaL_setfuncs(lua_State *L, const lua.luaL_Reg *l, int nup):
     lua.lua_pop(L, nup)
 
 
-cdef int libsize(const lua.luaL_Reg *l):
+cdef int libsize(const lua.luaL_Reg *l) noexcept:
     cdef int size = 0
     while l and l.name:
         l += 1
@@ -2373,7 +2373,7 @@ cdef int libsize(const lua.luaL_Reg *l):
 
 
 cdef const char *luaL_findtable(lua_State *L, int idx,
-                                const char *fname, int size_hint):
+                                const char *fname, int size_hint) noexcept:
     cdef const char *end
     if idx:
         lua.lua_pushvalue(L, idx)
@@ -2400,7 +2400,7 @@ cdef const char *luaL_findtable(lua_State *L, int idx,
     return NULL
 
 
-cdef void luaL_pushmodule(lua_State *L, const char *modname, int size_hint):
+cdef void luaL_pushmodule(lua_State *L, const char *modname, int size_hint) noexcept:
     # XXX: "_LOADED" is the value of LUA_LOADED_TABLE,
     # but it's absent in lua51
     luaL_findtable(L, lua.LUA_REGISTRYINDEX, "_LOADED", 1)
@@ -2416,7 +2416,7 @@ cdef void luaL_pushmodule(lua_State *L, const char *modname, int size_hint):
 
 
 cdef void luaL_openlib(lua_State *L, const char *libname,
-                       const lua.luaL_Reg *l, int nup):
+                       const lua.luaL_Reg *l, int nup) noexcept:
     if libname:
         luaL_pushmodule(L, libname, libsize(l))
         lua.lua_insert(L, -(nup + 1))
@@ -2427,7 +2427,7 @@ cdef void luaL_openlib(lua_State *L, const char *libname,
 
 # internal Lua functions meant to be called in protected mode
 
-cdef int get_from_lua_table(lua_State* L) nogil:
+cdef int get_from_lua_table(lua_State* L) noexcept nogil:
     """Equivalent to the following Lua function:
     function(t, k) return t[k] end
     """
