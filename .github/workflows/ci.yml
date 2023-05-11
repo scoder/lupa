@@ -17,6 +17,7 @@ jobs:
           - macos-latest
         python-version:
           - "2.7"
+          - "3.12-dev"
           - "3.11"
           - "3.10"
           - "3.9"
