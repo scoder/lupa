@@ -491,7 +491,7 @@ setup(
     ],
 
     packages=['lupa'],
-    build_requires=['Cython>=0.29.28'],
+    setup_requires=['Cython>=0.29.28'],
     ext_modules=ext_modules,
     libraries=ext_libraries,
     **extra_setup_args
