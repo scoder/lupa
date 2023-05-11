@@ -21,7 +21,7 @@ except (ImportError, AttributeError):
     IS_PYPY = False
 
 IS_PYTHON2 = sys.version_info[0] < 3
-not_in_pypy = unittest.skipIf(IS_PYPY)
+not_in_pypy = unittest.skipIf(IS_PYPY, "test not run in PyPy")
 
 try:
     _next = next
