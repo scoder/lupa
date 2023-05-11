@@ -454,6 +454,11 @@ for config in configs:
 if dll_files:
     extra_setup_args['package_data'] = {'lupa': dll_files}
 
+cython_dependency = ([
+    line for line in read_file(os.path.join(basedir, "requirements.txt")).splitlines()
+    if 'Cython' in line
+] + ["Cython"])[0]
+
 # call distutils
 
 setup(
@@ -491,7 +496,7 @@ setup(
     ],
 
     packages=['lupa'],
-    setup_requires=['Cython>=0.29.28'],
+    setup_requires=[cython_dependency],
     ext_modules=ext_modules,
     libraries=ext_libraries,
     **extra_setup_args
