@@ -14,7 +14,14 @@ import lupa
 import lupa.tests
 from lupa.tests import LupaTestCase
 
+try:
+    import platform
+    IS_PYPY = platform.python_implementation() == 'PyPy'
+except (ImportError, AttributeError):
+    IS_PYPY = False
+
 IS_PYTHON2 = sys.version_info[0] < 3
+not_in_pypy = unittest.skipIf(IS_PYPY)
 
 try:
     _next = next
@@ -58,6 +65,7 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
         else:
             self.assertEqual(old_count, new_count)
 
+    @not_in_pypy
     def test_runtime_cleanup(self):
         def run_test():
             lua = self.lupa.LuaRuntime()
@@ -67,6 +75,7 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
 
         self._run_gc_test(run_test)
 
+    @not_in_pypy
     def test_pyfunc_refcycle(self):
         def make_refcycle():
             def use_runtime():
@@ -78,6 +87,7 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
 
         self._run_gc_test(make_refcycle)
 
+    @not_in_pypy
     def test_attrgetter_refcycle(self):
         def make_refcycle():
             def get_attr(obj, name):
@@ -1299,7 +1309,8 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, LupaTestCase):
         f = self.lua.eval("function(N) coroutine.yield(N) end")
         gen = f.coroutine(5)
         self.assertRaises(AttributeError, getattr, gen, '__setitem__')
-        self.assertRaises(AttributeError, setattr, gen, 'send', 5)
+        if not IS_PYPY:
+            self.assertRaises(AttributeError, setattr, gen, 'send', 5)
         self.assertRaises(AttributeError, setattr, gen, 'no_such_attribute', 5)
         self.assertRaises(AttributeError, getattr, gen, 'no_such_attribute')
         self.assertRaises(AttributeError, gen.__getattr__, 'no_such_attribute')
