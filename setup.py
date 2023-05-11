@@ -371,10 +371,11 @@ if not configs and not option_no_bundle:
             or (get_machine() != "x86_64" and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
     ]
-if not configs and not option_use_bundle:
-    configs = find_lua_build(no_luajit=option_no_luajit)
 if not configs:
-    configs = no_lua_error()
+    configs = [
+        (find_lua_build(no_luajit=option_no_luajit) if not option_use_bundle else {})
+        or no_lua_error()
+    ]
 
 
 # check if Cython is installed, and use it if requested or necessary
