@@ -182,7 +182,7 @@ jobs:
     - name: Build wheels
       run: |
         set USE_BUNDLE=true
-        python setup.py --with-cython sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j5' || '' }} bdist_wheel
+        python setup.py --with-cython sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j6' || '' }} bdist_wheel
 
     - name: Release
       uses: softprops/action-gh-release@v1
