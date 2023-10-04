@@ -17,7 +17,7 @@ jobs:
           - macos-latest
         python-version:
           - "2.7"
-          - "3.12-dev"
+          - "3.12"
           - "3.11"
           - "3.10"
           - "3.9"
@@ -28,6 +28,7 @@ jobs:
           - "pypy-3.7"
           - "pypy-3.8"
           - "pypy-3.9"
+          - "pypy-3.10"
         lua-version:
           - "bundle"
           - "lua5.3"
