@@ -30,7 +30,6 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 if 'setuptools' in sys.modules:
     extra_setup_args['test_suite'] = 'lupa.tests.suite'
-    extra_setup_args["zip_safe"] = False
 
 
 class PkgConfigError(RuntimeError):
