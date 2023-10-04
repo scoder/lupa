@@ -367,7 +367,7 @@ if not configs and not option_no_bundle:
             # https://luajit.org/install.html#windows
             or (platform.startswith('win') and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
             # Let's restrict LuaJIT to x86_64 for now.
-            or (get_machine() != "x86_64" and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
+            or (get_machine() not in ("x86_64", "AMD64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
     ]
 if not configs:
