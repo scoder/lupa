@@ -1,7 +1,7 @@
 Lupa change log
 ===============
 
-2.1 (2023-??-??)
+2.1 (2023-10-06)
 ----------------
 
 * The bundled Lua 5.1 was updated to 5.1.5 and Lua 5.2 to 5.2.4.
