@@ -1,11 +1,15 @@
 from __future__ import absolute_import
 
+import sys
 
-# We need to enable global symbol visibility for lupa in order to
-# support binary module loading in Lua.  If we can enable it here, we
-# do it temporarily.
+from contextlib import contextmanager
 
-def _try_import_with_global_library_symbols():
+# Find the implementation with the latest Lua version available.
+_newest_lib = None
+
+
+@contextmanager
+def eager_global_linking():
     try:
         from os import RTLD_NOW, RTLD_GLOBAL
     except ImportError:
@@ -14,22 +18,12 @@ def _try_import_with_global_library_symbols():
 
     import sys
     old_flags = sys.getdlopenflags()
+
     try:
         sys.setdlopenflags(dlopen_flags)
-        import lupa._lupa
+        yield
     finally:
         sys.setdlopenflags(old_flags)
-
-try:
-    _try_import_with_global_library_symbols()
-except:
-    pass
-
-del _try_import_with_global_library_symbols
-
-
-# Find the implementation with the latest Lua version available.
-_newest_lib = None
 
 
 def _import_newest_lib():
@@ -52,7 +46,12 @@ def _import_newest_lib():
         raise RuntimeError("Failed to import Lupa binary module.")
     # prefer Lua over LuaJIT and high versions over low versions.
     module_name = max(modules, key=lambda m: (m[1] == 'lua', tuple(map(int, m[2] or '0'))))
-    _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
+
+    # We need to enable global symbol visibility for lupa in order to
+    # support binary module loading in Lua.  If we can enable it here, we
+    # do it temporarily.
+    with eager_global_linking():
+        _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
 
     return _newest_lib
 
@@ -81,7 +80,6 @@ def __getattr__(name):
     return attr
 
 
-import sys
 if sys.version_info < (3, 7):
     # Module level "__getattr__" requires Py3.7 or later => import latest Lua now
     _import_newest_lib()
