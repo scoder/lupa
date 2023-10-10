@@ -62,8 +62,23 @@ def __getattr__(name):
     Get a name from the latest available Lua (or LuaJIT) module.
     Imports the module as needed.
     """
+    if name.startswith('lua'):
+        import re
+        if re.match(r"((lua[a-z]*)([0-9]*))$", name):
+            # "from lupa import lua54" etc.
+            assert name not in globals()
+            try:
+                module = __import__(name, globals=globals(), locals=locals(), level=1)
+            except ImportError:
+                raise AttributeError(name)
+            else:
+                assert name in globals()
+                return module
+
+    # Import the default Lua implementation and look up the attribute there.
     lua = _newest_lib if _newest_lib is not None else _import_newest_lib()
-    return getattr(lua, name)
+    globals()[name] = attr = getattr(lua, name)
+    return attr
 
 
 import sys
