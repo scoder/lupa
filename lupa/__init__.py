@@ -1,7 +1,5 @@
 from __future__ import absolute_import
 
-import sys
-
 from contextlib import contextmanager
 
 # Find the implementation with the latest Lua version available.
@@ -80,6 +78,7 @@ def __getattr__(name):
     return attr
 
 
+import sys
 if sys.version_info < (3, 7):
     # Module level "__getattr__" requires Py3.7 or later => import latest Lua now
     _import_newest_lib()
