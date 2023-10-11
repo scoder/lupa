@@ -11,7 +11,13 @@ def eager_global_linking():
     try:
         from os import RTLD_NOW, RTLD_GLOBAL
     except ImportError:
-        from DLFCN import RTLD_NOW, RTLD_GLOBAL  # Py2.7
+        try:
+            from DLFCN import RTLD_NOW, RTLD_GLOBAL  # Py2.7
+        except ImportError:
+            # MS-Windows does not have dlopen-flags.
+            yield
+            return
+
     dlopen_flags = RTLD_NOW | RTLD_GLOBAL
 
     import sys
