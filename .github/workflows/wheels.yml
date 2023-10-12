@@ -160,7 +160,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       MACOSX_DEPLOYMENT_TARGET: 11.0
-      LUPA_WITH_LUA_DLOPEN: true
+      LUPA_WITH_LUA_DLOPEN: ${{ startsWith(matrix.os, 'windows') && 'false' || 'true' }}
 
     steps:
     - uses: actions/checkout@v3
