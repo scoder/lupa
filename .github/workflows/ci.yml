@@ -75,6 +75,7 @@ jobs:
       CFLAGS_LTO: ${{ contains(matrix.lua-version, 'bundle')  && (contains(matrix.os, 'windows') && '/LTCG' || '-flto') || '' }}
       CFLAGS: ${{ contains(matrix.os, 'windows') && '/O2' || '-O2 -fPIC' }} -g
       MACOSX_DEPLOYMENT_TARGET: "11.0"
+      LUPA_WITH_LUA_DLOPEN: true
 
     steps:
     - uses: actions/checkout@v3
