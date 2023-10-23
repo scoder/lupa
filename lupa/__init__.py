@@ -7,7 +7,7 @@ _newest_lib = None
 
 
 @contextmanager
-def eager_global_linking():
+def allow_lua_module_loading():
     try:
         from os import RTLD_NOW, RTLD_GLOBAL
     except ImportError:
