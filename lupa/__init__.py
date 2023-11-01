@@ -51,10 +51,13 @@ def _import_newest_lib():
     # prefer Lua over LuaJIT and high versions over low versions.
     module_name = max(modules, key=lambda m: (m[1] == 'lua', tuple(map(int, m[2] or '0'))))
 
-    # We need to enable global symbol visibility for lupa in order to
-    # support binary module loading in Lua.  If we can enable it here, we
-    # do it temporarily.
-    with eager_global_linking():
+    # Allowing module loading using dlopenflags by default doesn't work when there are multiple
+    # Lua modules because the symbols collide with each other when loaded with RTLD_GLOBAL.
+    # Enable this by default only if there is exactly one lua module available.
+    if len(modules) == 1:
+        with allow_lua_module_loading():
+            _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
+    else:
         _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
 
     return _newest_lib
