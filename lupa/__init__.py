@@ -8,6 +8,18 @@ _newest_lib = None
 
 @contextmanager
 def allow_lua_module_loading():
+    """
+    A context manager for enabling binary Lua module loading when importing Lua.
+
+    This can only be used once within a Python runtime and must wrap the import of the
+    ``lupa.*`` Lua module, e.g.::
+
+        with lupa.allow_lua_module_loading()
+            from lupa import lua54
+
+        lua = lua54.LuaRuntime()
+        lua.require('cjson')
+    """
     try:
         from os import RTLD_NOW, RTLD_GLOBAL
     except ImportError:
@@ -51,15 +63,7 @@ def _import_newest_lib():
     # prefer Lua over LuaJIT and high versions over low versions.
     module_name = max(modules, key=lambda m: (m[1] == 'lua', tuple(map(int, m[2] or '0'))))
 
-    # Allowing module loading using dlopenflags by default doesn't work when there are multiple
-    # Lua modules because the symbols collide with each other when loaded with RTLD_GLOBAL.
-    # Enable this by default only if there is exactly one lua module available.
-    if len(modules) == 1:
-        with allow_lua_module_loading():
-            _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
-    else:
-        _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
-
+    _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
     return _newest_lib
 
 
