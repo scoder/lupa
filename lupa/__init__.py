@@ -1,12 +1,12 @@
 from __future__ import absolute_import
 
-from contextlib import contextmanager
+from contextlib import contextmanager as _contextmanager
 
 # Find the implementation with the latest Lua version available.
 _newest_lib = None
 
 
-@contextmanager
+@_contextmanager
 def allow_lua_module_loading():
     """
     A context manager for enabling binary Lua module loading when importing Lua.
@@ -14,6 +14,7 @@ def allow_lua_module_loading():
     This can only be used once within a Python runtime and must wrap the import of the
     ``lupa.*`` Lua module, e.g.::
 
+        import lupa
         with lupa.allow_lua_module_loading()
             from lupa import lua54
 
