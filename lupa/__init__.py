@@ -1,35 +1,46 @@
 from __future__ import absolute_import
 
+from contextlib import contextmanager as _contextmanager
 
-# We need to enable global symbol visibility for lupa in order to
-# support binary module loading in Lua.  If we can enable it here, we
-# do it temporarily.
+# Find the implementation with the latest Lua version available.
+_newest_lib = None
 
-def _try_import_with_global_library_symbols():
+
+@_contextmanager
+def allow_lua_module_loading():
+    """
+    A context manager for enabling binary Lua module loading when importing Lua.
+
+    This can only be used once within a Python runtime and must wrap the import of the
+    ``lupa.*`` Lua module, e.g.::
+
+        import lupa
+        with lupa.allow_lua_module_loading()
+            from lupa import lua54
+
+        lua = lua54.LuaRuntime()
+        lua.require('cjson')
+    """
     try:
         from os import RTLD_NOW, RTLD_GLOBAL
     except ImportError:
-        from DLFCN import RTLD_NOW, RTLD_GLOBAL  # Py2.7
+        try:
+            from DLFCN import RTLD_NOW, RTLD_GLOBAL  # Py2.7
+        except ImportError:
+            # MS-Windows does not have dlopen-flags.
+            yield
+            return
+
     dlopen_flags = RTLD_NOW | RTLD_GLOBAL
 
     import sys
     old_flags = sys.getdlopenflags()
+
     try:
         sys.setdlopenflags(dlopen_flags)
-        import lupa._lupa
+        yield
     finally:
         sys.setdlopenflags(old_flags)
-
-try:
-    _try_import_with_global_library_symbols()
-except:
-    pass
-
-del _try_import_with_global_library_symbols
-
-
-# Find the implementation with the latest Lua version available.
-_newest_lib = None
 
 
 def _import_newest_lib():
@@ -52,8 +63,8 @@ def _import_newest_lib():
         raise RuntimeError("Failed to import Lupa binary module.")
     # prefer Lua over LuaJIT and high versions over low versions.
     module_name = max(modules, key=lambda m: (m[1] == 'lua', tuple(map(int, m[2] or '0'))))
-    _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
 
+    _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
     return _newest_lib
 
 
