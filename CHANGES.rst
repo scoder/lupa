@@ -1,13 +1,25 @@
 Lupa change log
 ===============
 
-2.1 (2023-10-06)
+2.1 (2023-??-??)
 ----------------
+
+* GH#248: The LuaRuntime methods "eval", "execute" and "compile" gained new
+  keyword options ``mode`` and ``name`` that allow constraining the input type
+  and modifying the (chunk) name shown in error messages, following similar
+  arguments in the Lua ``load()`` function.
+  See https://www.lua.org/manual/5.4/manual.html#pdf-load
+
+* GH#246: Loading Lua modules did not work for the version specific Lua modules
+  introduced in Lupa 2.0.  It turned out that it can only be enabled for
+  one of them in a given Python run, so it is now left to users to enable it
+  explicitly at need.
+  (original patch by Richard Connon)
 
 * The bundled Lua 5.1 was updated to 5.1.5 and Lua 5.2 to 5.2.4.
   (patch by xxyzz)
 
-* Built with Cython 3.0.3 for improved support of Python 3.12.
+* Built with Cython 3.0.6 for improved support of Python 3.12.
 
 
 2.0 (2023-04-03)
