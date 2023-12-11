@@ -1,2 +1,2 @@
-Cython>=3.0.3
+Cython>=3.0.6
 setuptools
