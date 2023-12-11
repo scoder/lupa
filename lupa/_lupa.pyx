@@ -393,36 +393,74 @@ cdef class LuaRuntime:
             raise
         return 0
 
-    def eval(self, lua_code, *args):
+    @cython.final
+    cdef bytes _source_encode(self, string):
+        if isinstance(string, unicode):
+            return (<unicode>string).encode(self._source_encoding)
+        elif isinstance(string, bytes):
+            return <bytes> string
+        elif isinstance(string, bytearray):
+            return bytes(string)
+
+        raise TypeError(f"Expected string, got {type(string)}")
+
+    def eval(self, lua_code, *args, name=None, mode=None):
         """Evaluate a Lua expression passed in a string.
+
+        The 'name' argument can be used to override the name printed in error messages.
+
+        The 'mode' argument specifies the input type.  By default, both source code and
+        pre-compiled byte code is allowed (mode='bt').  It can be restricted to source
+        code with mode='t' and to byte code with mode='b'.  This has no effect on Lua 5.1.
         """
         assert self._state is not NULL
-        if isinstance(lua_code, unicode):
-            lua_code = (<unicode>lua_code).encode(self._source_encoding)
-        return run_lua(self, b'return ' + lua_code, args)
+        name_b = self._source_encode(name) if name is not None else None
+        mode_b = _asciiOrNone(mode)
+        return run_lua(self, b'return ' + self._source_encode(lua_code), name_b, mode_b, args)
 
-    def execute(self, lua_code, *args):
+    def execute(self, lua_code, *args, name=None, mode=None):
         """Execute a Lua program passed in a string.
-        """
-        assert self._state is not NULL
-        if isinstance(lua_code, unicode):
-            lua_code = (<unicode>lua_code).encode(self._source_encoding)
-        return run_lua(self, lua_code, args)
 
-    def compile(self, lua_code):
-        """Compile a Lua program into a callable Lua function.
+        The 'name' argument can be used to override the name printed in error messages.
+
+        The 'mode' argument specifies the input type.  By default, both source code and
+        pre-compiled byte code is allowed (mode='bt').  It can be restricted to source
+        code with mode='t' and to byte code with mode='b'.  This has no effect on Lua 5.1.
         """
         assert self._state is not NULL
-        cdef const char *err
-        if isinstance(lua_code, unicode):
-            lua_code = (<unicode>lua_code).encode(self._source_encoding)
+        name_b = self._source_encode(name) if name is not None else None
+        mode_b = _asciiOrNone(mode)
+        return run_lua(self, self._source_encode(lua_code), name_b, mode_b, args)
+
+    def compile(self, lua_code, name=None, mode=None):
+        """Compile a Lua program into a callable Lua function.
+
+        The 'name' argument can be used to override the name printed in error messages.
+
+        The 'mode' argument specifies the input type.  By default, both source code and
+        pre-compiled byte code is allowed (mode='bt').  It can be restricted to source
+        code with mode='t' and to byte code with mode='b'.  This has no effect on Lua 5.1.
+        """
+        assert self._state is not NULL
+        cdef const char * c_name = b'<python>'
+        cdef const char * c_mode = NULL
+
+        lua_code_bytes = self._source_encode(lua_code)
+        if name is not None:
+            name_b = self._source_encode(name)
+            c_name = name_b
+        if mode is not None:
+            mode_b = _asciiOrNone(mode)
+            c_mode = mode_b
+
         L = self._state
         lock_runtime(self)
         old_top = lua.lua_gettop(L)
         cdef size_t size
+        cdef const char *err
         try:
             check_lua_stack(L, 1)
-            status = lua.luaL_loadbuffer(L, lua_code, len(lua_code), b'<python>')
+            status = lua.luaL_loadbufferx(L, lua_code_bytes, len(lua_code_bytes), c_name, c_mode)
             if status == 0:
                 return py_from_lua(self, L, -1)
             else:
@@ -1719,14 +1757,21 @@ cdef build_lua_error_message(LuaRuntime runtime, lua_State* L, int stack_index=-
 
 # calling into Lua
 
-cdef run_lua(LuaRuntime runtime, bytes lua_code, tuple args):
+cdef run_lua(LuaRuntime runtime, bytes lua_code, bytes name, bytes mode, tuple args):
     """Run Lua code with arguments"""
     cdef lua_State* L = runtime._state
+    cdef const char* c_name = b'<python>'
+    cdef const char* c_mode = NULL
+    if name is not None:
+        c_name = name
+    if mode is not None:
+        c_mode = mode
+
     lock_runtime(runtime)
     old_top = lua.lua_gettop(L)
     try:
         check_lua_stack(L, 1)
-        if lua.luaL_loadbuffer(L, lua_code, len(lua_code), '<python>'):
+        if lua.luaL_loadbufferx(L, lua_code, len(lua_code), c_name, c_mode):
             error = build_lua_error_message(runtime, L)
             if error.startswith("not enough memory"):
                 raise LuaMemoryError(error)

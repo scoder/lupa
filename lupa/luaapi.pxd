@@ -316,9 +316,10 @@ cdef extern from "lauxlib.h" nogil:
     int luaL_ref (lua_State *L, int t)
     void luaL_unref (lua_State *L, int t, int ref)
 
-    int luaL_loadfile (lua_State *L, char *filename)
-    int luaL_loadbuffer (lua_State *L, char *buff, size_t sz, char *name)
-    int luaL_loadstring (lua_State *L, char *s)
+    int luaL_loadfile (lua_State *L, const char *filename)
+    int luaL_loadbuffer (lua_State *L, const char *buff, size_t sz, const char *name)
+    int luaL_loadbufferx (lua_State *L, const char *buff, size_t sz, const char *name, const char *mode)
+    int luaL_loadstring (lua_State *L, const char *s)
 
     lua_State *luaL_newstate ()
 
@@ -450,6 +451,7 @@ cdef extern from * nogil:
 
     #if LUA_VERSION_NUM < 502
     #define lua_tointegerx(L, i, isnum) (*(isnum) = lua_isnumber(L, i), lua_tointeger(L, i))
+    #define luaL_loadbufferx(L, buff, sz, name, mode)  (((void)mode), luaL_loadbuffer(L, buff, sz, name))
     #endif
 
     #if LUA_VERSION_NUM >= 504

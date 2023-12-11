@@ -129,6 +129,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
     def test_eval_args_multi(self):
         self.assertEqual((1, 2, 3), self.lua.eval('...', 1, 2, 3))
 
+    def test_eval_name_mode(self):
+        self.assertEqual(2, self.lua.eval('1+1', name='plus', mode='t'))
+
+    def test_eval_mode_error(self):
+        if self.lupa.LUA_VERSION < (5, 2):
+            raise unittest.SkipTest("needs lua 5.2+")
+        self.assertRaises(self.lupa.LuaSyntaxError, self.lua.eval, '1+1', name='plus', mode='b')
+
     def test_eval_error(self):
         self.assertRaises(self.lupa.LuaError, self.lua.eval, '<INVALIDCODE>')
 
@@ -155,6 +163,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_execute(self):
         self.assertEqual(2, self.lua.execute('return 1+1'))
+
+    def test_execute_mode(self):
+        self.assertEqual(2, self.lua.execute('return 1+1', name='return_plus', mode='t'))
+
+    def test_execute_mode_error(self):
+        if self.lupa.LUA_VERSION < (5, 2):
+            raise unittest.SkipTest("needs lua 5.2+")
+        self.assertRaises(self.lupa.LuaSyntaxError, self.lua.execute, 'return 1+1', name='plus', mode='b')
 
     def test_execute_function(self):
         self.assertEqual(3, self.lua.execute('f = function(i) return i+1 end; return f(2)'))
@@ -919,6 +935,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
     def test_compile(self):
         lua_func = self.lua.compile('return 1 + 2')
         self.assertEqual(lua_func(), 3)
+        lua_func = self.lua.compile('return 3 + 2', mode='t')
+        self.assertEqual(lua_func(), 5)
+        lua_func = self.lua.compile('return 1 + 3', name='huhu')
+        self.assertEqual(lua_func(), 4)
+        lua_func = self.lua.compile('return 2 + 3', name='huhu', mode='t')
+        self.assertEqual(lua_func(), 5)
         self.assertRaises(self.lupa.LuaSyntaxError, self.lua.compile, 'function awd()')
 
 
