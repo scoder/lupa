@@ -228,6 +228,11 @@ def use_bundled_luajit(path, macros):
     build_env = dict(os.environ)
     src_dir = os.path.join(path, "src")
     if platform.startswith('win'):
+        try:
+            subprocess.run(["C:\\Program Files(x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat", "x86_x64",])
+        except FileNotFoundError:
+            print("vcvarsall not found in the location spesified by appveyor.yml. If you are not building on CI, this can safely be ignored.")
+
         build_script = [os.path.join(src_dir, "msvcbuild.bat"), "static"]
         lib_file = "lua51.lib"
     else:
