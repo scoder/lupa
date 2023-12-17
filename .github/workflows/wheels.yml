@@ -3,19 +3,27 @@ name: Wheel build
 on:
   release:
     types: [created]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write  # to create GitHub release (softprops/action-gh-release)
 
 jobs:
   sdist:
     runs-on: ubuntu-20.04
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Check out recursively
       run: git submodule update --init --recursive
 
     - name: Set up Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: 3.9
 
@@ -32,7 +40,7 @@ jobs:
         files: dist/*.tar.gz
 
     - name: Upload sdist
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sdist
         path: dist/*.tar.gz
@@ -49,31 +57,30 @@ jobs:
           - manylinux2014_x86_64
           - manylinux2014_i686
           - manylinux_2_28_x86_64
-          - manylinux_2_28_i686
-          - manylinux_2_28_aarch64
+          - manylinux_2_24_i686
+          #- manylinux_2_28_aarch64
           - musllinux_1_1_x86_64
-          - musllinux_1_1_aarch64
+          #- musllinux_1_1_aarch64
           #- manylinux_2_24_ppc64le
           #- manylinux_2_24_ppc64le
           #- manylinux_2_24_s390x
         pyversion: ["*"]
 
-        exclude:
-          - image: manylinux_2_28_aarch64
-            pyversion: "*"
-          - image: musllinux_1_1_aarch64
-            pyversion: "*"
         include:
           - image: manylinux2014_aarch64
             pyversion: "cp36*"
-          - image: manylinux_2_28_aarch64
+          - image: manylinux_2_24_aarch64
             pyversion: "cp37*"
-          - image: manylinux_2_28_aarch64
+          - image: manylinux_2_24_aarch64
             pyversion: "cp38*"
           - image: manylinux_2_28_aarch64
             pyversion: "cp39*"
           - image: manylinux_2_28_aarch64
             pyversion: "cp310*"
+          - image: manylinux_2_28_aarch64
+            pyversion: "cp311*"
+          - image: manylinux_2_28_aarch64
+            pyversion: "cp312*"
 
           - image: musllinux_1_1_aarch64
             pyversion: "cp37*"
@@ -83,15 +90,19 @@ jobs:
             pyversion: "cp39*"
           - image: musllinux_1_1_aarch64
             pyversion: "cp310*"
+          - image: musllinux_1_1_aarch64
+            pyversion: "cp311*"
+          - image: musllinux_1_1_aarch64
+            pyversion: "cp312*"
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Check out recursively
       run: git submodule update --init --recursive
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.9
 
@@ -109,7 +120,7 @@ jobs:
         files: wheelhouse_*/*-m*linux*.whl  # manylinux / musllinux
 
     - name: Upload wheels
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: wheels-${{ matrix.image }}
         path: wheelhouse_*/*-m*linux*.whl  # manylinux / musllinux
@@ -121,30 +132,46 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [macos-12, windows-latest]
+        os:
+          - macos-latest
+          - windows-latest
         #os: [macos-11, windows-latest, macOS-M1]
         #os: [macos-11, macOS-M1]
         #os: [macos-11]
-        python_version: ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "pypy-3.7-v7.3.3", "pypy-3.8-v7.3.7"]
+        pyversion:
+          - "2.7"
+          - "3.6"
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "pypy-3.7-v7.3.7"
+          - "pypy-3.8-v7.3.7"
+          - "pypy-3.9-v7.3.11"
+          - "pypy-3.10-v7.3.13"
 
         exclude:
           # outdated compilers and probably not worth supporting anymore
           - os: windows-latest
-            python_version: 2.7
+            pyversion: 2.7
 
     runs-on: ${{ matrix.os }}
-    env: { MACOSX_DEPLOYMENT_TARGET: 10.15 }
+    env:
+      MACOSX_DEPLOYMENT_TARGET: 11.0
+      LUPA_WITH_LUA_DLOPEN: ${{ startsWith(matrix.os, 'windows') && 'false' || 'true' }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Check out recursively
       run: git submodule update --init --recursive
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: ${{ matrix.python_version }}
+        python-version: ${{ matrix.pyversion }}
 
     - name: Install MacOS dependencies
       if: startsWith(matrix.os, 'mac')
@@ -156,7 +183,9 @@ jobs:
       run: python -m pip install setuptools wheel -r requirements.txt
 
     - name: Build wheels
-      run: USE_BUNDLE=true python setup.py --with-cython sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j5' || '' }} bdist_wheel ${{ contains(matrix.os, 'macos-12') && '--universal' || '' }}
+      run: |
+        set USE_BUNDLE=true
+        python setup.py --with-cython sdist ${{ contains(matrix.pyversion, '3.') && 'build_ext -j6' || '' }} bdist_wheel
 
     - name: Release
       uses: softprops/action-gh-release@v1
@@ -165,7 +194,7 @@ jobs:
         files: dist/*.whl
 
     - name: Upload wheels
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: wheels-${{ matrix.os }}
         path: dist/*.whl

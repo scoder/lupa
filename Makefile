@@ -2,15 +2,17 @@ PYTHON?=python
 USE_BUNDLE?=true
 VERSION?=$(shell sed -ne "s|^VERSION\s*=\s*'\([^']*\)'.*|\1|p" setup.py)
 WITH_CYTHON?=$(shell $(PYTHON)  -c 'import Cython.Build.Dependencies' >/dev/null 2>/dev/null && echo " --with-cython" || true)
+WITH_LUA_DLOPEN?=true
 PYTHON_BUILD_VERSION?=*
 
 MANYLINUX_IMAGES= \
 	manylinux1_x86_64 \
 	manylinux1_i686 \
-	manylinux_2_24_x86_64 \
 	manylinux_2_24_i686 \
+	manylinux_2_28_x86_64 \
 	manylinux2014_aarch64 \
 	manylinux_2_24_aarch64 \
+	manylinux_2_28_aarch64 \
 	manylinux_2_24_ppc64le \
 	manylinux_2_24_s390x \
 	musllinux_1_1_x86_64 \
@@ -21,7 +23,7 @@ MANYLINUX_IMAGES= \
 all:  local
 
 local:
-	${PYTHON} setup.py build_ext --inplace $(WITH_CYTHON)
+	LUPA_WITH_LUA_DLOPEN=$(WITH_LUA_DLOPEN) ${PYTHON} setup.py build_ext --inplace $(WITH_CYTHON)
 
 sdist dist/lupa-$(VERSION).tar.gz:
 	${PYTHON} setup.py sdist
@@ -37,7 +39,7 @@ realclean: clean
 	rm -fr lupa/_lupa.c
 
 wheel:
-	$(PYTHON) setup.py bdist_wheel $(WITH_CYTHON)
+	LUPA_WITH_LUA_DLOPEN=$(WITH_LUA_DLOPEN) $(PYTHON) setup.py bdist_wheel $(WITH_CYTHON)
 
 qemu-user-static:
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
@@ -57,6 +59,7 @@ wheel_%: dist/lupa-$(VERSION).tar.gz
 		-e NM=gcc-nm \
 		-e RANLIB=gcc-ranlib \
 		-e LUPA_USE_BUNDLE=$(USE_BUNDLE) \
+		-e LUPA_WITH_LUA_DLOPEN=$(WITH_LUA_DLOPEN) \
 		-e WHEELHOUSE=wheelhouse_$(subst wheel_,,$@) \
 		quay.io/pypa/$(subst wheel_,,$@) \
 		bash -c 'echo "Python versions: $$(ls /opt/python/ | xargs -n 100 echo)" ; \

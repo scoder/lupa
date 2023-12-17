@@ -1,8 +1,29 @@
 Lupa change log
 ===============
 
-2.0a1 (2022-??-??)
-------------------
+2.1 (2023-??-??)
+----------------
+
+* GH#248: The LuaRuntime methods "eval", "execute" and "compile" gained new
+  keyword options ``mode`` and ``name`` that allow constraining the input type
+  and modifying the (chunk) name shown in error messages, following similar
+  arguments in the Lua ``load()`` function.
+  See https://www.lua.org/manual/5.4/manual.html#pdf-load
+
+* GH#246: Loading Lua modules did not work for the version specific Lua modules
+  introduced in Lupa 2.0.  It turned out that it can only be enabled for
+  one of them in a given Python run, so it is now left to users to enable it
+  explicitly at need.
+  (original patch by Richard Connon)
+
+* The bundled Lua 5.1 was updated to 5.1.5 and Lua 5.2 to 5.2.4.
+  (patch by xxyzz)
+
+* Built with Cython 3.0.6 for improved support of Python 3.12.
+
+
+2.0 (2023-04-03)
+----------------
 
 * GH#217: Lua stack traces in Python exception messages are now reversed to
   match the order of Python stack traces.
@@ -10,6 +31,9 @@ Lupa change log
 * GH#196: Lupa now ships separate extension modules built with Lua 5.3,
   Lua 5.4, LuaJIT 2.0 and LuaJIT 2.1 beta.  Note that this is build specific
   and may depend on the platform.  A normal Python import cascade can be used.
+
+* GH#211: A new option `max_memory` allows to limit the memory usage of Lua code.
+  (patch by Leo Developer)
 
 * GH#171: Python references in Lua are now more safely reference counted
   to prevent garbage collection glitches.
@@ -30,6 +54,9 @@ Lupa change log
   table index lookup from Python could crash Python.
   (patch by Guilherme Dantas)
 
+* GH#137: Passing ``None`` as a dict key into ``table_from()`` crashed.
+  (patch by Leo Developer)
+
 * GH#176: A new function ``python.args(*args, **kwargs)`` was added
   to help with building Python argument tuples and keyword argument dicts
   for Python function calls from Lua code.
@@ -39,6 +66,14 @@ Lupa change log
 
 * GH#179: Resolve some C compiler warnings about signed/unsigned comparisons.
   (patch by Guilherme Dantas)
+
+* Built with Cython 0.29.34.
+
+
+1.14.1 (2022-11-16)
+-------------------
+
+* Rebuild with Cython 0.29.32 to support Python 3.11.
 
 
 1.13 (2022-03-01)

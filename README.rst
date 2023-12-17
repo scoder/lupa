@@ -913,6 +913,52 @@ setter function implementations for a ``LuaRuntime``:
         AttributeError: not allowed to write attribute "noway"
 
 
+Restricting Lua Memory Usage
+----------------------------
+
+Lupa provides a simple mechanism to control the maximum memory
+usage of the Lua Runtime since version 2.0.
+By default Lupa does not interfere with Lua's memory allocation, to opt-in
+you must set the ``max_memory`` when creating the LuaRuntime.
+
+The ``LuaRuntime`` provides three methods for controlling and reading the
+memory usage:
+
+1. ``get_memory_used(total=False)`` to get the current memory
+   usage of the LuaRuntime.
+
+2. ``get_max_memory(total=False)`` to get the current memory limit.
+   ``0`` means there is no memory limitation.
+
+3. ``set_max_memory(max_memory, total=False)`` to change the memory limit.
+   Values below or equal to 0 mean no limit.
+
+There is always some memory used by the LuaRuntime itself (around ~20KiB,
+depending on your lua version and other factors) which is excluded from all
+calculations unless you specify ``total=True``.
+
+.. code:: python
+
+        >>> lua = LuaRuntime(max_memory=0)  # 0 for unlimited, default is None
+        >>> lua.get_memory_used()  # memory used by your code
+        0
+        >>> total_lua_memory = lua.get_memory_used(total=True)  # includes memory used by the runtime itself
+        >>> assert total_lua_memory > 0  # exact amount depends on your lua version and other factors
+
+
+Lua code hitting the memory limit will receive memory errors:
+
+.. code:: python
+      
+        >>> lua.set_max_memory(100)
+        >>> lua.eval("string.rep('a', 1000)")   # doctest: +IGNORE_EXCEPTION_DETAIL
+        Traceback (most recent call last):
+         ...
+        lupa.LuaMemoryError: not enough memory
+
+``LuaMemoryError`` inherits from ``LuaError`` and ``MemoryError``.
+
+
 Importing Lua binary modules
 ----------------------------
 
