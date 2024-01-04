@@ -634,7 +634,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_table_from_nested_dict(self):
         data = {"a": {"a": "foo"}, "b": {"b": "bar"}}
-        table = self.lua.table_from(data, max_depth=10)
+        table = self.lua.table_from(data, recursive=True)
         self.assertEqual(table["a"]["a"], "foo")
         self.assertEqual(table["b"]["b"], "bar")
         self.lua.globals()["data"] = table
@@ -659,7 +659,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_table_from_nested_list(self):
         data = {"a": {"a": "foo"}, "b": [1, 2, 3]}
-        table = self.lua.table_from(data, max_depth=10)
+        table = self.lua.table_from(data, recursive=True)
         self.assertEqual(table["a"]["a"], "foo")
         self.assertEqual(table["b"][1], 1)
         self.assertEqual(table["b"][2], 2)
@@ -686,7 +686,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_table_from_nested_list_bad(self):
         data = {"a": {"a": "foo"}, "b": [1, 2, 3]}
-        table = self.lua.table_from(data, max_depth=10) # in this case, lua will get userdata instead of table
+        table = self.lua.table_from(data, recursive=True) # in this case, lua will get userdata instead of table
         self.assertEqual(table["a"]["a"], "foo")
         print(list(table["b"]))
         self.assertEqual(table["b"][1], 1)
@@ -699,11 +699,23 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
         del self.lua.globals()["data"]
 
-    def test_table_from_recursive_dict(self):
+    def test_table_from_self_ref_obj(self):
         data = {}
         data["key"] = data
-        with self.assertRaises(ValueError):
-            self.lua.table_from(data, max_depth=10)
+        l = []
+        l.append(l)
+        data["list"] = l
+        table = self.lua.table_from(data, recursive=True)
+        self.lua.globals()["data"] = table
+        self.lua.eval("assert(type(data)=='table', '')")
+        self.lua.eval("assert(type(data['key'])=='table', '')")
+        self.lua.eval("assert(type(data['list'])=='table', '')")
+        self.lua.eval("assert(data['list']==data['list'][1], 'wrong self-ref list')")
+        self.lua.eval("assert(type(data['key']['key']['key']['key'])=='table', 'wrong self-ref map')")
+        self.lua.eval("assert(type(data['key']['key']['key']['key']['list'])=='table', 'wrong self-ref map')")
+        # self.assertEqual(table["key"], table)
+        # self.assertEqual(table["list"], table["list"][0])
+        del self.lua.globals()["data"]
 
     # FIXME: it segfaults
     # def test_table_from_generator_calling_lua_functions(self):
