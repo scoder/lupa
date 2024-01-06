@@ -1572,32 +1572,18 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         type_flags = (<_PyProtocolWrapper> o)._type_flags
         o = (<_PyProtocolWrapper> o)._obj
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
-    elif recursive and isinstance(o, (list, Sequence)):
+    elif recursive and isinstance(o, (list, dict, Sequence, Mapping)):
         if mapped_objs is None:
             mapped_objs = {}
-        if id(o) not in mapped_objs:
-            lua.lua_createtable(L, _len_as_int(len(o)), 0)   # create a table at the top of stack, with narr already known
-            mapped_objs[id(o)] = lua.lua_gettop(L)
-            for i, v in enumerate(o, 1):
-                py_to_lua(runtime, L, v, wrap_none, recursive, mapped_objs)
-                lua.lua_rawseti(L, -2, i)
-        else: # self-reference detected
-            idx = mapped_objs[id(o)]
-            lua.lua_pushvalue(L, idx)
-        pushed_values_count = 1
-    elif recursive and isinstance(o, (dict, Mapping)):
-        if mapped_objs is None:
-            mapped_objs = {}
-        if id(o) not in mapped_objs:
-            lua.lua_createtable(L, 0, _len_as_int(len(o)))  # create a table at the top of stack, with nrec already known
-            mapped_objs[id(o)] = lua.lua_gettop(L)
-            for key, value in o.items():
-                py_to_lua(runtime, L, key, wrap_none, recursive, mapped_objs)
-                py_to_lua(runtime, L, value, wrap_none, recursive, mapped_objs)
-                lua.lua_rawset(L, -3)
-        else: # self-reference detected
-            idx = mapped_objs[id(o)]
-            lua.lua_pushvalue(L, idx)
+        table = py_to_lua_table(runtime, L, (o,), recursive, mapped_objs)
+        (<_LuaObject> table).push_lua_object(L)
+        # if id(o) not in mapped_objs:
+        #     table = py_to_lua_table(runtime, L, (o,), recursive, mapped_objs)
+        #     (<_LuaObject> table).push_lua_object(L)
+        #     mapped_objs[id(o)] = lua.lua_gettop(L)
+        # else: # self-reference detected
+        #     idx = mapped_objs[id(o)]
+        #     lua.lua_pushvalue(L, <int>idx)
         pushed_values_count = 1
     else:
         # prefer __getitem__ over __getattr__ by default
@@ -1687,7 +1673,7 @@ cdef bytes _asciiOrNone(s):
     return <bytes>s
 
 
-cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, object items, bint recursive=False):
+cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bint recursive=False, dict mapped_objs=None):
     """
     Create a new Lua table and add different kinds of values from the sequence 'items' to it.
 
@@ -1699,13 +1685,20 @@ cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, object items, b
     old_top = lua.lua_gettop(L)
     lua.lua_newtable(L)
     # FIXME: how to check for failure?
-
+    if recursive and mapped_objs is None:
+        mapped_objs = {}
     try:
         for obj in items:
+            if recursive:
+                if id(obj) not in mapped_objs:
+                    mapped_objs[id(obj)] = lua.lua_gettop(L)
+                else:
+                    idx = mapped_objs[id(obj)]
+                    return new_lua_table(runtime, L, <int>idx)
             if isinstance(obj, dict):
                 for key, value in (<dict>obj).items():
-                    py_to_lua(runtime, L, key, True, recursive)
-                    py_to_lua(runtime, L, value, False, recursive)
+                    py_to_lua(runtime, L, key, True, recursive, mapped_objs)
+                    py_to_lua(runtime, L, value, False, recursive, mapped_objs)
                     lua.lua_rawset(L, -3)
 
             elif isinstance(obj, _LuaTable):
@@ -1721,13 +1714,13 @@ cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, object items, b
             elif isinstance(obj, Mapping):
                 for key in obj:
                     value = obj[key]
-                    py_to_lua(runtime, L, key, True, recursive)
-                    py_to_lua(runtime, L, value, False, recursive)
+                    py_to_lua(runtime, L, key, True, recursive, mapped_objs)
+                    py_to_lua(runtime, L, value, False, recursive, mapped_objs)
                     lua.lua_rawset(L, -3)
 
             else:
                 for arg in obj:
-                    py_to_lua(runtime, L, arg, False, recursive)
+                    py_to_lua(runtime, L, arg, False, recursive, mapped_objs)
                     lua.lua_rawseti(L, -2, i)
                     i += 1
 
