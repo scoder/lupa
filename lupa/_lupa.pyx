@@ -533,7 +533,7 @@ cdef class LuaRuntime:
         are placed in the table in order.
 
         Nested mappings / iterables are passed to Lua as userdata
-        (wrapped Python objects) if `recursive` is False, they are not converted to Lua tables.
+        (wrapped Python objects). If `recursive` is False, they are not converted to Lua tables.
         """
         assert self._state is not NULL
         cdef lua_State *L = self._state
@@ -1577,13 +1577,6 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
             mapped_objs = {}
         table = py_to_lua_table(runtime, L, (o,), recursive, mapped_objs)
         (<_LuaObject> table).push_lua_object(L)
-        # if id(o) not in mapped_objs:
-        #     table = py_to_lua_table(runtime, L, (o,), recursive, mapped_objs)
-        #     (<_LuaObject> table).push_lua_object(L)
-        #     mapped_objs[id(o)] = lua.lua_gettop(L)
-        # else: # self-reference detected
-        #     idx = mapped_objs[id(o)]
-        #     lua.lua_pushvalue(L, <int>idx)
         pushed_values_count = 1
     else:
         # prefer __getitem__ over __getattr__ by default
