@@ -532,44 +532,10 @@ cdef class LuaRuntime:
         """
         assert self._state is not NULL
         cdef lua_State *L = self._state
-        cdef int i = 1
         lock_runtime(self)
-        old_top = lua.lua_gettop(L)
         try:
-            check_lua_stack(L, 5)
-            lua.lua_newtable(L)
-            # FIXME: how to check for failure?
-            for obj in args:
-                if isinstance(obj, dict):
-                    for key, value in obj.iteritems():
-                        py_to_lua(self, L, key, wrap_none=True)
-                        py_to_lua(self, L, value)
-                        lua.lua_rawset(L, -3)
-
-                elif isinstance(obj, _LuaTable):
-                    # Stack:                              # tbl
-                    (<_LuaObject>obj).push_lua_object(L)  # tbl, obj
-                    lua.lua_pushnil(L)                    # tbl, obj, nil       // iterate over obj (-2)
-                    while lua.lua_next(L, -2):            # tbl, obj, k, v
-                        lua.lua_pushvalue(L, -2)          # tbl, obj, k, v, k   // copy key (because
-                        lua.lua_insert(L, -2)             # tbl, obj, k, k, v   // lua_next needs a key for iteration)
-                        lua.lua_settable(L, -5)           # tbl, obj, k         // tbl[k] = v
-                    lua.lua_pop(L, 1)                     # tbl                 // remove obj from stack
-
-                elif isinstance(obj, Mapping):
-                    for key in obj:
-                        value = obj[key]
-                        py_to_lua(self, L, key, wrap_none=True)
-                        py_to_lua(self, L, value)
-                        lua.lua_rawset(L, -3)
-                else:
-                    for arg in obj:
-                        py_to_lua(self, L, arg)
-                        lua.lua_rawseti(L, -2, i)
-                        i += 1
-            return py_from_lua(self, L, -1)
+            return py_to_lua_table(self, L, args)
         finally:
-            lua.lua_settop(L, old_top)
             unlock_runtime(self)
 
     def set_max_memory(self, size_t max_memory, total=False):
@@ -1607,6 +1573,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
     return pushed_values_count
 
+
 cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode ustring) except -1:
     cdef bytes bytes_string = ustring.encode(runtime._encoding)
     lua.lua_pushlstring(L, <char*>bytes_string, len(bytes_string))
@@ -1665,6 +1632,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
 
     return 1  # values pushed
 
+
 cdef inline int _isascii(unsigned char* s) noexcept:
     cdef unsigned char c = 0
     while s[0]:
@@ -1685,6 +1653,55 @@ cdef bytes _asciiOrNone(s):
     if not _isascii(<bytes>s):
         raise ValueError("byte string input has unknown encoding, only ASCII is allowed")
     return <bytes>s
+
+
+cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, items):
+    """
+    Create a new Lua table and add different kinds of values from the sequence 'items' to it.
+
+    Dicts, Mappings and Lua tables are unpacked into key-value pairs.
+    Everything else is considered a sequence of plain values that get appended to the table.
+    """
+    cdef int i = 1
+    check_lua_stack(L, 5)
+    old_top = lua.lua_gettop(L)
+    lua.lua_newtable(L)
+    # FIXME: how to check for failure?
+
+    try:
+        for obj in items:
+            if isinstance(obj, dict):
+                for key, value in (<dict>obj).items():
+                    py_to_lua(runtime, L, key, wrap_none=True)
+                    py_to_lua(runtime, L, value)
+                    lua.lua_rawset(L, -3)
+
+            elif isinstance(obj, _LuaTable):
+                # Stack:                               # tbl
+                (<_LuaObject> obj).push_lua_object(L)  # tbl, obj
+                lua.lua_pushnil(L)            # tbl, obj, nil       // iterate over obj (-2)
+                while lua.lua_next(L, -2):    # tbl, obj, k, v
+                    lua.lua_pushvalue(L, -2)  # tbl, obj, k, v, k   // copy key (because
+                    lua.lua_insert(L, -2)     # tbl, obj, k, k, v   // lua_next needs a key for iteration)
+                    lua.lua_settable(L, -5)   # tbl, obj, k         // tbl[k] = v
+                lua.lua_pop(L, 1)             # tbl                 // remove obj from stack
+
+            elif isinstance(obj, Mapping):
+                for key in obj:
+                    value = obj[key]
+                    py_to_lua(runtime, L, key, wrap_none=True)
+                    py_to_lua(runtime, L, value)
+                    lua.lua_rawset(L, -3)
+
+            else:
+                for arg in obj:
+                    py_to_lua(runtime, L, arg)
+                    lua.lua_rawseti(L, -2, i)
+                    i += 1
+
+        return new_lua_table(runtime, L, -1)
+    finally:
+        lua.lua_settop(L, old_top)
 
 
 # error handling
