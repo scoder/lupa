@@ -601,10 +601,16 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertRaises(TypeError, self.lua.table_from, None)
         self.assertRaises(TypeError, self.lua.table_from, {"a": 5}, 123)
 
-    # def test_table_from_nested(self):
-    #     table = self.lua.table_from({"obj": {"foo": "bar"}})
-    #     lua_type = self.lua.eval("type")
-    #     self.assertEqual(lua_type(table["obj"]), "table")
+    def test_table_from_nested(self):
+        table = self.lua.table_from([[3, 3, 3]], recursive=True)
+        self.lua.globals()["data"] = table
+        self.assertLuaResult("data[1][1]", 3)
+        self.assertLuaResult("data[1][2]", 3)
+        self.assertLuaResult("data[1][3]", 3)
+        self.assertLuaResult("type(data)", "table")
+        self.assertLuaResult("type(data[1])", "table")
+        self.assertLuaResult("#data", 1)
+        self.assertLuaResult("#data[1]", 3)
 
     def test_table_from_table(self):
         table1 = self.lua.eval("{3, 4, foo='bar'}")
