@@ -102,6 +102,28 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
         # Seems related to running the test twice in the same Lupa module?
         self._run_gc_test(make_refcycle, off_by_one=True)
 
+    def test_lupa_gc_deadlock(self):
+        lua = self.lupa.LuaRuntime()
+
+        def assert_no_deadlock(thread):
+            thread.start()
+            thread.join(1)
+            assert not thread.is_alive(), "thread didn't finish - deadlock?"
+
+        def delete_table_reference_in_thread():
+            ref = [lua.eval("{}")]
+
+            def trigger_gc(ref):
+                del ref[0]
+
+            lua.execute(
+                "f,x=...; f(x)",
+                assert_no_deadlock,
+                threading.Thread(target=trigger_gc, args=[ref]),
+            )
+
+        self._run_gc_test(delete_table_reference_in_thread)
+
 
 class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
     def test_lua_version(self):
