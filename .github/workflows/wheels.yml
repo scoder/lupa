@@ -252,6 +252,8 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v5
+      # macOS has Py2.7 installed system wide
+      if: matrix.pyversion != "2.7"
       with:
         python-version: ${{ matrix.pyversion }}
 
