@@ -128,11 +128,11 @@ jobs:
         with:
           platforms: all
 
-    - name: Install MacOS dependencies
-      if: runner.os == 'macOS'
-      run: |
-        brew install automake libtool
-        ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
+      - name: Install MacOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install automake libtool
+          ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.2
