@@ -237,7 +237,7 @@ jobs:
         exclude:
           # outdated compilers and probably not worth supporting anymore
           - os: windows-latest
-            pyversion: 2.7
+            pyversion: "2.7"
 
     runs-on: ${{ matrix.os }}
     env:
@@ -253,7 +253,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       # macOS has Py2.7 installed system wide
-      if: matrix.pyversion != "2.7"
+      if: matrix.pyversion != '2.7'
       with:
         python-version: ${{ matrix.pyversion }}
 
