@@ -63,10 +63,8 @@ def _import_newest_lib():
         raise RuntimeError("Failed to import Lupa binary module.")
     # prefer Lua over LuaJIT and high versions over low versions.
     module_name = max(modules, key=lambda m: (m[1] == 'lua', tuple(map(int, m[2] or '0'))))
-    try:
-        _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
-    except ModuleNotFoundError:
-        _newest_lib = __import__(module_name[1], level=1, fromlist="*", globals=globals())
+
+    _newest_lib = __import__(module_name[0], level=1, fromlist="*", globals=globals())
     return _newest_lib
 
 
