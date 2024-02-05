@@ -1517,7 +1517,7 @@ cdef int py_to_lua_handle_overflow(LuaRuntime runtime, lua_State *L, object o) e
         lua.lua_settop(L, old_top)
         raise
 
-cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False, bint recursive=False, dict mapped_objs=None) except -1:
+cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False, bint recursive=False, dict mapped_tables=None) except -1:
     """Converts Python object to Lua
     Preconditions:
         1 extra slot in the Lua stack
@@ -1574,9 +1574,9 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
         o = (<_PyProtocolWrapper> o)._obj
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
     elif recursive and isinstance(o, (list, dict, Sequence, Mapping)):
-        if mapped_objs is None:
-            mapped_objs = {}
-        table = py_to_lua_table(runtime, L, (o,), recursive=recursive, mapped_objs=mapped_objs)
+        if mapped_tables is None:
+            mapped_tables = {}
+        table = py_to_lua_table(runtime, L, (o,), recursive=recursive, mapped_tables=mapped_tables)
         (<_LuaObject> table).push_lua_object(L)
         pushed_values_count = 1
     else:
@@ -1667,7 +1667,7 @@ cdef bytes _asciiOrNone(s):
     return <bytes>s
 
 
-cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bint recursive=False, dict mapped_objs=None):
+cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bint recursive=False, dict mapped_tables=None):
     """
     Create a new Lua table and add different kinds of values from the sequence 'items' to it.
 
@@ -1678,24 +1678,24 @@ cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bi
     check_lua_stack(L, 5)
     old_top = lua.lua_gettop(L)
     lua.lua_newtable(L)
-    cdef int lua_table_ref = lua.lua_gettop(L) # the index of the lua table which we are filling
-    # FIXME: how to check for failure?
-    if recursive and mapped_objs is None:
-        mapped_objs = {}
+    # FIXME: handle allocation errors
+    cdef int lua_table_ref = lua.lua_gettop(L)  # the index of the lua table which we are filling
+    if recursive and mapped_tables is None:
+        mapped_tables = {}
     try:
         for obj in items:
             if recursive:
-                if id(obj) not in mapped_objs:
+                if id(obj) not in mapped_tables:
                     # this object is never seen before, we should cache it
-                    mapped_objs[id(obj)] = lua_table_ref
+                    mapped_tables[id(obj)] = lua_table_ref
                 else:
                     # this object has been cached, just get the corresponding lua table's index
-                    idx = mapped_objs[id(obj)]
+                    idx = mapped_tables[id(obj)]
                     return new_lua_table(runtime, L, <int>idx)
             if isinstance(obj, dict):
                 for key, value in (<dict>obj).items():
-                    py_to_lua(runtime, L, key, wrap_none=True, recursive=recursive, mapped_objs=mapped_objs)
-                    py_to_lua(runtime, L, value, wrap_none=False, recursive=recursive, mapped_objs=mapped_objs)
+                    py_to_lua(runtime, L, key, wrap_none=True, recursive=recursive, mapped_tables=mapped_tables)
+                    py_to_lua(runtime, L, value, wrap_none=False, recursive=recursive, mapped_tables=mapped_tables)
                     lua.lua_rawset(L, -3)
 
             elif isinstance(obj, _LuaTable):
@@ -1711,13 +1711,13 @@ cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bi
             elif isinstance(obj, Mapping):
                 for key in obj:
                     value = obj[key]
-                    py_to_lua(runtime, L, key, wrap_none=True, recursive=recursive, mapped_objs=mapped_objs)
-                    py_to_lua(runtime, L, value, wrap_none=False, recursive=recursive, mapped_objs=mapped_objs)
+                    py_to_lua(runtime, L, key, wrap_none=True, recursive=recursive, mapped_tables=mapped_tables)
+                    py_to_lua(runtime, L, value, wrap_none=False, recursive=recursive, mapped_tables=mapped_tables)
                     lua.lua_rawset(L, -3)
 
             else:
                 for arg in obj:
-                    py_to_lua(runtime, L, arg, wrap_none=False, recursive=recursive, mapped_objs=mapped_objs)
+                    py_to_lua(runtime, L, arg, wrap_none=False, recursive=recursive, mapped_tables=mapped_tables)
                     lua.lua_rawseti(L, -2, i)
                     i += 1
 

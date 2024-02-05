@@ -612,6 +612,13 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertLuaResult("#data", 1)
         self.assertLuaResult("#data[1]", 3)
 
+    def test_table_from_nested2(self):
+        table2 = self.lua.table_from([{"a": "foo"}, {"b": 1}], recursive=True)
+        self.lua.globals()["data2"] = table2
+        self.assertLuaResult("#data2", 2)
+        self.assertLuaResult("data2[1]['a']", "foo")
+        self.assertLuaResult("data2[2]['b']", 1)
+
     def test_table_from_table(self):
         table1 = self.lua.eval("{3, 4, foo='bar'}")
         table2 = self.lua.table_from(table1)
