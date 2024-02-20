@@ -221,8 +221,8 @@ jobs:
 
       matrix:
         os:
-          - macos-latest
-          - windows-latest
+          - macos-11
+          - windows-2019
         #os: [macos-11, windows-latest, macOS-M1]
         #os: [macos-11, macOS-M1]
         #os: [macos-11]
@@ -236,7 +236,7 @@ jobs:
 
         exclude:
           # outdated compilers and probably not worth supporting anymore
-          - os: windows-latest
+          - os: windows-2019
             pyversion: "2.7"
 
     runs-on: ${{ matrix.os }}
