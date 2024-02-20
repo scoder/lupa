@@ -15,6 +15,14 @@ class LupaTestCase(unittest.TestCase):
     """
     lupa = lupa
 
+    if sys.version_info < (3, 4):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def subTest(self, message=None, **parameters):
+            """Dummy implementation"""
+            yield
+
 
 def find_lua_modules():
     modules = [lupa]

@@ -598,6 +598,23 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertRaises(TypeError, self.lua.table_from, None)
         self.assertRaises(TypeError, self.lua.table_from, {"a": 5}, 123)
 
+    def test_table_from_nested_datastructures(self):
+        from itertools import count
+        def make_ds(*children):
+            yield list(children)
+            yield dict(zip(count(), children))
+            yield {chr(ord('A') + i): child for i, child in enumerate(children)}
+
+        elements = [1, 2, 'x', 'y']
+        for ds1 in make_ds(*elements):
+            for ds2 in make_ds(ds1):
+                for ds3 in make_ds(ds1, elements, ds2):
+                    for ds in make_ds(ds1, ds2, ds3):
+                        with self.subTest(ds=ds):
+                            table = self.lua.table_from(ds)
+                            # we don't translate transitively, so apply arbitrary test operation
+                            self.assertTrue(list(table))
+
     # def test_table_from_nested(self):
     #     table = self.lua.table_from({"obj": {"foo": "bar"}})
     #     lua_type = self.lua.eval("type")
