@@ -6,15 +6,21 @@ build
 dist
 MANIFEST
 *.pyc
+*.pyo
 *.pyd
 *.dll
 *.egg-info
 *.so
 *.c
 *.patch
-wheel*/
+*.orig
+*~
+*wheel*/
+venv*
+.eggs/
 lupa/version.py
 lupa/lua*.pyx
+TEST/
 
 # Vim swapfiles
 *.swp
