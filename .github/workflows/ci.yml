@@ -126,8 +126,8 @@ jobs:
 
     - name: Upload wheels
       if: ${{ contains(matrix.lua-version, 'bundle') }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: wheels-${{ runner.os }}
+        name: wheels-${{ runner.os }}-${{ matrix.lua-version }}-${{ matrix.python-version }}
         path: dist/*.whl
         if-no-files-found: ignore
