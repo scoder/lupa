@@ -1345,12 +1345,13 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, LupaTestCase):
 
 
 class TestLuaCoroutines(SetupLuaRuntimeMixin, LupaTestCase):
+
+    @unittest.skipIf(IS_PYPY, "attribute access differs in PyPy")
     def test_coroutine_object(self):
         f = self.lua.eval("function(N) coroutine.yield(N) end")
         gen = f.coroutine(5)
         self.assertRaises(AttributeError, getattr, gen, '__setitem__')
-        if not IS_PYPY:
-            self.assertRaises(AttributeError, setattr, gen, 'send', 5)
+        self.assertRaises(AttributeError, setattr, gen, 'send', 5)
         self.assertRaises(AttributeError, setattr, gen, 'no_such_attribute', 5)
         self.assertRaises(AttributeError, getattr, gen, 'no_such_attribute')
         self.assertRaises(AttributeError, gen.__getattr__, 'no_such_attribute')
