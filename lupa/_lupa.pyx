@@ -533,8 +533,9 @@ cdef class LuaRuntime:
         are placed in the table in order.
 
         Nested mappings / iterables are passed to Lua as userdata
-        (wrapped Python objects). If `recursive` is False (the default),
-        they are not converted to Lua tables.
+        (wrapped Python objects) by default.  If `recursive` is True,
+        they are converted to Lua tables recursively, handling loops
+        and duplicates via identity de-duplication.
         """
         assert self._state is not NULL
         cdef lua_State *L = self._state
