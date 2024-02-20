@@ -1675,7 +1675,6 @@ cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bi
     Dicts, Mappings and Lua tables are unpacked into key-value pairs.
     Everything else is considered a sequence of plain values that get appended to the table.
     """
-    print(f"in py_to_lua_table {items}")  # todo del
     cdef int i = 1
     check_lua_stack(L, 5)
     old_top = lua.lua_gettop(L)
@@ -1690,10 +1689,8 @@ cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bi
                 if id(obj) not in mapped_tables:
                     # this object is never seen before, we should cache it
                     mapped_tables[id(obj)] = lua_table_ref
-                    print(f"caching {obj}") # todo del
                 else:
                     # this object has been cached, just get the corresponding lua table's index
-                    print(f"using cache {obj}") # todo del
                     idx = mapped_tables[id(obj)]
                     return new_lua_table(runtime, L, <int>idx)
             if isinstance(obj, dict):
