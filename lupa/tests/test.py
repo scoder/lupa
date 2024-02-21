@@ -29,7 +29,7 @@ except NameError:
     def _next(o):
         return o.next()
 
-unicode_type = type('abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
+unicode_type = type(b'abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
 
 if IS_PYTHON2:
     unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
