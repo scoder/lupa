@@ -2,6 +2,7 @@ PYTHON?=python
 USE_BUNDLE?=true
 VERSION?=$(shell sed -ne "s|^VERSION\s*=\s*'\([^']*\)'.*|\1|p" setup.py)
 WITH_CYTHON?=$(shell $(PYTHON)  -c 'import Cython.Build.Dependencies' >/dev/null 2>/dev/null && echo " --with-cython" || true)
+WITH_PARALLEL?=$(shell $(PYTHON)  -c 'import sys ; print("-j6" if sys.version_info[0] >= 3 else "")' || true)
 WITH_LUA_DLOPEN?=true
 PYTHON_BUILD_VERSION?=*
 
@@ -23,7 +24,7 @@ MANYLINUX_IMAGES= \
 all:  local
 
 local:
-	LUPA_WITH_LUA_DLOPEN=$(WITH_LUA_DLOPEN) ${PYTHON} setup.py build_ext --inplace $(WITH_CYTHON)
+	LUPA_WITH_LUA_DLOPEN=$(WITH_LUA_DLOPEN) ${PYTHON} setup.py build_ext --inplace $(WITH_PARALLEL) $(WITH_CYTHON)
 
 sdist dist/lupa-$(VERSION).tar.gz:
 	${PYTHON} setup.py sdist
@@ -39,7 +40,7 @@ realclean: clean
 	rm -fr lupa/_lupa.c
 
 wheel:
-	LUPA_WITH_LUA_DLOPEN=$(WITH_LUA_DLOPEN) $(PYTHON) setup.py bdist_wheel $(WITH_CYTHON)
+	LUPA_WITH_LUA_DLOPEN=$(WITH_LUA_DLOPEN) $(PYTHON) setup.py build_ext $(WITH_PARALLEL) bdist_wheel $(WITH_CYTHON)
 
 qemu-user-static:
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
