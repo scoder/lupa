@@ -35,9 +35,9 @@ Major features
 * frees the GIL and supports threading in separate runtimes when
   calling into Lua
 
-* tested with Python 2.7/3.5 and later
+* tested with Python 2.7/3.6 and later
 
-* ships with Lua 5.3 and 5.4 (works with Lua 5.1 and later)
+* ships with Lua 5.1, 5.2, 5.3 and 5.4
   as well as LuaJIT 2.0 and 2.1 on systems that support it.
 
 * easy to hack on and extend as it is written in Cython, not C
@@ -61,8 +61,8 @@ Python, but LuaJIT compiles it to very fast machine code, sometimes
 faster than many statically compiled languages for computational code.
 The language runtime is very small and carefully designed for
 embedding.  The complete binary module of Lupa, including a statically
-linked LuaJIT2 runtime, only weighs some 700KB on a 64 bit machine.
-With standard Lua 5.1, it's less than 400KB.
+linked LuaJIT2 runtime, only weighs some 800KB on a 64 bit machine.
+With standard Lua 5.2, it's less than 600KB.
 
 However, the Lua ecosystem lacks many of the batteries that Python
 readily includes, either directly in its standard library or as third
