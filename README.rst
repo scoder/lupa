@@ -90,7 +90,7 @@ a specific one via import:
 .. code:: python
 
     try:
-        import lupa.luajit20 as lupa
+        import lupa.luajit21 as lupa
     except ImportError:
         try:
             import lupa.lua54 as lupa
@@ -101,8 +101,6 @@ a specific one via import:
                 import lupa
 
     print(f"Using {lupa.LuaRuntime().lua_implementation} (compiled with {lupa.LUA_VERSION})")
-
-Note that LuaJIT 2.1 may also be included (as ``luajit21``) but is currently in Alpha state.
 
 
 Examples
@@ -119,8 +117,7 @@ Examples
 
 .. code:: python
 
-      >>> import lupa
-      >>> from lupa import LuaRuntime
+      >>> from lupa.lua54 import LuaRuntime
       >>> lua = LuaRuntime(unpack_returned_tuples=True)
 
       >>> lua.eval('1+1')
@@ -939,7 +936,8 @@ calculations unless you specify ``total=True``.
 
 .. code:: python
 
-        >>> lua = LuaRuntime(max_memory=0)  # 0 for unlimited, default is None
+        >>> from lupa import lua52
+        >>> lua = lua52.LuaRuntime(max_memory=0)  # 0 for unlimited, default is None
         >>> lua.get_memory_used()  # memory used by your code
         0
         >>> total_lua_memory = lua.get_memory_used(total=True)  # includes memory used by the runtime itself
