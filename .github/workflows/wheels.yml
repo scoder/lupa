@@ -62,17 +62,17 @@ jobs:
     - name: Build sdist
       run: make sdist
 
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: dist/*.tar.gz
-
     - name: Upload sdist
       uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6 # v4.2.0
       with:
         name: sdist
         path: dist/*.tar.gz
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: dist/*.tar.gz
 
   generate-wheels-matrix:
     # Create a matrix of all architectures & versions to build.
@@ -201,18 +201,18 @@ jobs:
       run: make USE_BUNDLE=true sdist wheel_${{ matrix.image }}
       env: { PYTHON_BUILD_VERSION: "${{ matrix.pyversion }}" }
 
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: wheelhouse_*/*-m*linux*.whl  # manylinux / musllinux
-
     - name: Upload wheels
       uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6 # v4.2.0
       with:
         name: wheels-${{ matrix.image }}
         path: wheelhouse_*/*-m*linux*.whl  # manylinux / musllinux
         if-no-files-found: ignore
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: wheelhouse_*/*-m*linux*.whl  # manylinux / musllinux
 
   non-Linux:
     strategy:
@@ -272,15 +272,15 @@ jobs:
         export PATH=$PYTHON_BIN_DIR:$PATH
         python setup.py --with-cython sdist ${{ contains(matrix.pyversion, '3.') && 'build_ext -j6' || '' }} bdist_wheel
 
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: dist/*.whl
-
     - name: Upload wheels
       uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6 # v4.2.0
       with:
         name: wheels-${{ matrix.pyversion }}-${{ matrix.os }}
         path: dist/*.whl
         if-no-files-found: ignore
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: dist/*.whl
