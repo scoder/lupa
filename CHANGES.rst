@@ -27,7 +27,7 @@ Lupa change log
 
 * The bundled LuaJIT versions were updated to the latest git branches.
 
-* Built with Cython 3.0.9 for improved support of Python 3.12.
+* Built with Cython 3.0.9 for improved support of Python 3.12/13.
 
 
 2.0 (2023-04-03)
