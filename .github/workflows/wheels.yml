@@ -241,6 +241,7 @@ jobs:
       USE_BUNDLE: "true"
       MACOSX_DEPLOYMENT_TARGET: "11.0"
       LUPA_WITH_LUA_DLOPEN: ${{ startsWith(matrix.os, 'windows') && 'false' || 'true' }}
+      PYTHON_BIN_DIR: ${{ startsWith(matrix.pyversion, '2.') && '/Library/Frameworks/Python.framework/Versions/2.7/bin' || '' }}
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -263,12 +264,12 @@ jobs:
 
     - name: Install dependencies
       run: |
-        export PATH=/Library/Frameworks/Python.framework/Versions/2.7/bin:$PATH
+        export PATH=$PYTHON_BIN_DIR:$PATH
         python -m pip install setuptools wheel -r requirements.txt
 
     - name: Build wheels
       run: |
-        export PATH=/Library/Frameworks/Python.framework/Versions/2.7/bin:$PATH
+        export PATH=$PYTHON_BIN_DIR:$PATH
         python setup.py --with-cython sdist ${{ contains(matrix.pyversion, '3.') && 'build_ext -j6' || '' }} bdist_wheel
 
     - name: Release
