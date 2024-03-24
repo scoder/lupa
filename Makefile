@@ -1,4 +1,4 @@
-PYTHON?=python
+PYTHON?=python3
 USE_BUNDLE?=true
 VERSION?=$(shell sed -ne "s|^VERSION\s*=\s*'\([^']*\)'.*|\1|p" setup.py)
 WITH_CYTHON?=$(shell $(PYTHON)  -c 'import Cython.Build.Dependencies' >/dev/null 2>/dev/null && echo " --with-cython" || true)
