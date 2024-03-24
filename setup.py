@@ -442,8 +442,10 @@ def prepare_extensions(use_cython=True):
                             modified = True
                         last_was_push = b'#pragma GCC diagnostic push' in line
                         f.write(line)
+
                 if modified:
                     print("Fixed Cython 3.0.9 generated source file " + source_file)
+                    os.unlink(source_file)
                     os.rename(temp_file, source_file)
                 else:
                     os.unlink(temp_file)
