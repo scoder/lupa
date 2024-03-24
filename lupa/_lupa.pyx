@@ -829,7 +829,7 @@ cdef class _LuaObject:
     def __dealloc__(self):
         if self._runtime is None:
             return
-        cdef lua_State* L = self._state
+        cdef lua_State* L = self._runtime._state
         if L is not NULL and self._ref != lua.LUA_NOREF:
             locked = lock_runtime(self._runtime)
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)

@@ -3185,6 +3185,49 @@ def load_tests(loader, standard_tests, pattern):
     return lupa.tests.build_suite_for_modules(loader, globals())
 
 
+class TestSigSegScenarios(SetupLuaRuntimeMixin, unittest.TestCase):
+    class PendingRequest(object):
+
+        def __init__(self, callback):
+            self.__callback = callback
+
+    def make_request(self, callback):
+        return TestSigSegScenarios.PendingRequest(callback)
+
+    def test_callback_passing(self):
+        self.lua.globals().make_request = self.make_request
+        run = self.lua.eval("""
+        function()
+            make_request(function() end)
+        end
+        """)
+
+        for i in range(10000):
+            thread = run.coroutine()
+            try:
+                thread.send(None)
+            except StopIteration:
+                pass
+
+        # assert no segmentation fault
+
+    def test_callback_passing_with_exception(self):
+        self.lua.globals().make_request = self.make_request
+        run = self.lua.eval("""
+           function()
+               make_request(function() end)
+               error('test error')
+           end
+           """)
+
+        for i in range(10000):
+            thread = run.coroutine()
+            try:
+                thread.send(None)
+            except Exception:
+                pass
+
+        # assert no segmentation fault
 
 if __name__ == '__main__':
     def print_version():
