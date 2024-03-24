@@ -546,8 +546,8 @@ to Lua tables.
       11
       >>> t1[2]['b']
       22
-      >>> dict(t2[2])
-      {'b': 42}
+      >>> t2[2]['b']
+      42
       >>> list(t1[1].values())
       [10, 20, 30]
       >>> list(t2[1].values())
