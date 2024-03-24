@@ -1646,28 +1646,6 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     return 1  # values pushed
 
 
-cdef inline int _isascii(unsigned char* s) noexcept:
-    cdef unsigned char c = 0
-    while s[0]:
-        c |= s[0]
-        s += 1
-    return c & 0x80 == 0
-
-
-cdef bytes _asciiOrNone(s):
-    if s is None:
-        return s
-    elif isinstance(s, unicode):
-        return (<unicode>s).encode('ascii')
-    elif isinstance(s, bytearray):
-        s = bytes(s)
-    elif not isinstance(s, bytes):
-        raise ValueError("expected string, got %s" % type(s))
-    if not _isascii(<bytes>s):
-        raise ValueError("byte string input has unknown encoding, only ASCII is allowed")
-    return <bytes>s
-
-
 cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bint recursive=False, dict mapped_tables=None):
     """
     Create a new Lua table and add different kinds of values from the sequence 'items' to it.
@@ -1725,6 +1703,28 @@ cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bi
         return new_lua_table(runtime, L, -1)
     finally:
         lua.lua_settop(L, old_top)
+
+
+cdef inline int _isascii(unsigned char* s) noexcept:
+    cdef unsigned char c = 0
+    while s[0]:
+        c |= s[0]
+        s += 1
+    return c & 0x80 == 0
+
+
+cdef bytes _asciiOrNone(s):
+    if s is None:
+        return s
+    elif isinstance(s, unicode):
+        return (<unicode>s).encode('ascii')
+    elif isinstance(s, bytearray):
+        s = bytes(s)
+    elif not isinstance(s, bytes):
+        raise ValueError("expected string, got %s" % type(s))
+    if not _isascii(<bytes>s):
+        raise ValueError("byte string input has unknown encoding, only ASCII is allowed")
+    return <bytes>s
 
 
 # error handling
