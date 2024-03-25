@@ -228,6 +228,11 @@ def use_bundled_luajit(path, macros):
     build_env = dict(os.environ)
     src_dir = os.path.join(path, "src")
     if platform.startswith('win'):
+        try:
+            subprocess.run(["C:\\Program Files(x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat", "x86_x64",])
+        except FileNotFoundError:
+            print("vcvarsall not found in the location spesified by appveyor.yml. If you are not building on CI, this can safely be ignored.")
+
         build_script = [os.path.join(src_dir, "msvcbuild.bat"), "static"]
         lib_file = "lua51.lib"
     else:
@@ -365,10 +370,6 @@ if not configs and not option_no_bundle:
             # http://t-p-j.blogspot.com/2010/11/lupa-on-os-x-with-macports-python-26.html
             # LuaJIT 2.1-alpha3 fails at runtime.
             or (platform == 'darwin' and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
-            # Couldn't get the Windows build to work. See
-            # https://luajit.org/install.html#windows
-            or (platform.startswith('win') and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
-            # Let's restrict LuaJIT to x86_64 for now.
             or (get_machine() not in ("x86_64", "AMD64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
     ]
