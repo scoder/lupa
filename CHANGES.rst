@@ -1,6 +1,12 @@
 Lupa change log
 ===============
 
+2.2 (2024-??-??)
+----------------
+
+* A new method ``LuaRuntime.gc()`` was added to control the Lua garbage collector.
+
+
 2.1 (2024-03-24)
 ----------------
 

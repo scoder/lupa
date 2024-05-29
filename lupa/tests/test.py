@@ -120,6 +120,20 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertTrue(lua_implementation.startswith("Lua"), lua_implementation)
         self.assertTrue(lua_implementation.split()[0] in ("Lua", "LuaJIT"), lua_implementation)
 
+    def test_lua_gccollect(self):
+        self.lua.gccollect()
+
+    def test_lua_nogc(self):
+        if self.lua.lua_version >= (5,2):
+            self.assertTrue(self.lua.eval('collectgarbage("isrunning")'))
+
+        with self.lua.nogc():
+            if self.lua.lua_version >= (5,2):
+                self.assertFalse(self.lua.eval('collectgarbage("isrunning")'))
+
+        if self.lua.lua_version >= (5,2):
+            self.assertTrue(self.lua.eval('collectgarbage("isrunning")'))
+
     def test_eval(self):
         self.assertEqual(2, self.lua.eval('1+1'))
 
