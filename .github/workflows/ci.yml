@@ -78,19 +78,19 @@ jobs:
       LUPA_WITH_LUA_DLOPEN: ${{ startsWith(matrix.os, 'windows') && 'false' || 'true' }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Check out recursively
       run: git submodule update --init --recursive
 
     - name: Set up Python ${{ matrix.python-version }}
-      if: ${{ !startsWith(matrix.os, 'ubuntu') || startsWith(matrix.python-version, '3.') || startsWith(matrix.python-version, 'pypy') }}
-      uses: actions/setup-python@v4
+      if: startsWith(matrix.python-version, '3.') || startsWith(matrix.python-version, 'pypy') || !startsWith(matrix.os, 'ubuntu')
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Set up Python2 (Linux)
-      if: ${{ matrix.python-version == '2.7' && startsWith(matrix.os, 'ubuntu') }}
+      if: matrix.python-version == '2.7' && startsWith(matrix.os, 'ubuntu')
       run: |
           sudo ln -fs python2 /usr/bin/python
           sudo apt-get update
@@ -106,7 +106,7 @@ jobs:
         python -m pip install -U wheel tox virtualenv -r requirements.txt
 
     - name: Set up Lua ${{ matrix.lua-version }}
-      if: ${{ contains(matrix.os, 'ubuntu') && !contains(matrix.lua-version, 'bundle') }}
+      if: contains(matrix.os, 'ubuntu') && matrix.lua-version != 'bundle'
       run: sudo apt-get install lib${{ matrix.lua-version }}-dev
 
     - name: Build wheel
@@ -125,9 +125,9 @@ jobs:
         LDFLAGS: ${{ env.CFLAGS_LTO }}
 
     - name: Upload wheels
-      if: ${{ contains(matrix.lua-version, 'bundle') }}
-      uses: actions/upload-artifact@v3
+      if: matrix.lua-version == 'bundle' && matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
       with:
-        name: wheels-${{ runner.os }}
+        name: wheels-${{ matrix.os }}-${{ matrix.python-version }}
         path: dist/*.whl
         if-no-files-found: ignore

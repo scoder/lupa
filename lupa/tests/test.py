@@ -29,7 +29,7 @@ except NameError:
     def _next(o):
         return o.next()
 
-unicode_type = type('abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
+unicode_type = type(b'abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
 
 if IS_PYTHON2:
     unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
@@ -127,6 +127,9 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
 
 
 class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
+    def assertLuaResult(self, lua_expression, result):
+        self.assertEqual(self.lua.eval(lua_expression), result)
+
     def test_lua_version(self):
         version = self.lua.lua_version
         self.assertEqual(tuple, type(version))
@@ -635,10 +638,23 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertRaises(TypeError, self.lua.table_from, None)
         self.assertRaises(TypeError, self.lua.table_from, {"a": 5}, 123)
 
-    # def test_table_from_nested(self):
-    #     table = self.lua.table_from({"obj": {"foo": "bar"}})
-    #     lua_type = self.lua.eval("type")
-    #     self.assertEqual(lua_type(table["obj"]), "table")
+    def test_table_from_nested(self):
+        table = self.lua.table_from([[3, 3, 3]], recursive=True)
+        self.lua.globals()["data"] = table
+        self.assertLuaResult("data[1][1]", 3)
+        self.assertLuaResult("data[1][2]", 3)
+        self.assertLuaResult("data[1][3]", 3)
+        self.assertLuaResult("type(data)", "table")
+        self.assertLuaResult("type(data[1])", "table")
+        self.assertLuaResult("#data", 1)
+        self.assertLuaResult("#data[1]", 3)
+
+    def test_table_from_nested2(self):
+        table2 = self.lua.table_from([{"a": "foo"}, {"b": 1}], recursive=True)
+        self.lua.globals()["data2"] = table2
+        self.assertLuaResult("#data2", 2)
+        self.assertLuaResult("data2[1]['a']", "foo")
+        self.assertLuaResult("data2[2]['b']", 1)
 
     def test_table_from_table(self):
         table1 = self.lua.eval("{3, 4, foo='bar'}")
@@ -668,6 +684,75 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertEqual(len(table2), 3)
         self.assertEqual(list(table2.keys()), [1, 2, 3])
         self.assertEqual(set(table2.values()), set([1, 2, "foo"]))
+
+    def test_table_from_nested_dict(self):
+        data = {"a": {"a": "foo"}, "b": {"b": "bar"}}
+        table = self.lua.table_from(data, recursive=True)
+        self.assertEqual(table["a"]["a"], "foo")
+        self.assertEqual(table["b"]["b"], "bar")
+        self.lua.globals()["data"] = table
+        self.assertLuaResult("data.a.a", "foo")
+        self.assertLuaResult("data.b.b", "bar")
+        self.assertLuaResult("type(data.a)", "table")
+        self.assertLuaResult("type(data.b)", "table")
+
+    def test_table_from_nested_list(self):
+        data = {"a": {"a": "foo"}, "b": [1, 2, 3]}
+        table = self.lua.table_from(data, recursive=True)
+        self.assertEqual(table["a"]["a"], "foo")
+        self.assertEqual(table["b"][1], 1)
+        self.assertEqual(table["b"][2], 2)
+        self.assertEqual(table["b"][3], 3)
+        self.lua.globals()["data"] = table
+        self.assertLuaResult("data.a.a", "foo")
+        self.assertLuaResult("#data.b", 3)
+        self.lua.eval("assert(#data.b==3, 'failed')")
+        self.assertLuaResult("type(data.a)", "table")
+        self.assertLuaResult("type(data.b)", "table")
+
+    def test_table_from_nested_list_bad(self):
+        data = {"a": {"a": "foo"}, "b": [1, 2, 3]}
+        table = self.lua.table_from(data) # in this case, lua will get userdata instead of table
+        self.assertEqual(table["a"]["a"], "foo")
+        self.assertEqual(list(table["b"]), [1, 2, 3])
+        self.assertEqual(table["b"][0], 1)
+        self.assertEqual(table["b"][1], 2)
+        self.assertEqual(table["b"][2], 3)
+        self.lua.globals()["data"] = table
+        self.assertLuaResult("type(data.a)", "userdata")
+        self.assertLuaResult("type(data.b)", "userdata")
+
+    def test_table_from_self_ref_obj(self):
+        data = {}
+        data["key"] = data
+        l = []
+        l.append(l)
+        data["list"] = l
+        table = self.lua.table_from(data, recursive=True)
+        self.lua.globals()["data"] = table
+        self.assertLuaResult("type(data)", 'table')
+        self.assertLuaResult("type(data['key'])",'table')
+        self.assertLuaResult("type(data['list'])",'table')
+        self.assertLuaResult("data['list']==data['list'][1]", True)
+        self.assertLuaResult("type(data['key']['key']['key']['key'])", 'table')
+        self.assertLuaResult("type(data['key']['key']['key']['key']['list'])", 'table')
+
+    def test_table_from_nested_datastructures(self):
+        from itertools import count
+        def make_ds(*children):
+            yield list(children)
+            yield dict(zip(count(), children))
+            yield {chr(ord('A') + i): child for i, child in enumerate(children)}
+
+        elements = [1, 2, 'x', 'y']
+        for ds1 in make_ds(*elements):
+            for ds2 in make_ds(ds1):
+                for ds3 in make_ds(ds1, elements, ds2):
+                    for ds in make_ds(ds1, ds2, ds3):
+                        with self.subTest(ds=ds):
+                            table = self.lua.table_from(ds)
+                            # we don't translate transitively, so apply arbitrary test operation
+                            self.assertTrue(list(table))
 
     # FIXME: it segfaults
     # def test_table_from_generator_calling_lua_functions(self):
@@ -1365,12 +1450,13 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, LupaTestCase):
 
 
 class TestLuaCoroutines(SetupLuaRuntimeMixin, LupaTestCase):
+
+    @unittest.skipIf(IS_PYPY, "attribute access differs in PyPy")
     def test_coroutine_object(self):
         f = self.lua.eval("function(N) coroutine.yield(N) end")
         gen = f.coroutine(5)
         self.assertRaises(AttributeError, getattr, gen, '__setitem__')
-        if not IS_PYPY:
-            self.assertRaises(AttributeError, setattr, gen, 'send', 5)
+        self.assertRaises(AttributeError, setattr, gen, 'send', 5)
         self.assertRaises(AttributeError, setattr, gen, 'no_such_attribute', 5)
         self.assertRaises(AttributeError, getattr, gen, 'no_such_attribute')
         self.assertRaises(AttributeError, gen.__getattr__, 'no_such_attribute')

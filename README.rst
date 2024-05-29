@@ -35,9 +35,9 @@ Major features
 * frees the GIL and supports threading in separate runtimes when
   calling into Lua
 
-* tested with Python 2.7/3.5 and later
+* tested with Python 2.7/3.6 and later
 
-* ships with Lua 5.3 and 5.4 (works with Lua 5.1 and later)
+* ships with Lua 5.1, 5.2, 5.3 and 5.4
   as well as LuaJIT 2.0 and 2.1 on systems that support it.
 
 * easy to hack on and extend as it is written in Cython, not C
@@ -61,8 +61,8 @@ Python, but LuaJIT compiles it to very fast machine code, sometimes
 faster than many statically compiled languages for computational code.
 The language runtime is very small and carefully designed for
 embedding.  The complete binary module of Lupa, including a statically
-linked LuaJIT2 runtime, only weighs some 700KB on a 64 bit machine.
-With standard Lua 5.1, it's less than 400KB.
+linked LuaJIT2 runtime, only weighs some 800KB on a 64 bit machine.
+With standard Lua 5.2, it's less than 600KB.
 
 However, the Lua ecosystem lacks many of the batteries that Python
 readily includes, either directly in its standard library or as third
@@ -90,7 +90,7 @@ a specific one via import:
 .. code:: python
 
     try:
-        import lupa.luajit20 as lupa
+        import lupa.luajit21 as lupa
     except ImportError:
         try:
             import lupa.lua54 as lupa
@@ -102,13 +102,13 @@ a specific one via import:
 
     print(f"Using {lupa.LuaRuntime().lua_implementation} (compiled with {lupa.LUA_VERSION})")
 
-Note that LuaJIT 2.1 may also be included (as ``luajit21``) but is currently in Alpha state.
-
 
 Examples
 --------
 
 ..
+      >>> import lupa.lua54 as lupa
+
       ## doctest helpers:
       >>> try: _ = sorted
       ... except NameError:
@@ -119,8 +119,7 @@ Examples
 
 .. code:: python
 
-      >>> import lupa
-      >>> from lupa import LuaRuntime
+      >>> from lupa.lua54 import LuaRuntime
       >>> lua = LuaRuntime(unpack_returned_tuples=True)
 
       >>> lua.eval('1+1')
@@ -454,6 +453,8 @@ for plain array tables.
       40
       >>> list(table)
       [1, 2, 3, 4]
+      >>> dict(table)
+      {1: 10, 2: 20, 3: 30, 4: 40}
       >>> list(table.values())
       [10, 20, 30, 40]
       >>> len(table)
@@ -486,19 +487,21 @@ a helper method that creates a Lua table from Python arguments:
 
 .. code:: python
 
-      >>> t = lua.table(1, 2, 3, 4)
+      >>> t = lua.table(10, 20, 30, 40)
       >>> lupa.lua_type(t)
       'table'
       >>> list(t)
       [1, 2, 3, 4]
+      >>> list(t.values())
+      [10, 20, 30, 40]
 
-      >>> t = lua.table(1, 2, 3, 4, a=1, b=2)
+      >>> t = lua.table(10, 20, 30, 40, a=1, b=2)
       >>> t[3]
-      3
+      30
       >>> t['b']
       2
 
-A second helper method, ``.table_from()``, is new in Lupa 1.1 and accepts
+A second helper method, ``.table_from()``, was added in Lupa 1.1 and accepts
 any number of mappings and sequences/iterables as arguments.  It collects
 all values and key-value pairs and builds a single Lua table from them.
 Any keys that appear in multiple mappings get overwritten with their last
@@ -506,11 +509,49 @@ value (going from left to right).
 
 .. code:: python
 
-      >>> t = lua.table_from([1, 2, 3], {'a': 1, 'b': 2}, (4, 5), {'b': 42})
+      >>> t = lua.table_from([10, 20, 30], {'a': 11, 'b': 22}, (40, 50), {'b': 42})
+      >>> t['a']
+      11
       >>> t['b']
       42
       >>> t[5]
-      5
+      50
+      >>> sorted(t.values())
+      [10, 11, 20, 30, 40, 42, 50]
+
+Since Lupa 2.1, passing ``recursive=True`` will map data structures recursively
+to Lua tables.
+
+.. code:: python
+
+      >>> t = lua.table_from(
+      ...     [
+      ...         # t1:
+      ...         [
+      ...             [10, 20, 30],
+      ...             {'a': 11, 'b': 22}
+      ...         ],
+      ...         # t2:
+      ...         [
+      ...             (40, 50),
+      ...             {'b': 42}
+      ...         ]
+      ...     ],
+      ...     recursive=True
+      ... )
+      >>> t1, t2 = t.values()
+      >>> list(t1[1].values())
+      [10, 20, 30]
+      >>> t1[2]['a']
+      11
+      >>> t1[2]['b']
+      22
+      >>> t2[2]['b']
+      42
+      >>> list(t1[1].values())
+      [10, 20, 30]
+      >>> list(t2[1].values())
+      [40, 50]
 
 A lookup of non-existing keys or indices returns None (actually ``nil``
 inside of Lua).  A lookup is therefore more similar to the ``.get()``
@@ -518,10 +559,13 @@ method of Python dicts than to a mapping lookup in Python.
 
 .. code:: python
 
+      >>> table = lua.table(10, 20, 30, 40)
       >>> table[1000000] is None
       True
       >>> table['no such key'] is None
       True
+
+      >>> mapping = lua.eval('{ [20] = -20; [3] = -3 }')
       >>> mapping['no such key'] is None
       True
 
@@ -939,7 +983,8 @@ calculations unless you specify ``total=True``.
 
 .. code:: python
 
-        >>> lua = LuaRuntime(max_memory=0)  # 0 for unlimited, default is None
+        >>> from lupa import lua52
+        >>> lua = lua52.LuaRuntime(max_memory=0)  # 0 for unlimited, default is None
         >>> lua.get_memory_used()  # memory used by your code
         0
         >>> total_lua_memory = lua.get_memory_used(total=True)  # includes memory used by the runtime itself

@@ -50,10 +50,11 @@ cdef object exc_info
 from sys import exc_info
 
 cdef object Mapping
+cdef object Sequence
 try:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 except ImportError:
-    from collections import Mapping  # Py2
+    from collections import Mapping, Sequence  # Py2
 
 cdef object wraps
 from functools import wraps
@@ -169,6 +170,10 @@ def lua_type(obj):
         lua.lua_settop(L, old_top)
         unlock_runtime(lua_object._runtime)
 
+cdef inline int _len_as_int(Py_ssize_t obj) except -1:
+    if obj > <Py_ssize_t>INT_MAX:
+        raise OverflowError
+    return <int>obj
 
 @cython.no_gc_clear
 cdef class LuaRuntime:
@@ -544,7 +549,7 @@ cdef class LuaRuntime:
         """
         return self.table_from(items, kwargs)
 
-    def table_from(self, *args):
+    def table_from(self, *args, bint recursive=False):
         """Create a new table from Python mapping or iterable.
 
         table_from() accepts either a dict/mapping or an iterable with items.
@@ -552,13 +557,15 @@ cdef class LuaRuntime:
         are placed in the table in order.
 
         Nested mappings / iterables are passed to Lua as userdata
-        (wrapped Python objects); they are not converted to Lua tables.
+        (wrapped Python objects) by default.  If `recursive` is True,
+        they are converted to Lua tables recursively, handling loops
+        and duplicates via identity de-duplication.
         """
         assert self._state is not NULL
         cdef lua_State *L = self._state
         lock_runtime(self)
         try:
-            return py_to_lua_table(self, L, args)
+            return py_to_lua_table(self, L, args, recursive=recursive)
         finally:
             unlock_runtime(self)
 
@@ -1313,7 +1320,7 @@ cdef object resume_lua_thread(_LuaThread thread, tuple args):
             # already terminated
             raise StopIteration
         if args:
-            nargs = len(args)
+            nargs = _len_as_int(len(args))
             push_lua_arguments(thread._runtime, co, args)
         with nogil:
             status = lua.lua_resume(co, L, nargs, &nres)
@@ -1564,7 +1571,7 @@ cdef py_object* unpack_userdata(lua_State *L, int n) noexcept nogil:
 cdef int py_function_result_to_lua(LuaRuntime runtime, lua_State *L, object o) except -1:
      if runtime._unpack_returned_tuples and isinstance(o, tuple):
          push_lua_arguments(runtime, L, <tuple>o)
-         return len(<tuple>o)
+         return _len_as_int(len(<tuple>o))
      check_lua_stack(L, 1)
      return py_to_lua(runtime, L, o)
 
@@ -1593,7 +1600,7 @@ cdef int py_to_lua_handle_overflow(LuaRuntime runtime, lua_State *L, object o) e
         lua.lua_settop(L, old_top)
         raise
 
-cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False) except -1:
+cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=False, bint recursive=False, dict mapped_tables=None) except -1:
     """Converts Python object to Lua
     Preconditions:
         1 extra slot in the Lua stack
@@ -1645,13 +1652,19 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
     elif isinstance(o, float):
         lua.lua_pushnumber(L, <lua.lua_Number><double>o)
         pushed_values_count = 1
+    elif isinstance(o, _PyProtocolWrapper):
+        type_flags = (<_PyProtocolWrapper> o)._type_flags
+        o = (<_PyProtocolWrapper> o)._obj
+        pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
+    elif recursive and isinstance(o, (list, dict, Sequence, Mapping)):
+        if mapped_tables is None:
+            mapped_tables = {}
+        table = py_to_lua_table(runtime, L, (o,), recursive=recursive, mapped_tables=mapped_tables)
+        (<_LuaObject> table).push_lua_object(L)
+        pushed_values_count = 1
     else:
-        if isinstance(o, _PyProtocolWrapper):
-            type_flags = (<_PyProtocolWrapper>o)._type_flags
-            o = (<_PyProtocolWrapper>o)._obj
-        else:
-            # prefer __getitem__ over __getattr__ by default
-            type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
+        # prefer __getitem__ over __getattr__ by default
+        type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
     return pushed_values_count
 
@@ -1715,6 +1728,65 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     return 1  # values pushed
 
 
+cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, tuple items, bint recursive=False, dict mapped_tables=None):
+    """
+    Create a new Lua table and add different kinds of values from the sequence 'items' to it.
+
+    Dicts, Mappings and Lua tables are unpacked into key-value pairs.
+    Everything else is considered a sequence of plain values that get appended to the table.
+    """
+    cdef int i = 1
+    check_lua_stack(L, 5)
+    old_top = lua.lua_gettop(L)
+    lua.lua_newtable(L)
+    # FIXME: handle allocation errors
+    cdef int lua_table_ref = lua.lua_gettop(L)  # the index of the lua table which we are filling
+    if recursive and mapped_tables is None:
+        mapped_tables = {}
+    try:
+        for obj in items:
+            if recursive:
+                if id(obj) not in mapped_tables:
+                    # this object is never seen before, we should cache it
+                    mapped_tables[id(obj)] = lua_table_ref
+                else:
+                    # this object has been cached, just get the corresponding lua table's index
+                    idx = mapped_tables[id(obj)]
+                    return new_lua_table(runtime, L, <int>idx)
+            if isinstance(obj, dict):
+                for key, value in (<dict>obj).items():
+                    py_to_lua(runtime, L, key, wrap_none=True, recursive=recursive, mapped_tables=mapped_tables)
+                    py_to_lua(runtime, L, value, wrap_none=False, recursive=recursive, mapped_tables=mapped_tables)
+                    lua.lua_rawset(L, -3)
+
+            elif isinstance(obj, _LuaTable):
+                # Stack:                               # tbl
+                (<_LuaObject> obj).push_lua_object(L)  # tbl, obj
+                lua.lua_pushnil(L)            # tbl, obj, nil       // iterate over obj (-2)
+                while lua.lua_next(L, -2):    # tbl, obj, k, v
+                    lua.lua_pushvalue(L, -2)  # tbl, obj, k, v, k   // copy key (because
+                    lua.lua_insert(L, -2)     # tbl, obj, k, k, v   // lua_next needs a key for iteration)
+                    lua.lua_settable(L, -5)   # tbl, obj, k         // tbl[k] = v
+                lua.lua_pop(L, 1)             # tbl                 // remove obj from stack
+
+            elif isinstance(obj, Mapping):
+                for key in obj:
+                    value = obj[key]
+                    py_to_lua(runtime, L, key, wrap_none=True, recursive=recursive, mapped_tables=mapped_tables)
+                    py_to_lua(runtime, L, value, wrap_none=False, recursive=recursive, mapped_tables=mapped_tables)
+                    lua.lua_rawset(L, -3)
+
+            else:
+                for arg in obj:
+                    py_to_lua(runtime, L, arg, wrap_none=False, recursive=recursive, mapped_tables=mapped_tables)
+                    lua.lua_rawseti(L, -2, i)
+                    i += 1
+
+        return new_lua_table(runtime, L, -1)
+    finally:
+        lua.lua_settop(L, old_top)
+
+
 cdef inline int _isascii(unsigned char* s) noexcept:
     cdef unsigned char c = 0
     while s[0]:
@@ -1735,55 +1807,6 @@ cdef bytes _asciiOrNone(s):
     if not _isascii(<bytes>s):
         raise ValueError("byte string input has unknown encoding, only ASCII is allowed")
     return <bytes>s
-
-
-cdef _LuaTable py_to_lua_table(LuaRuntime runtime, lua_State* L, items):
-    """
-    Create a new Lua table and add different kinds of values from the sequence 'items' to it.
-
-    Dicts, Mappings and Lua tables are unpacked into key-value pairs.
-    Everything else is considered a sequence of plain values that get appended to the table.
-    """
-    cdef int i = 1
-    check_lua_stack(L, 5)
-    old_top = lua.lua_gettop(L)
-    lua.lua_newtable(L)
-    # FIXME: how to check for failure?
-
-    try:
-        for obj in items:
-            if isinstance(obj, dict):
-                for key, value in (<dict>obj).items():
-                    py_to_lua(runtime, L, key, wrap_none=True)
-                    py_to_lua(runtime, L, value)
-                    lua.lua_rawset(L, -3)
-
-            elif isinstance(obj, _LuaTable):
-                # Stack:                               # tbl
-                (<_LuaObject> obj).push_lua_object(L)  # tbl, obj
-                lua.lua_pushnil(L)            # tbl, obj, nil       // iterate over obj (-2)
-                while lua.lua_next(L, -2):    # tbl, obj, k, v
-                    lua.lua_pushvalue(L, -2)  # tbl, obj, k, v, k   // copy key (because
-                    lua.lua_insert(L, -2)     # tbl, obj, k, k, v   // lua_next needs a key for iteration)
-                    lua.lua_settable(L, -5)   # tbl, obj, k         // tbl[k] = v
-                lua.lua_pop(L, 1)             # tbl                 // remove obj from stack
-
-            elif isinstance(obj, Mapping):
-                for key in obj:
-                    value = obj[key]
-                    py_to_lua(runtime, L, key, wrap_none=True)
-                    py_to_lua(runtime, L, value)
-                    lua.lua_rawset(L, -3)
-
-            else:
-                for arg in obj:
-                    py_to_lua(runtime, L, arg)
-                    lua.lua_rawseti(L, -2, i)
-                    i += 1
-
-        return new_lua_table(runtime, L, -1)
-    finally:
-        lua.lua_settop(L, old_top)
 
 
 # error handling
@@ -1908,7 +1931,7 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
                 lua.lua_replace(L, -2)
                 lua.lua_insert(L, 1)
                 has_lua_traceback_func = True
-        result_status = lua.lua_pcall(L, nargs, lua.LUA_MULTRET, has_lua_traceback_func)
+        result_status = lua.lua_pcall(L, <int>nargs, lua.LUA_MULTRET, has_lua_traceback_func)
         if has_lua_traceback_func:
             lua.lua_remove(L, 1)
     runtime.clean_up_pending_unrefs()
@@ -2087,7 +2110,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
     else:
         args = ()
         kwargs = {}
-        
+
         for i in range(nargs):
             arg = py_from_lua(runtime, L, i+2)
             if isinstance(arg, _PyArguments):

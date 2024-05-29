@@ -1,5 +1,6 @@
-include MANIFEST.in
+include MANIFEST.in requirements.txt Makefile
 include CHANGES.rst INSTALL.rst LICENSE.txt README.rst
+include setup.py setup.cfg pyproject.toml tox.ini
 include logo/logo-220x200.png
 recursive-include lupa *.py *.pyx *.pxd *.pxi *.c
 recursive-include third-party *
