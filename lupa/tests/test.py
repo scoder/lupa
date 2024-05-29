@@ -121,6 +121,7 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
                 assert_no_deadlock,
                 threading.Thread(target=trigger_gc, args=[ref]),
             )
+            lua.gccollect()
 
         self._run_gc_test(delete_table_reference_in_thread)
 
