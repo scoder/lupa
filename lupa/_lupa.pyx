@@ -561,6 +561,23 @@ cdef class LuaRuntime:
         finally:
             unlock_runtime(self)
 
+    def nogc(self):
+        """
+        Return a context manager that temporarily disables the Lua garbage collector.
+        """
+        return _LuaNoGC(self)
+
+    def gccollect(self):
+        """
+        Run a full pass of the Lua garbage collector.
+        """
+        assert self._state is not NULL
+        cdef lua_State *L = self._state
+        lock_runtime(self)
+        # Pass third argument for compatibility with Lua 5.[123].
+        lua.lua_gc(L, lua.LUA_GCCOLLECT, <int> 0)
+        unlock_runtime(self)
+
     def set_max_memory(self, size_t max_memory, total=False):
         """Set maximum allowed memory for this LuaRuntime.
 
@@ -658,6 +675,37 @@ cdef class LuaRuntime:
         lua.lua_pop(L, 1)
 
         return 0  # nothing left to return on the stack
+
+
+@cython.internal
+cdef class _LuaNoGC:
+    """
+    A context manager that temporarily disables the Lua garbage collector.
+    """
+    cdef LuaRuntime _runtime
+
+    def __cinit__(self, LuaRuntime runtime not None):
+        self._runtime = runtime
+
+    def __enter__(self):
+        if self._runtime is None:
+            return  # e.g. system teardown
+        assert self._runtime._state is not NULL
+        cdef lua_State *L = self._runtime._state
+        lock_runtime(self._runtime)
+        # Pass third argument for compatibility with Lua 5.[123].
+        lua.lua_gc(L, lua.LUA_GCSTOP, <int> 0)
+        unlock_runtime(self._runtime)
+
+    def __exit__(self, *exc):
+        if self._runtime is None:
+            return  # e.g. system teardown
+        assert self._runtime._state is not NULL
+        cdef lua_State *L = self._runtime._state
+        lock_runtime(self._runtime)
+        # Pass third argument for compatibility with Lua 5.[123].
+        lua.lua_gc(L, lua.LUA_GCRESTART, <int> 0)
+        unlock_runtime(self._runtime)
 
 
 ################################################################################

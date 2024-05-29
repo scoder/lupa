@@ -16,6 +16,8 @@ Lupa change log
   explicitly at need.
   (original patch by Richard Connon)
 
+* A new method ``LuaRuntime.gc()`` was added to control the Lua garbage collector.
+
 * The bundled Lua 5.1 was updated to 5.1.5 and Lua 5.2 to 5.2.4.
   (patch by xxyzz)
 
