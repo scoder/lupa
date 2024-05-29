@@ -333,10 +333,11 @@ cdef class LuaRuntime:
         if self._pending_unrefs is None or self._state is NULL:
             return 0
 
-        cdef int ref
-        L = self._state
         pending_unrefs = self._pending_unrefs
         self._pending_unrefs = None
+
+        cdef int ref
+        L = self._state
         for ref in pending_unrefs:
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
         print(f"Cleaned up {len(pending_unrefs)} Lua refs")  # TODO: remove
@@ -1367,7 +1368,7 @@ cdef class _LuaIter:
         runtime = self._runtime
         self._runtime = None
         ref = self._refiter
-        if self._refiter == lua.LUA_NOREF:
+        if ref == lua.LUA_NOREF:
             return
         self._refiter = lua.LUA_NOREF
         cdef lua_State* L = self._state
