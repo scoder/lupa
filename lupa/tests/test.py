@@ -103,8 +103,6 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
         self._run_gc_test(make_refcycle, off_by_one=True)
 
     def test_lupa_gc_deadlock(self):
-        lua = self.lupa.LuaRuntime()
-
         def assert_no_deadlock(thread):
             thread.start()
             thread.join(1)
@@ -123,6 +121,14 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
             )
             lua.gccollect()
 
+        # Pre-initialise threading outside of the refcount checks.
+        lua = self.lupa.LuaRuntime()
+        assert_no_deadlock(threading.Thread())
+        delete_table_reference_in_thread()
+        gc.collect()
+
+        # Run test.
+        lua = self.lupa.LuaRuntime()
         self._run_gc_test(delete_table_reference_in_thread)
 
 
