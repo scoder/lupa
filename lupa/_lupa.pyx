@@ -345,7 +345,6 @@ cdef class LuaRuntime:
         L = self._state
         for ref in pending_unrefs:
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
-        print(f"Cleaned up {len(pending_unrefs)} Lua refs")  # TODO: remove
         return 0
 
     def __dealloc__(self):

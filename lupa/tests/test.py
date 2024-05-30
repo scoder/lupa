@@ -55,6 +55,7 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
             run_test()
         del i
         gc.collect()
+
         new_count = len(gc.get_objects())
         if off_by_one and old_count == new_count + 1:
             # FIXME: This happens in test_attrgetter_refcycle - need to investigate why!
@@ -101,35 +102,6 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
         # FIXME: find out why we loose one reference here.
         # Seems related to running the test twice in the same Lupa module?
         self._run_gc_test(make_refcycle, off_by_one=True)
-
-    def test_lupa_gc_deadlock(self):
-        def assert_no_deadlock(thread):
-            thread.start()
-            thread.join(1)
-            assert not thread.is_alive(), "thread didn't finish - deadlock?"
-
-        def delete_table_reference_in_thread():
-            ref = [lua.eval("{}")]
-
-            def trigger_gc(ref):
-                del ref[0]
-
-            lua.execute(
-                "f,x=...; f(x)",
-                assert_no_deadlock,
-                threading.Thread(target=trigger_gc, args=[ref]),
-            )
-            lua.gccollect()
-
-        # Pre-initialise threading outside of the refcount checks.
-        lua = self.lupa.LuaRuntime()
-        assert_no_deadlock(threading.Thread())
-        delete_table_reference_in_thread()
-        gc.collect()
-
-        # Run test.
-        lua = self.lupa.LuaRuntime()
-        self._run_gc_test(delete_table_reference_in_thread)
 
 
 class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
@@ -2132,6 +2104,23 @@ class TestThreading(LupaTestCase):
         ## else:
         ##     image = Image.fromstring('1', (image_size, image_size), result_bytes)
         ##     image.show()
+
+    def test_lua_gc_deadlock(self):
+        # Delete a Lua reference from a thread while the LuaRuntime is running.
+        lua = self.lupa.LuaRuntime()
+        ref = [lua.eval("{}")]
+
+        def trigger_gc(ref):
+            del ref[0]
+
+        thread = threading.Thread(target=trigger_gc, args=[ref])
+
+        lua.execute(
+            "start, join = ...; start(); join()",
+            thread.start,
+            thread.join,
+        )
+        assert not thread.is_alive(), "thread didn't finish - deadlock?"
 
 
 class TestDontUnpackTuples(LupaTestCase):
