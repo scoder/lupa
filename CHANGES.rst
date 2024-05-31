@@ -4,7 +4,12 @@ Lupa change log
 2.2 (2024-??-??)
 ----------------
 
-* A new method ``LuaRuntime.gc()`` was added to control the Lua garbage collector.
+* A new method ``LuaRuntime.gccollect()`` was added to trigger the Lua garbage collector.
+
+* A new context manager ``LuaRuntime.nogc()`` was added to temporarily disable the Lua
+  garbage collector.
+
+* Freeing Python objects from a thread while running Lua code could run into a deadlock.
 
 
 2.1 (2024-03-24)
