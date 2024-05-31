@@ -25,7 +25,6 @@ jobs:
           - "3.7"
           - "3.6"
           - "pypy-2.7"
-          - "pypy-3.7"
           - "pypy-3.8"
           - "pypy-3.9"
           - "pypy-3.10"
@@ -37,7 +36,7 @@ jobs:
 
         exclude:
           - os: windows-2019
-            python-version: 2.7
+            python-version: "2.7"
           - os: windows-2019
             python-version: pypy-2.7
           - os: windows-2019
@@ -48,8 +47,16 @@ jobs:
             lua-version: lua5.4
           - os: windows-2019
             lua-version: luajit-5.1
+
           - os: macos-11
-            python-version: 2.7
+            python-version: "2.7"
+          - os: macos-latest
+            python-version: "2.7"
+          - os: macos-latest
+            python-version: "3.6"
+          - os: macos-latest
+            python-version: "3.7"
+
           - os: macos-11
             lua-version: lua5.2
           - os: macos-11
@@ -58,8 +65,6 @@ jobs:
             lua-version: lua5.4
           - os: macos-11
             lua-version: luajit-5.1
-          - os: macos-latest
-            python-version: 2.7
           - os: macos-latest
             lua-version: lua5.2
           - os: macos-latest
