@@ -911,6 +911,7 @@ cdef class _LuaObject:
             locked = lock_runtime(runtime, blocking=False)
             if locked:
                 lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
+                runtime.clean_up_pending_unrefs()  # just in case
                 unlock_runtime(runtime)
                 return
         runtime.add_pending_unref(ref)
@@ -1382,6 +1383,7 @@ cdef class _LuaIter:
             locked = lock_runtime(runtime, blocking=False)
             if locked:
                 lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
+                runtime.clean_up_pending_unrefs()  # just in case
                 unlock_runtime(runtime)
                 return
         runtime.add_pending_unref(ref)
