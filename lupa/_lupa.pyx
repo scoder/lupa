@@ -260,6 +260,7 @@ cdef class LuaRuntime:
     cdef FastRLock _lock
     cdef dict _pyrefs_in_lua
     cdef tuple _raised_exception
+    cdef list _pending_unrefs
     cdef bytes _encoding
     cdef bytes _source_encoding
     cdef object _attribute_filter
@@ -323,6 +324,28 @@ cdef class LuaRuntime:
                 # Prevent accidental (or deliberate) usage of our special value.
                 if self._memory_status.limit == <size_t> -1:
                     self._memory_status.limit -= 1
+
+    @cython.final
+    cdef void add_pending_unref(self, int ref) noexcept:
+        pyval: object = ref
+        if self._pending_unrefs is None:
+            self._pending_unrefs = [pyval]
+        else:
+            self._pending_unrefs.append(pyval)
+
+    @cython.final
+    cdef int clean_up_pending_unrefs(self) except -1:
+        if self._pending_unrefs is None or self._state is NULL:
+            return 0
+
+        pending_unrefs = self._pending_unrefs
+        self._pending_unrefs = None
+
+        cdef int ref
+        L = self._state
+        for ref in pending_unrefs:
+            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
+        return 0
 
     def __dealloc__(self):
         if self._state is not NULL:
@@ -848,8 +871,8 @@ cdef tuple _fix_args_kwargs(tuple args):
 ################################################################################
 # fast, re-entrant runtime locking
 
-cdef inline bint lock_runtime(LuaRuntime runtime) noexcept with gil:
-    return lock_lock(runtime._lock, pythread.PyThread_get_thread_ident(), True)
+cdef inline bint lock_runtime(LuaRuntime runtime, bint blocking=True) noexcept with gil:
+    return lock_lock(runtime._lock, pythread.PyThread_get_thread_ident(), blocking=blocking)
 
 cdef inline void unlock_runtime(LuaRuntime runtime) noexcept nogil:
     unlock_lock(runtime._lock)
@@ -877,15 +900,20 @@ cdef class _LuaObject:
     def __dealloc__(self):
         if self._runtime is None:
             return
+        runtime = self._runtime
+        self._runtime = None
+        ref = self._ref
+        if ref == lua.LUA_NOREF:
+            return
+        self._ref = lua.LUA_NOREF
         cdef lua_State* L = self._state
-        if L is not NULL and self._ref != lua.LUA_NOREF:
-            locked = lock_runtime(self._runtime)
-            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._ref)
-            self._ref = lua.LUA_NOREF
-            runtime = self._runtime
-            self._runtime = None
+        if L is not NULL:
+            locked = lock_runtime(runtime, blocking=False)
             if locked:
+                lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
                 unlock_runtime(runtime)
+                return
+        runtime.add_pending_unref(ref)
 
     @cython.final
     cdef inline int push_lua_object(self, lua_State* L) except -1:
@@ -1343,15 +1371,20 @@ cdef class _LuaIter:
     def __dealloc__(self):
         if self._runtime is None:
             return
+        runtime = self._runtime
+        self._runtime = None
+        ref = self._refiter
+        if ref == lua.LUA_NOREF:
+            return
+        self._refiter = lua.LUA_NOREF
         cdef lua_State* L = self._state
-        if L is not NULL and self._refiter != lua.LUA_NOREF:
-            locked = lock_runtime(self._runtime)
-            lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, self._refiter)
-            self._refiter = lua.LUA_NOREF
-            runtime = self._runtime
-            self._runtime = None
+        if L is not NULL:
+            locked = lock_runtime(runtime, blocking=False)
             if locked:
+                lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
                 unlock_runtime(runtime)
+                return
+        runtime.add_pending_unref(ref)
 
     def __repr__(self):
         return u"LuaIter(%r)" % (self._obj)
@@ -1900,6 +1933,7 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
         result_status = lua.lua_pcall(L, <int>nargs, lua.LUA_MULTRET, has_lua_traceback_func)
         if has_lua_traceback_func:
             lua.lua_remove(L, 1)
+    runtime.clean_up_pending_unrefs()
     results = unpack_lua_results(runtime, L)
     if result_status:
         if isinstance(results, BaseException):
@@ -2099,6 +2133,7 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
         lua.lua_settop(L, 0)  # FIXME
         result = f(*args, **kwargs)
 
+    runtime.clean_up_pending_unrefs()
     return py_function_result_to_lua(runtime, L, result)
 
 cdef int py_call_with_gil(lua_State* L, py_object *py_obj) noexcept with gil:
