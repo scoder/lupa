@@ -1,7 +1,7 @@
 Lupa change log
 ===============
 
-2.2 (2024-??-??)
+2.2 (2024-06-02)
 ----------------
 
 * A new method ``LuaRuntime.gccollect()`` was added to trigger the Lua garbage collector.
@@ -10,6 +10,10 @@ Lupa change log
   garbage collector.
 
 * Freeing Python objects from a thread while running Lua code could run into a deadlock.
+
+* The bundled LuaJIT versions were updated to the latest git branches.
+
+* Built with Cython 3.0.10.
 
 
 2.1 (2024-03-24)
