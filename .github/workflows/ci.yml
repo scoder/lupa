@@ -13,7 +13,7 @@ jobs:
         os:
           - windows-2019
           - ubuntu-20.04
-          - macos-11
+          - macos-12
           - macos-latest
         python-version:
           - "2.7"
@@ -49,7 +49,7 @@ jobs:
           - os: windows-2019
             lua-version: luajit-5.1
 
-          - os: macos-11
+          - os: macos-12
             python-version: "2.7"
           - os: macos-latest
             python-version: "2.7"
@@ -60,13 +60,13 @@ jobs:
           - os: macos-latest
             python-version: pypy-3.7
 
-          - os: macos-11
+          - os: macos-12
             lua-version: lua5.2
-          - os: macos-11
+          - os: macos-12
             lua-version: lua5.3
-          - os: macos-11
+          - os: macos-12
             lua-version: lua5.4
-          - os: macos-11
+          - os: macos-12
             lua-version: luajit-5.1
           - os: macos-latest
             lua-version: lua5.2
