@@ -68,12 +68,6 @@ jobs:
         name: sdist
         path: dist/*.tar.gz
 
-    - name: Release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: dist/*.tar.gz
-
   generate-wheels-matrix:
     # Create a matrix of all architectures & versions to build.
     # This enables the next step to run cibuildwheel in parallel.
@@ -171,7 +165,9 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./bdist_downloads/*.whl
+          files: |
+            ./bdist_downloads/*.whl
+            ./bdist_downloads/*.tar.gz
 
   Linux:
     runs-on: ubuntu-latest
