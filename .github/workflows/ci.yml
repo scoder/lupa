@@ -111,7 +111,7 @@ jobs:
     - name: Set up Python packages
       run: |
         python -m pip install -U ${{ startsWith(matrix.python-version, '2.7') && '"pip<21" "setuptools<45"' || 'pip setuptools' }}
-        python -m pip install -U wheel tox virtualenv -r requirements.txt
+        python -m pip install -U wheel tox virtualenv pytest -r requirements.txt
 
     - name: Set up Lua ${{ matrix.lua-version }}
       if: contains(matrix.os, 'ubuntu') && matrix.lua-version != 'bundle'
@@ -125,7 +125,7 @@ jobs:
         LDFLAGS: ${{ env.CFLAGS_LTO }}
 
     - name: Run tests
-      run: python setup.py test
+      run: pytest lupa
       continue-on-error: ${{ contains(matrix.python-version, 'pypy') }}
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}

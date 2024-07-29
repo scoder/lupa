@@ -27,6 +27,7 @@ install:
   - SET PATH=C:\\Python%PYTHON%;c:\\Python%PYTHON%\\scripts;%PATH%
   - python -m pip.__main__ install -U pip wheel setuptools
   - pip install -r requirements.txt
+  - pip install pytest
   - git submodule update --init --recursive
 
 build: off
@@ -37,7 +38,7 @@ build_script:
 
 test: off
 test_script:
-  - python -u setup.py test
+  - pytest lupa
 
 artifacts:
   - path: dist/*.whl
