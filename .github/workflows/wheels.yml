@@ -135,13 +135,13 @@ jobs:
           ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
 
       - name: Setup Visual Studio for x64
-        if: runner.os == 'Windows' && contains(matrix.only, 'win_amd64')
+        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win_amd64')
         uses: TheMrMilchmann/setup-msvc-dev@v3
         with:
           arch: x64
 
       - name: Setup Visual Studio for x86
-        if: runner.os == 'Windows' && contains(matrix.only, 'win32')
+        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win32')
         uses: TheMrMilchmann/setup-msvc-dev@v3
         with:
           arch: x86
@@ -278,7 +278,7 @@ jobs:
     - name: Install dependencies
       run: |
         export PATH=$PYTHON_BIN_DIR:$PATH
-        python -m pip install setuptools wheel -r requirements.txt
+        python -m pip install wheel -r requirements.txt
 
     - name: Build wheels
       run: |
