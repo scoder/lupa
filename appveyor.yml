@@ -31,10 +31,10 @@ install:
 
 build: off
 build_script:
-  - call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
-  - python -u setup.py clean
-  - python -u setup.py build install --use-bundle
-  - python -u setup.py bdist_wheel --use-bundle
+  - cmd: call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+  - cmd: python -u setup.py clean
+  - cmd: python -u setup.py build install --use-bundle
+  - cmd: python -u setup.py bdist_wheel --use-bundle
 
 test: off
 test_script:
