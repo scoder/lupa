@@ -118,7 +118,7 @@ jobs:
       run: sudo apt-get install lib${{ matrix.lua-version }}-dev
 
     - name: Setup Visual Studio
-      if: contains( matrix.os, 'windows')
+      if: contains(matrix.os, 'windows')
       uses: TheMrMilchmann/setup-msvc-dev@v3
       with:
         arch: x64
