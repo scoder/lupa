@@ -1,5 +1,5 @@
 [build-system]
-requires = ["Cython>=3.0.9", "setuptools<72.0.0", "wheel"]
+requires = ["Cython>=3.0.9", "setuptools!=72.0.0", "wheel"]
 
 [tool.cibuildwheel]
 build-verbosity = 2
