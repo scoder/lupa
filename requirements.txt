@@ -1,2 +1,2 @@
 Cython>=3.0.9
-setuptools
+setuptools<72.0.0
