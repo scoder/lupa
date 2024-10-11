@@ -117,6 +117,12 @@ jobs:
       if: contains(matrix.os, 'ubuntu') && matrix.lua-version != 'bundle'
       run: sudo apt-get install lib${{ matrix.lua-version }}-dev
 
+    - name: Setup Visual Studio
+      if: contains( matrix.os, 'windows')
+      uses: TheMrMilchmann/setup-msvc-dev@v3
+      with:
+        arch: x64
+
     - name: Build wheel
       run: python setup.py sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j6' || '' }} bdist_wheel
       env:
