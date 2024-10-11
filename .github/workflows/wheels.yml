@@ -135,6 +135,7 @@ jobs:
           ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
 
       - name: Setup Visual Studio
+        if: runner.os == 'Windows'
         uses: TheMrMilchmann/setup-msvc-dev@v3
         with:
           arch: x64
