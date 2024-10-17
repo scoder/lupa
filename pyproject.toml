@@ -26,7 +26,7 @@ environment = {CFLAGS = "-O3 -g1 -pipe -fPIC -flto -march=armv8-a -mtune=cortex-
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64", "x86"]
-test-command = "python -c \"import lupa\" && python -c \"import lupa.lua54\" && python -c \"import lupa.luajit21\" "
+test-command = "python -c 'import lupa' && python -c 'import lupa.lua54' && python -c 'import lupa.luajit21' "
 
 [tool.cibuildwheel.macos]
 # https://cibuildwheel.readthedocs.io/en/stable/faq/#what-to-provide suggests to provide
