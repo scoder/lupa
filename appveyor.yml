@@ -37,7 +37,7 @@ build_script:
 
 test: off
 test_script:
-  - python -u setup.py test
+  - python -u -m lupa.tests.__main__
 
 artifacts:
   - path: dist/*.whl

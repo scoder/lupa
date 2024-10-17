@@ -114,7 +114,7 @@ jobs:
         LDFLAGS: ${{ env.CFLAGS_LTO }}
 
     - name: Run tests
-      run: python setup.py test
+      run: python -m lupa.tests.__main__
       continue-on-error: ${{ contains(matrix.python-version, 'pypy') }}
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
