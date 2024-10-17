@@ -218,7 +218,7 @@ jobs:
 
       matrix:
         os:
-          - macos-latest
+          - macos-13
           #- windows-2019
         pyversion:
           - "2.7"
