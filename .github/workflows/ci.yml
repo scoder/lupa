@@ -12,19 +12,16 @@ jobs:
       matrix:
         os:
           - windows-2019
-          - ubuntu-20.04
+          - ubuntu-latest
           - macos-latest
         python-version:
-          - "2.7"
+          - "3.14-dev"
+          - "3.13"
           - "3.12"
           - "3.11"
           - "3.10"
           - "3.9"
           - "3.8"
-          - "3.7"
-          - "3.6"
-          - "pypy-2.7"
-          - "pypy-3.7"
           - "pypy-3.8"
           - "pypy-3.9"
           - "pypy-3.10"
@@ -36,10 +33,6 @@ jobs:
 
         exclude:
           - os: windows-2019
-            python-version: "2.7"
-          - os: windows-2019
-            python-version: pypy-2.7
-          - os: windows-2019
             lua-version: lua5.2
           - os: windows-2019
             lua-version: lua5.3
@@ -47,15 +40,6 @@ jobs:
             lua-version: lua5.4
           - os: windows-2019
             lua-version: luajit-5.1
-
-          - os: macos-latest
-            python-version: "2.7"
-          - os: macos-latest
-            python-version: "3.6"
-          - os: macos-latest
-            python-version: "3.7"
-          - os: macos-latest
-            python-version: pypy-3.7
 
           - os: macos-latest
             lua-version: lua5.2
@@ -81,25 +65,13 @@ jobs:
       run: git submodule update --init --recursive
 
     - name: Set up Python ${{ matrix.python-version }}
-      if: startsWith(matrix.python-version, '3.') || startsWith(matrix.python-version, 'pypy') || !startsWith(matrix.os, 'ubuntu')
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Set up Python2 (Linux)
-      if: matrix.python-version == '2.7' && startsWith(matrix.os, 'ubuntu')
-      run: |
-          sudo ln -fs python2 /usr/bin/python
-          sudo apt-get update
-          sudo apt-get install python-setuptools python2.7 python2.7-dev
-          curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
-          sudo python2 get-pip.py
-          ls -l /usr/bin/pip* /usr/local/bin/pip*
-          which pip
-
     - name: Set up Python packages
       run: |
-        python -m pip install -U ${{ startsWith(matrix.python-version, '2.7') && '"pip<21" "setuptools<45"' || 'pip setuptools' }}
+        python -m pip install -U pip setuptools
         python -m pip install -U wheel tox virtualenv -r requirements.txt
 
     - name: Set up Lua ${{ matrix.lua-version }}
@@ -107,7 +79,7 @@ jobs:
       run: sudo apt-get install lib${{ matrix.lua-version }}-dev
 
     - name: Build wheel
-      run: python setup.py sdist ${{ contains(matrix.python-version, '3.') && 'build_ext -j6' || '' }} bdist_wheel
+      run: python setup.py sdist build_ext -j6 bdist_wheel
       env:
         SETUP_OPTIONS: ${{ !contains(matrix.lua-version, 'luajit') && (contains(matrix.lua-version, 'bundle') && '--use-bundle' || '--no-luajit') || '' }}
         CFLAGS: ${{ env.CFLAGS }} ${{ env.CFLAGS_LTO }}
