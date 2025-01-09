@@ -40,7 +40,7 @@ permissions: {}
 
 jobs:
   sdist:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     permissions:
       contents: write  # to create GitHub release (softprops/action-gh-release)
@@ -68,12 +68,6 @@ jobs:
         name: sdist
         path: dist/*.tar.gz
 
-    - name: Release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: dist/*.tar.gz
-
   generate-wheels-matrix:
     # Create a matrix of all architectures & versions to build.
     # This enables the next step to run cibuildwheel in parallel.
@@ -86,7 +80,7 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - name: Install cibuildwheel
         # Nb. keep cibuildwheel version pin consistent with job below
-        run: pipx install cibuildwheel==2.16.5
+        run: pipx install cibuildwheel==2.22.0
       - id: set-matrix
         run: |
           MATRIX=$(
@@ -147,7 +141,7 @@ jobs:
           arch: x86
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.22.0
         with:
           only: ${{ matrix.only }}
 
@@ -158,7 +152,7 @@ jobs:
 
   upload_release_assets:
     name: Upload Release Wheels
-    needs: [ build_wheels, Linux, non-Linux ]
+    needs: [ build_wheels, Linux ]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags')
 
@@ -183,7 +177,9 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./bdist_downloads/*.whl
+          files: |
+            ./bdist_downloads/*.whl
+            ./bdist_downloads/*.tar.gz
 
   Linux:
     runs-on: ubuntu-latest
@@ -211,7 +207,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
       with:
-        python-version: "3.9"
+        python-version: "3.12"
 
     - name: Install dependencies
       run: python -m pip install -r requirements.txt
@@ -225,69 +221,4 @@ jobs:
       with:
         name: wheels-${{ matrix.image }}
         path: wheelhouse_*/*-m*linux*.whl  # manylinux / musllinux
-        if-no-files-found: ignore
-
-  non-Linux:
-    strategy:
-      # Allows for matrix sub-jobs to fail without canceling the rest
-      fail-fast: false
-
-      matrix:
-        os:
-          - macos-12
-          #- windows-2019
-        pyversion:
-          - "2.7"
-          - "3.6"
-          #- "pypy-3.7-v7.3.7"
-          #- "pypy-3.8-v7.3.7"
-          #- "pypy-3.9-v7.3.11"
-          #- "pypy-3.10-v7.3.13"
-
-        exclude:
-          # outdated compilers and probably not worth supporting anymore
-          - os: windows-2019
-            pyversion: "2.7"
-
-    runs-on: ${{ matrix.os }}
-    env:
-      USE_BUNDLE: "true"
-      MACOSX_DEPLOYMENT_TARGET: "11.0"
-      LUPA_WITH_LUA_DLOPEN: ${{ startsWith(matrix.os, 'windows') && 'false' || 'true' }}
-      PYTHON_BIN_DIR: ${{ startsWith(matrix.pyversion, '2.') && '/Library/Frameworks/Python.framework/Versions/2.7/bin' || '' }}
-
-    steps:
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-
-    - name: Check out recursively
-      run: git submodule update --init --recursive
-
-    - name: Set up Python
-      uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
-      # macOS has Py2.7 installed system wide
-      if: matrix.pyversion != '2.7'
-      with:
-        python-version: ${{ matrix.pyversion }}
-
-    - name: Install MacOS dependencies
-      if: startsWith(matrix.os, 'mac')
-      run: |
-        brew install automake libtool
-        ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
-
-    - name: Install dependencies
-      run: |
-        export PATH=$PYTHON_BIN_DIR:$PATH
-        python -m pip install wheel -r requirements.txt
-
-    - name: Build wheels
-      run: |
-        export PATH=$PYTHON_BIN_DIR:$PATH
-        python setup.py --with-cython sdist ${{ contains(matrix.pyversion, '3.') && 'build_ext -j6' || '' }} bdist_wheel
-
-    - name: Upload wheels
-      uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6 # v4.2.0
-      with:
-        name: wheels-${{ matrix.pyversion }}-${{ matrix.os }}
-        path: dist/*.whl
         if-no-files-found: ignore

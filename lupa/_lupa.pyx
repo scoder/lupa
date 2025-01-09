@@ -24,20 +24,7 @@ from cpython.method cimport (
 from cpython.bytes cimport PyBytes_FromFormat
 
 #from libc.stdint cimport uintptr_t
-cdef extern from *:
-    """
-    #if PY_VERSION_HEX < 0x03040000 && defined(_MSC_VER)
-        #ifndef _MSC_STDINT_H_
-            #ifdef _WIN64 // [
-               typedef unsigned __int64  uintptr_t;
-            #else // _WIN64 ][
-               typedef _W64 unsigned int uintptr_t;
-            #endif // _WIN64 ]
-        #endif
-    #else
-        #include <stdint.h>
-    #endif
-    """
+cdef extern from "stdint.h":
     ctypedef size_t uintptr_t
     cdef const Py_ssize_t PY_SSIZE_T_MAX
     cdef const char CHAR_MIN, CHAR_MAX
@@ -51,10 +38,7 @@ from sys import exc_info
 
 cdef object Mapping
 cdef object Sequence
-try:
-    from collections.abc import Mapping, Sequence
-except ImportError:
-    from collections import Mapping, Sequence  # Py2
+from collections.abc import Mapping, Sequence
 
 cdef object wraps
 from functools import wraps
@@ -74,12 +58,6 @@ except ImportError:
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
 DEF LUPAOFH = b"LUPA_NUMBER_OVERFLOW_CALLBACK_FUNCTION"
 DEF PYREFST = b"LUPA_PYTHON_REFERENCES_TABLE"
-
-cdef extern from *:
-    """
-    #define IS_PY2 (PY_MAJOR_VERSION == 2)
-    """
-    int IS_PY2
 
 cdef enum WrappedObjectFlags:
     # flags that determine the behaviour of a wrapped object:
@@ -165,7 +143,7 @@ def lua_type(obj):
             return 'userdata'
         else:
             lua_type_name = lua.lua_typename(L, ltype)
-            return lua_type_name if IS_PY2 else lua_type_name.decode('ascii')
+            return lua_type_name.decode('ascii')
     finally:
         lua.lua_settop(L, old_top)
         unlock_runtime(lua_object._runtime)
@@ -235,7 +213,7 @@ cdef class LuaRuntime:
       Normally, it should return the now well-behaved object that can be
       converted/wrapped to a Lua type. If the object cannot be precisely
       represented in Lua, it should raise an ``OverflowError``.
-    
+
     * ``max_memory``: max memory usage this LuaRuntime can use in bytes.
       If max_memory is None, the default lua allocator is used and calls to
       ``set_max_memory(limit)`` will fail with a ``LuaMemoryError``.
@@ -656,12 +634,12 @@ cdef class LuaRuntime:
         luaL_openlib(L, "python", py_lib, 0)       # lib
         lua.lua_pushlightuserdata(L, <void*>self)  # lib udata
         lua.lua_pushcclosure(L, py_args, 1)        # lib function
-        lua.lua_setfield(L, -2, "args")            # lib 
+        lua.lua_setfield(L, -2, "args")            # lib
 
         # register our own object metatable
         lua.luaL_newmetatable(L, POBJECT)          # lib metatbl
         luaL_openlib(L, NULL, py_object_lib, 0)
-        lua.lua_pop(L, 1)                          # lib 
+        lua.lua_pop(L, 1)                          # lib
 
         # create and store the python references table
         lua.lua_newtable(L)                                  # lib tbl
@@ -669,7 +647,7 @@ cdef class LuaRuntime:
         lua.lua_pushlstring(L, "v", 1)                       # lib tbl metatbl "v"
         lua.lua_setfield(L, -2, "__mode")                    # lib tbl metatbl
         lua.lua_setmetatable(L, -2)                          # lib tbl
-        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # lib 
+        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # lib
 
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
@@ -818,17 +796,14 @@ cdef tuple unpack_lua_table(LuaRuntime runtime, lua_State* L):
         while lua.lua_next(L, -2):    # key value
             key = py_from_lua(runtime, L, -2)
             value = py_from_lua(runtime, L, -1)
-            if isinstance(key, (int, long)) and not isinstance(key, bool):
+            if isinstance(key, int) and not isinstance(key, bool):
                 index = <Py_ssize_t>key
                 if index < 1 or index > length:
                     raise IndexError("table index out of range")
                 cpython.ref.Py_INCREF(value)
                 cpython.tuple.PyTuple_SET_ITEM(args, index-1, value)
             elif isinstance(key, bytes):
-                if IS_PY2:
-                    kwargs[key] = value
-                else:
-                    kwargs[(<bytes>key).decode(source_encoding)] = value
+                kwargs[(<bytes>key).decode(source_encoding)] = value
             elif isinstance(key, unicode):
                 kwargs[key] = value
             else:
@@ -1508,21 +1483,14 @@ cdef object py_from_lua(LuaRuntime runtime, lua_State *L, int n):
     elif lua_type == lua.LUA_TNUMBER:
         if lua.LUA_VERSION_NUM >= 503:
             if lua.lua_isinteger(L, n):
-                integer = lua.lua_tointeger(L, n)
-                if IS_PY2 and (sizeof(lua.lua_Integer) <= sizeof(long) or LONG_MIN <= integer <= LONG_MAX):
-                    return <long>integer
-                else:
-                    return integer
+                return lua.lua_tointeger(L, n)
             else:
                 return lua.lua_tonumber(L, n)
         else:
             number = lua.lua_tonumber(L, n)
             integer = <lua.lua_Integer>number
             if number == integer:
-                if IS_PY2 and (sizeof(lua.lua_Integer) <= sizeof(long) or LONG_MIN <= integer <= LONG_MAX):
-                    return <long>integer
-                else:
-                    return integer
+                return integer
             else:
                 return number
     elif lua_type == lua.LUA_TSTRING:
@@ -1632,7 +1600,7 @@ cdef int py_to_lua(LuaRuntime runtime, lua_State *L, object o, bint wrap_none=Fa
     elif type(o) is float:
         lua.lua_pushnumber(L, <lua.lua_Number>cpython.float.PyFloat_AS_DOUBLE(o))
         pushed_values_count = 1
-    elif isinstance(o, (long, int)):
+    elif isinstance(o, int):
         try:
             lua.lua_pushinteger(L, <lua.lua_Integer>o)
             pushed_values_count = 1
@@ -2013,7 +1981,7 @@ cdef void* _lua_alloc_restricted(void* ud, void* ptr, size_t old_size, size_t ne
         return NULL
     elif new_size == old_size:
         return ptr
-        
+
     if memory_status.limit > 0 and new_size > old_size and memory_status.limit <= memory_status.used + new_size - old_size:  # reached the limit
         # print("REACHED LIMIT")
         return NULL
@@ -2085,7 +2053,7 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) noexcept with gi
         return 0
     finally:
         py_obj.obj = NULL
-    
+
 cdef int py_object_gc(lua_State* L) noexcept nogil:
     if not lua.lua_isuserdata(L, 1):
         return 0

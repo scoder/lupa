@@ -2,19 +2,9 @@
 from cpython cimport pythread
 
 cdef extern from *:
-    # Compatibility definitions for Python
     """
-    #if PY_VERSION_HEX >= 0x030700a2
     typedef unsigned long pythread_t;
-    #else
-    typedef long pythread_t;
-    #endif
     """
-    
-    # Just let Cython understand that pythread_t is
-    # a long type, but be aware that it is actually
-    # signed for versions of Python prior to 3.7.0a2 and
-    # unsigned for later versions
     ctypedef unsigned long pythread_t
 
 
