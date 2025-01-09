@@ -1,6 +1,14 @@
 Lupa change log
 ===============
 
+2.3 (2025-01-09)
+----------------
+
+* Remove support for Python 2.x.
+
+* Build with Cython 3.0.11.
+
+
 2.2 (2024-06-02)
 ----------------
 
