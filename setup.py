@@ -363,9 +363,6 @@ if not configs and not option_no_bundle:
             # http://t-p-j.blogspot.com/2010/11/lupa-on-os-x-with-macports-python-26.html
             # LuaJIT 2.1-alpha3 fails at runtime.
             or (platform == 'darwin' and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
-            # Couldn't get the Windows build to work. See
-            # https://luajit.org/install.html#windows
-            or (get_machine() not in ("AMD64", "x86_64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
             # Let's restrict LuaJIT to x86_64 for now.
             or (get_machine() not in ("x86_64", "AMD64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
