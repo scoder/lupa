@@ -1,6 +1,15 @@
 Lupa change log
 ===============
 
+2.4 (2025-01-10)
+----------------
+
+* The windows wheels now bundle LuaJIT 2.0 and 2.1.
+  (patch by Michal Plichta)
+
+* Failures in the test suite didn't set a non-zero process exit value.
+
+
 2.3 (2025-01-09)
 ----------------
 
