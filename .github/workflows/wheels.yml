@@ -128,6 +128,18 @@ jobs:
           brew install automake libtool
           ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
 
+      - name: Setup Visual Studio for x64
+        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win_amd64')
+        uses: TheMrMilchmann/setup-msvc-dev@v3
+        with:
+          arch: x64
+
+      - name: Setup Visual Studio for x86
+        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win32')
+        uses: TheMrMilchmann/setup-msvc-dev@v3
+        with:
+          arch: x86
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.22.0
         with:
