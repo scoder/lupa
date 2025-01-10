@@ -2905,7 +2905,7 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, LupaTestCase):
             if objtype not in {'number', 'string'}:
                 self.assertIncorrect('python.args{[kwargs["%s"]] = true}' % objtype,
                         regex='table key is neither an integer nor a string')
- 
+
     def test_kwargs_merge(self):
         self.assertResult('python.args{1, a=1}, python.args{2}, python.args{}, python.args{b=2}', (1, 2), dict(a=1, b=2))
 
