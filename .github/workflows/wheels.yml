@@ -183,7 +183,6 @@ jobs:
             ./bdist_downloads/*.tar.gz
 
   Linux:
-    runs-on: ubuntu-latest
 
     strategy:
       # Allows for matrix sub-jobs to fail without canceling the rest
@@ -194,10 +193,17 @@ jobs:
           - manylinux2014_x86_64
           - manylinux2014_i686
         pyversion: ["*"]
+        os: ubuntu-latest
 
         include:
           - image: manylinux2014_aarch64
             pyversion: "cp36*"
+            os: ubuntu-24.04-arm
+          - image: manylinux2014_aarch64
+            pyversion: "cp37*"
+            os: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
