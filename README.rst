@@ -935,7 +935,7 @@ setter function implementations for a ``LuaRuntime``:
         ...     raise AttributeError(
         ...         'not allowed to write attribute "%s"' % attr_name)
 
-        >>> class X(object):
+        >>> class X:
         ...     yes = 123
         ...     put = 'abc'
         ...     noway = 2.1

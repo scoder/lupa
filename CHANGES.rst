@@ -1,6 +1,27 @@
 Lupa change log
 ===============
 
+2.4 (2025-01-10)
+----------------
+
+* The windows wheels now bundle LuaJIT 2.0 and 2.1.
+  (patch by Michal Plichta)
+
+* Failures in the test suite didn't set a non-zero process exit value.
+
+
+2.3 (2025-01-09)
+----------------
+
+* The bundled LuaJIT versions were updated to the latest git branches.
+
+* The bundled Lua 5.4 was updated to 5.4.7.
+
+* Removed support for Python 2.x.
+
+* Built with Cython 3.0.11.
+
+
 2.2 (2024-06-02)
 ----------------
 

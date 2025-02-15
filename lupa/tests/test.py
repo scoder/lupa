@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import, print_function
-
 import gc
 import operator
 import os.path
@@ -20,7 +18,6 @@ try:
 except (ImportError, AttributeError):
     IS_PYPY = False
 
-IS_PYTHON2 = sys.version_info[0] < 3
 not_in_pypy = unittest.skipIf(IS_PYPY, "test not run in PyPy")
 
 try:
@@ -29,13 +26,8 @@ except NameError:
     def _next(o):
         return o.next()
 
-unicode_type = type(b'abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
 
-if IS_PYTHON2:
-    unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
-
-
-class SetupLuaRuntimeMixin(object):
+class SetupLuaRuntimeMixin:
     lua_runtime_kwargs = {}
 
     def setUp(self):
@@ -169,15 +161,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
     def test_eval_error_message_decoding(self):
         try:
             self.lua.eval('require "UNKNOWNöMODULEäNAME"')
-        except self.lupa.LuaError:
-            error = ('%s'.decode('ASCII') if IS_PYTHON2 else '%s') % sys.exc_info()[1]
+        except self.lupa.LuaError as exc:
+            error = str(exc)
         else:
             self.fail('expected error not raised')
         expected_message = 'module \'UNKNOWNöMODULEäNAME\' not found'
-        if IS_PYTHON2:
-            expected_message = expected_message.decode('UTF-8')
-        self.assertTrue(expected_message in error,
-                        '"%s" not found in "%s"' % (expected_message, error))
+        self.assertIn(expected_message, error)
 
     def test_execute(self):
         self.assertEqual(2, self.lua.execute('return 1+1'))
@@ -273,10 +262,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_pybuiltins(self):
         function = self.lua.eval('function() return python.builtins end')
-        try:
-            import __builtin__ as builtins
-        except ImportError:
-            import builtins
+        import builtins
         self.assertEqual(builtins, function())
 
     def test_pybuiltins_disabled(self):
@@ -301,7 +287,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_call_str_class(self):
         called = [False]
-        class test(object):
+        class test:
             def __str__(self):
                 called[0] = True
                 return 'STR!!'
@@ -848,14 +834,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_pygetattr(self):
         lua_func = self.lua.eval('function(x) return x.ATTR end')
-        class test(object):
+        class test:
             def __init__(self):
                 self.ATTR = 5
         self.assertEqual(test().ATTR, lua_func(test()))
 
     def test_pysetattr(self):
         lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
-        class test(object):
+        class test:
             def __init__(self):
                 self.ATTR = 5
         t = test()
@@ -947,14 +933,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_attribute_filter(self):
         def attr_filter(obj, name, setting):
-            if isinstance(name, unicode_type):
+            if isinstance(name, str):
                 if not name.startswith('_'):
                     return name + '1'
             raise AttributeError('denied')
 
         lua = self.lupa.LuaRuntime(attribute_filter=attr_filter)
         function = lua.eval('function(obj) return obj.__name__ end')
-        class X(object):
+        class X:
             a = 0
             a1 = 1
             _a = 2
@@ -1060,14 +1046,14 @@ class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_pygetattr(self):
         lua_func = self.lua.eval('function(x) return x.ATTR end')
-        class test(object):
+        class test:
             def __init__(self):
                 self.ATTR = 5
         self.assertEqual(test().ATTR, lua_func(test()))
 
     def test_pysetattr(self):
         lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
-        class test(object):
+        class test:
             def __init__(self):
                 self.ATTR = 5
         t = test()
@@ -1089,7 +1075,7 @@ class TestStrNoAutoEncoding(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_call_str_class(self):
         called = [False]
-        class test(object):
+        class test:
             def __str__(self):
                 called[0] = True
                 return 'STR!!'
@@ -1111,20 +1097,20 @@ class TestAttributeHandlers(LupaTestCase):
         self.lua = None
         gc.collect()
 
-    class X(object):
+    class X:
         a = 0
         a1 = 1
         _a = 2
         __a = 3
 
-    class Y(object):
+    class Y:
         a = 0
         a1 = 1
         _a = 2
         __a = 3
 
     def attr_getter(self, obj, name):
-        if not isinstance(name, unicode_type):
+        if not isinstance(name, str):
             raise AttributeError('bad type for attr_name')
         if isinstance(obj, self.X):
             if not name.startswith('_'):
@@ -1293,7 +1279,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, LupaTestCase):
         lua_type = self.lua.eval('type')
         lua_get_call = self.lua.eval('function(obj) return getmetatable(obj).__call end')
 
-        class Callable(object):
+        class Callable:
             def __call__(self): pass
             def __getitem__(self, item): pass
 
@@ -1304,7 +1290,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, LupaTestCase):
         lua_type = self.lua.eval('type')
         lua_get_index = self.lua.eval('function(obj) return getmetatable(obj).__index end')
 
-        class GetItem(object):
+        class GetItem:
             def __getitem__(self, item): pass
 
         self.assertEqual('userdata', lua_type(GetItem()))
@@ -1314,7 +1300,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, LupaTestCase):
         lua_type = self.lua.eval('type')
         lua_get_index = self.lua.eval('function(obj) return getmetatable(obj).__index end')
 
-        class GetAttr(object):
+        class GetAttr:
             pass
 
         self.assertEqual('userdata', lua_type(GetAttr()))
@@ -1830,13 +1816,11 @@ class TestLuaRuntimeEncoding(LupaTestCase):
         gc.collect()
 
     test_string = '"abcüöä"'
-    if IS_PYTHON2:
-        test_string = test_string.decode('UTF-8')
 
     def _encoding_test(self, encoding, expected_length):
         lua = self.lupa.LuaRuntime(encoding)
 
-        self.assertEqual(unicode_type,
+        self.assertEqual(str,
                          type(lua.eval(self.test_string)))
 
         self.assertEqual(self.test_string[1:-1],
@@ -2091,10 +2075,7 @@ class TestThreading(LupaTestCase):
         # plausability checks - make sure it's not all white or all black
         self.assertEqual('\0'.encode('ASCII')*(image_size//8//2),
                          result_bytes[:image_size//8//2])
-        if IS_PYTHON2:
-            self.assertTrue('\xFF' in result_bytes)
-        else:
-            self.assertTrue('\xFF'.encode('ISO-8859-1') in result_bytes)
+        self.assertTrue(b'\xFF' in result_bytes)
 
         # if we have PIL, check that it can read the image
         ## try:
@@ -2250,7 +2231,7 @@ class TestMethodCall(LupaTestCase):
 
         self.lua = self.lupa.LuaRuntime(unpack_returned_tuples=True)
 
-        class C(object):
+        class C:
             def __init__(self, x):
                 self.x = int(x)
 
@@ -2380,19 +2361,19 @@ def func_3(x, y, z='default'):
     return ("x=%s, y=%s, z=%s" % (x, y, z))
 
 
-class MyCls_1(object):
+class MyCls_1:
     @lupa.unpacks_lua_table_method
     def meth(self, x):
         return ("x=%s" % (x,))
 
 
-class MyCls_2(object):
+class MyCls_2:
     @lupa.unpacks_lua_table_method
     def meth(self, x, y):
         return ("x=%s, y=%s" % (x, y))
 
 
-class MyCls_3(object):
+class MyCls_3:
     @lupa.unpacks_lua_table_method
     def meth(self, x, y, z='default'):
         return ("x=%s, y=%s, z=%s" % (x, y, z))
@@ -2536,11 +2517,7 @@ class NoEncodingMethodKwargsDecoratorTest(MethodKwargsDecoratorTest):
 ################################################################################
 # tests for the FastRLock implementation
 
-try:
-    from thread import start_new_thread, get_ident
-except ImportError:
-    # Python 3?
-    from _thread import start_new_thread, get_ident
+from _thread import start_new_thread, get_ident
 
 
 def _wait():
@@ -2568,7 +2545,7 @@ class TestFastRLock(LupaTestCase):
     def tearDown(self):
         gc.collect()
 
-    class Bunch(object):
+    class Bunch:
         """
         A bunch of threads.
         """
@@ -2905,7 +2882,7 @@ class PythonArgumentsInLuaTest(SetupLuaRuntimeMixin, LupaTestCase):
             if objtype not in {'number', 'string'}:
                 self.assertIncorrect('python.args{[kwargs["%s"]] = true}' % objtype,
                         regex='table key is neither an integer nor a string')
- 
+
     def test_kwargs_merge(self):
         self.assertResult('python.args{1, a=1}, python.args{2}, python.args{}, python.args{b=2}', (1, 2), dict(a=1, b=2))
 

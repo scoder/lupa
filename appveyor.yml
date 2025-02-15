@@ -8,30 +8,41 @@ environment:
 #    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
 #  - python: 27-x64
 #    APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
+  - python: 312
+    arch: x86
+  - python: 312-x64
+    arch: x64
   - python: 311
+    arch: x86
   - python: 311-x64
+    arch: x64
   - python: 310
+    arch: x86
   - python: 310-x64
+    arch: x64
   - python: 39
+    arch: x86
   - python: 39-x64
+    arch: x64
   - python: 38
+    arch: x86
   - python: 38-x64
+    arch: x64
   - python: 37
+    arch: x86
   - python: 37-x64
-  - python: 36
-  - python: 36-x64
-  - python: 35
-  - python: 35-x64
+    arch: x64
 
 install:
   - SET PATH=C:\\Python%PYTHON%;c:\\Python%PYTHON%\\scripts;%PATH%
-  - python -m pip.__main__ install -U pip wheel setuptools
+  - python -m pip.__main__ install -U pip wheel "setuptools!=72.0.0"
   - pip install -r requirements.txt
   - pip install pytest
   - git submodule update --init --recursive
 
 build: off
 build_script:
+  - call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" %ARCH%
   - python -u setup.py clean
   - python -u setup.py build install --use-bundle
   - python -u setup.py bdist_wheel --use-bundle
