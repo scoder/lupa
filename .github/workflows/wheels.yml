@@ -193,7 +193,7 @@ jobs:
           - manylinux2014_x86_64
           - manylinux2014_i686
         pyversion: ["*"]
-        os: "ubuntu-latest"
+        os: ["ubuntu-latest"]
 
         include:
           - image: manylinux2014_aarch64
