@@ -27,7 +27,7 @@ except NameError:
         return o.next()
 
 
-class SetupLuaRuntimeMixin(object):
+class SetupLuaRuntimeMixin:
     lua_runtime_kwargs = {}
 
     def setUp(self):
@@ -262,10 +262,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_pybuiltins(self):
         function = self.lua.eval('function() return python.builtins end')
-        try:
-            import __builtin__ as builtins
-        except ImportError:
-            import builtins
+        import builtins
         self.assertEqual(builtins, function())
 
     def test_pybuiltins_disabled(self):
@@ -290,7 +287,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_call_str_class(self):
         called = [False]
-        class test(object):
+        class test:
             def __str__(self):
                 called[0] = True
                 return 'STR!!'
@@ -837,14 +834,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_pygetattr(self):
         lua_func = self.lua.eval('function(x) return x.ATTR end')
-        class test(object):
+        class test:
             def __init__(self):
                 self.ATTR = 5
         self.assertEqual(test().ATTR, lua_func(test()))
 
     def test_pysetattr(self):
         lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
-        class test(object):
+        class test:
             def __init__(self):
                 self.ATTR = 5
         t = test()
@@ -943,7 +940,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
         lua = self.lupa.LuaRuntime(attribute_filter=attr_filter)
         function = lua.eval('function(obj) return obj.__name__ end')
-        class X(object):
+        class X:
             a = 0
             a1 = 1
             _a = 2
@@ -1049,14 +1046,14 @@ class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_pygetattr(self):
         lua_func = self.lua.eval('function(x) return x.ATTR end')
-        class test(object):
+        class test:
             def __init__(self):
                 self.ATTR = 5
         self.assertEqual(test().ATTR, lua_func(test()))
 
     def test_pysetattr(self):
         lua_func = self.lua.eval('function(x) x.ATTR = 123 end')
-        class test(object):
+        class test:
             def __init__(self):
                 self.ATTR = 5
         t = test()
@@ -1078,7 +1075,7 @@ class TestStrNoAutoEncoding(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_call_str_class(self):
         called = [False]
-        class test(object):
+        class test:
             def __str__(self):
                 called[0] = True
                 return 'STR!!'
@@ -1100,13 +1097,13 @@ class TestAttributeHandlers(LupaTestCase):
         self.lua = None
         gc.collect()
 
-    class X(object):
+    class X:
         a = 0
         a1 = 1
         _a = 2
         __a = 3
 
-    class Y(object):
+    class Y:
         a = 0
         a1 = 1
         _a = 2
@@ -1282,7 +1279,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, LupaTestCase):
         lua_type = self.lua.eval('type')
         lua_get_call = self.lua.eval('function(obj) return getmetatable(obj).__call end')
 
-        class Callable(object):
+        class Callable:
             def __call__(self): pass
             def __getitem__(self, item): pass
 
@@ -1293,7 +1290,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, LupaTestCase):
         lua_type = self.lua.eval('type')
         lua_get_index = self.lua.eval('function(obj) return getmetatable(obj).__index end')
 
-        class GetItem(object):
+        class GetItem:
             def __getitem__(self, item): pass
 
         self.assertEqual('userdata', lua_type(GetItem()))
@@ -1303,7 +1300,7 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, LupaTestCase):
         lua_type = self.lua.eval('type')
         lua_get_index = self.lua.eval('function(obj) return getmetatable(obj).__index end')
 
-        class GetAttr(object):
+        class GetAttr:
             pass
 
         self.assertEqual('userdata', lua_type(GetAttr()))
@@ -2234,7 +2231,7 @@ class TestMethodCall(LupaTestCase):
 
         self.lua = self.lupa.LuaRuntime(unpack_returned_tuples=True)
 
-        class C(object):
+        class C:
             def __init__(self, x):
                 self.x = int(x)
 
@@ -2364,19 +2361,19 @@ def func_3(x, y, z='default'):
     return ("x=%s, y=%s, z=%s" % (x, y, z))
 
 
-class MyCls_1(object):
+class MyCls_1:
     @lupa.unpacks_lua_table_method
     def meth(self, x):
         return ("x=%s" % (x,))
 
 
-class MyCls_2(object):
+class MyCls_2:
     @lupa.unpacks_lua_table_method
     def meth(self, x, y):
         return ("x=%s, y=%s" % (x, y))
 
 
-class MyCls_3(object):
+class MyCls_3:
     @lupa.unpacks_lua_table_method
     def meth(self, x, y, z='default'):
         return ("x=%s, y=%s, z=%s" % (x, y, z))
@@ -2520,11 +2517,7 @@ class NoEncodingMethodKwargsDecoratorTest(MethodKwargsDecoratorTest):
 ################################################################################
 # tests for the FastRLock implementation
 
-try:
-    from thread import start_new_thread, get_ident
-except ImportError:
-    # Python 3?
-    from _thread import start_new_thread, get_ident
+from _thread import start_new_thread, get_ident
 
 
 def _wait():
@@ -2552,7 +2545,7 @@ class TestFastRLock(LupaTestCase):
     def tearDown(self):
         gc.collect()
 
-    class Bunch(object):
+    class Bunch:
         """
         A bunch of threads.
         """

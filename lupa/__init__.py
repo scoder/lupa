@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from contextlib import contextmanager as _contextmanager
 
 # Find the implementation with the latest Lua version available.
