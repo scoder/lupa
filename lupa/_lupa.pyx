@@ -4,8 +4,6 @@
 A fast Python wrapper around Lua and LuaJIT2.
 """
 
-from __future__ import absolute_import
-
 cimport cython
 
 from libc.string cimport strlen, strchr
