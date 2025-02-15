@@ -162,7 +162,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
         try:
             self.lua.eval('require "UNKNOWNöMODULEäNAME"')
         except self.lupa.LuaError:
-            error = '%s'.decode('ASCII') % sys.exc_info()[1]
+            error = str(sys.exc_info()[1])
         else:
             self.fail('expected error not raised')
         expected_message = 'module \'UNKNOWNöMODULEäNAME\' not found'
@@ -2079,7 +2079,7 @@ class TestThreading(LupaTestCase):
         # plausability checks - make sure it's not all white or all black
         self.assertEqual('\0'.encode('ASCII')*(image_size//8//2),
                          result_bytes[:image_size//8//2])
-        self.assertTrue('\xFF'.encode('ISO-8859-1') in result_bytes)
+        self.assertTrue(b'\xFF' in result_bytes)
 
         # if we have PIL, check that it can read the image
         ## try:
