@@ -161,13 +161,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
     def test_eval_error_message_decoding(self):
         try:
             self.lua.eval('require "UNKNOWNöMODULEäNAME"')
-        except self.lupa.LuaError:
-            error = str(sys.exc_info()[1])
+        except self.lupa.LuaError as exc:
+            error = str(exc)
         else:
             self.fail('expected error not raised')
         expected_message = 'module \'UNKNOWNöMODULEäNAME\' not found'
-        self.assertTrue(expected_message in error,
-                        '"%s" not found in "%s"' % (expected_message, error))
+        self.assertIn(expected_message, error)
 
     def test_execute(self):
         self.assertEqual(2, self.lua.execute('return 1+1'))
