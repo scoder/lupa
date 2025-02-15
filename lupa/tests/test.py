@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import, print_function
-
 import gc
 import operator
 import os.path
@@ -20,7 +18,6 @@ try:
 except (ImportError, AttributeError):
     IS_PYPY = False
 
-IS_PYTHON2 = sys.version_info[0] < 3
 not_in_pypy = unittest.skipIf(IS_PYPY, "test not run in PyPy")
 
 try:
@@ -28,11 +25,6 @@ try:
 except NameError:
     def _next(o):
         return o.next()
-
-unicode_type = type(b'abc'.decode('ASCII') if IS_PYTHON2 else 'abc')
-
-if IS_PYTHON2:
-    unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
 
 
 class SetupLuaRuntimeMixin(object):
@@ -169,15 +161,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
     def test_eval_error_message_decoding(self):
         try:
             self.lua.eval('require "UNKNOWNöMODULEäNAME"')
-        except self.lupa.LuaError:
-            error = ('%s'.decode('ASCII') if IS_PYTHON2 else '%s') % sys.exc_info()[1]
+        except self.lupa.LuaError as exc:
+            error = str(exc)
         else:
             self.fail('expected error not raised')
         expected_message = 'module \'UNKNOWNöMODULEäNAME\' not found'
-        if IS_PYTHON2:
-            expected_message = expected_message.decode('UTF-8')
-        self.assertTrue(expected_message in error,
-                        '"%s" not found in "%s"' % (expected_message, error))
+        self.assertIn(expected_message, error)
 
     def test_execute(self):
         self.assertEqual(2, self.lua.execute('return 1+1'))
@@ -947,7 +936,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, LupaTestCase):
 
     def test_attribute_filter(self):
         def attr_filter(obj, name, setting):
-            if isinstance(name, unicode_type):
+            if isinstance(name, str):
                 if not name.startswith('_'):
                     return name + '1'
             raise AttributeError('denied')
@@ -1124,7 +1113,7 @@ class TestAttributeHandlers(LupaTestCase):
         __a = 3
 
     def attr_getter(self, obj, name):
-        if not isinstance(name, unicode_type):
+        if not isinstance(name, str):
             raise AttributeError('bad type for attr_name')
         if isinstance(obj, self.X):
             if not name.startswith('_'):
@@ -1830,13 +1819,11 @@ class TestLuaRuntimeEncoding(LupaTestCase):
         gc.collect()
 
     test_string = '"abcüöä"'
-    if IS_PYTHON2:
-        test_string = test_string.decode('UTF-8')
 
     def _encoding_test(self, encoding, expected_length):
         lua = self.lupa.LuaRuntime(encoding)
 
-        self.assertEqual(unicode_type,
+        self.assertEqual(str,
                          type(lua.eval(self.test_string)))
 
         self.assertEqual(self.test_string[1:-1],
@@ -2091,10 +2078,7 @@ class TestThreading(LupaTestCase):
         # plausability checks - make sure it's not all white or all black
         self.assertEqual('\0'.encode('ASCII')*(image_size//8//2),
                          result_bytes[:image_size//8//2])
-        if IS_PYTHON2:
-            self.assertTrue('\xFF' in result_bytes)
-        else:
-            self.assertTrue('\xFF'.encode('ISO-8859-1') in result_bytes)
+        self.assertTrue(b'\xFF' in result_bytes)
 
         # if we have PIL, check that it can read the image
         ## try:
