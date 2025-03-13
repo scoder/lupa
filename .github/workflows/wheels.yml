@@ -194,12 +194,6 @@ jobs:
           - manylinux2014_i686
         pyversion: ["*"]
 
-        include:
-          - image: manylinux2014_aarch64
-            pyversion: "cp36*"
-          - image: manylinux2014_aarch64
-            pyversion: "cp37*"
-
     runs-on: ubuntu-22.04
 
     steps:
