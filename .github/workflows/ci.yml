@@ -28,6 +28,7 @@ jobs:
           - "pypy-3.11"
         lua-version:
           - "bundle"
+          - "lua5.4"
           - "lua5.3"
           - "lua5.2"
           - "luajit-5.1"
