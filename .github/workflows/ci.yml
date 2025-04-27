@@ -73,7 +73,7 @@ jobs:
     - name: Set up Python packages
       run: |
         python -m pip install -U pip setuptools
-        python -m pip install -U wheel tox virtualenv -r requirements.txt
+        python -m pip install -U wheel tox virtualenv pytest -r requirements.txt
 
     - name: Set up Lua ${{ matrix.lua-version }}
       if: contains(matrix.os, 'ubuntu') && matrix.lua-version != 'bundle'
@@ -95,7 +95,7 @@ jobs:
     - name: Run tests
       run: |
         bash -c "python -m pip install dist/lupa-*.whl"
-        python -m lupa.tests.__main__
+        pytest lupa
       continue-on-error: ${{ contains(matrix.python-version, 'pypy') }}
 
     - name: Upload wheels
