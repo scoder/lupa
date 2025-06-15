@@ -35,7 +35,7 @@ Major features
 * frees the GIL and supports threading in separate runtimes when
   calling into Lua
 
-* tested with Python 2.7/3.6 and later
+* tested with Python 3.8 and later
 
 * ships with Lua 5.1, 5.2, 5.3 and 5.4
   as well as LuaJIT 2.0 and 2.1 on systems that support it.
@@ -994,7 +994,7 @@ calculations unless you specify ``total=True``.
 Lua code hitting the memory limit will receive memory errors:
 
 .. code:: python
-      
+
         >>> lua.set_max_memory(100)
         >>> lua.eval("string.rep('a', 1000)")   # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
