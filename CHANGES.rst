@@ -1,6 +1,19 @@
 Lupa change log
 ===============
 
+2.5 (2025-??-??)
+----------------
+
+* GH#284: Lua uses ``dlopen()`` again, which was lost in Lupa 2.3.
+  Patch by Philipp Krones.
+
+* The bundled Lua 5.4 was updated to 5.4.8.
+
+* The bundled LuaJIT versions were updated to the latest git branches.
+
+* Built with Cython 3.1.2.
+
+
 2.4 (2025-01-10)
 ----------------
 
