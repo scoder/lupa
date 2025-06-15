@@ -1,7 +1,7 @@
 Lupa change log
 ===============
 
-2.5 (2025-??-??)
+2.5 (2025-06-15)
 ----------------
 
 * GH#284: Lua uses ``dlopen()`` again, which was lost in Lupa 2.3.
