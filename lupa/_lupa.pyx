@@ -938,7 +938,7 @@ cdef class _LuaObject:
             lua.lua_settop(L, old_top)
             unlock_runtime(self._runtime)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return True
 
     def __iter__(self):
