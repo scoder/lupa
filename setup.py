@@ -472,7 +472,6 @@ setup(
         dev_status(VERSION),
         'Intended Audience :: Developers',
         'Intended Audience :: Information Technology',
-        'License :: OSI Approved :: MIT License',
         'Programming Language :: Cython',
         'Programming Language :: Python :: 3',
         'Programming Language :: Lua',

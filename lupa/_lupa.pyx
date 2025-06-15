@@ -1,4 +1,6 @@
-# cython: embedsignature=True, binding=True, language_level=3str
+# cython: embedsignature=True
+# cython: binding=True
+# cython: language_level=3
 
 """
 A fast Python wrapper around Lua and LuaJIT2.
