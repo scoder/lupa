@@ -11,7 +11,7 @@ jobs:
 
       matrix:
         os:
-          - windows-2019
+          - windows-latest
           - ubuntu-latest
           - macos-latest
         python-version:
@@ -33,13 +33,13 @@ jobs:
           - "luajit-5.1"
 
         exclude:
-          - os: windows-2019
+          - os: windows-latest
             lua-version: lua5.2
-          - os: windows-2019
+          - os: windows-latest
             lua-version: lua5.3
-          - os: windows-2019
+          - os: windows-latest
             lua-version: lua5.4
-          - os: windows-2019
+          - os: windows-latest
             lua-version: luajit-5.1
 
           - os: macos-latest
