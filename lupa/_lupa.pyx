@@ -257,8 +257,8 @@ cdef class LuaRuntime:
         # TODO: Use pcall for globals as well on Luau if needed
         #
         # Also, remove this once Luau support is more stable
-        if LUAU and max_memory < 100000:
-        raise LuaError("Luau needs a max_memory of at least 100000 for now!")
+        if LUAU and max_memory and max_memory < 100000:
+            raise LuaError("Luau needs a max_memory of at least 100000 for now!")
 
         if max_memory is None:
             L = lua.luaL_newstate()
@@ -919,7 +919,7 @@ cdef class _LuaObject:
 
     def __call__(self, *args):
         assert self._runtime is not None
-        cdef lua_State* L = self._state
+        cdef lua_State* L = self._state if not LUAU else self._runtime._state
         if not lock_runtime(self._runtime):
             raise RuntimeError("failed to acquire thread lock")
         try:
@@ -1236,6 +1236,11 @@ cdef class _LuaThread(_LuaObject):
         if args is not None:
             self._arguments = None
         return resume_lua_thread(self, args)
+
+    def __call__(self, *args):
+        if LUAU:
+            raise TypeError("Lua threads cannot be called directly on Luau (lua_pcall on threads is not supported)")
+        super().__call__(*args)
 
     def send(self, value):
         """Send a value into the coroutine.  If the value is a tuple,
@@ -1893,6 +1898,9 @@ cdef call_lua(LuaRuntime runtime, lua_State *L, tuple args):
     return execute_lua_call(runtime, L, len(args))
 
 cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs):
+    if LUAU and lua.lua_status(L) != 0:
+        # Luau does not support calling functions in yielding threads
+        raise LuaError("cannot call function in non-suspended Luau thread")
     cdef int result_status
     cdef object result
     # call into Lua
@@ -1909,7 +1917,7 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
                 lua.lua_replace(L, -2)
                 lua.lua_insert(L, 1)
                 has_lua_traceback_func = True
-        result_status = lua.lua_pcall(L, <int>nargs, lua.LUA_MULTRET, has_lua_traceback_func)
+        result_status = lua.lua_pcall(L, <int>nargs, lua.LUA_MULTRET, 0)
         if has_lua_traceback_func:
             lua.lua_remove(L, 1)
     runtime.clean_up_pending_unrefs()
@@ -2535,9 +2543,6 @@ cdef const char *luaL_findtable(lua_State *L, int idx,
                                 const char *fname, int size_hint) noexcept:
     cdef const char *end
     if idx:
-        if LUAU:
-            print("Checking for table at index", idx, "with name", fname)
-            check_lua_stack(L, 1)
         lua.lua_pushvalue(L, idx)
 
     while True:

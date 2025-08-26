@@ -228,7 +228,7 @@ def use_bundled_luau(path, macros):
         os.mkdir(os.path.join(src_dir, "build"))
 
     base_cflags = [
-        "-fPIC", "-O2", "-DLUA_USE_LONGJMP=1", "-DLUA_VECTOR_SIZE=3", "-fno-math-errno", "-DLUAI_MAXCSTACK=8000", "-DLUA_API=extern \"C\"", "-DLUACODEGEN_API=extern \"C\"", "-DLUACODE_API=extern \"C\"",
+        "-fPIC", "-O0", "-DLUA_USE_LONGJMP=1", "-DLUA_VECTOR_SIZE=3", "-fno-math-errno", "-DLUAI_MAXCSTACK=8000", "-DLUA_API=extern \"C\"", "-DLUACODEGEN_API=extern \"C\"", "-DLUACODE_API=extern \"C\"",
         "-fexceptions"
     ]
     base_cxxflags = base_cflags + ["-std=c++17"]
@@ -401,7 +401,6 @@ void chunk_dtor(void *ud) {
     if(ud == NULL) {
         return;
     }
-    printf("Freeing compiled chunk");
     char* data_to_free = *(char**)ud;
     if(data_to_free == NULL) {
         return;

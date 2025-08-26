@@ -448,7 +448,6 @@ cdef extern from "lualib.h":
 
     void luaL_openlibs(lua_State *L)
 
-
 cdef extern from * nogil:
     # Compatibility definitions for Lupa.
     """
