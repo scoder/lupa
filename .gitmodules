@@ -13,3 +13,6 @@
 [submodule "third-party/luajit20"]
 	path = third-party/luajit20
 	url = https://luajit.org/git/luajit.git
+[submodule "third-party/luau"]
+	path = third-party/luau
+	url = https://github.com/luau-lang/luau

@@ -75,6 +75,15 @@ cdef extern from "lua.h" nogil:
     const lua_Number *lua_version(lua_State *L)
 
     lua_CFunction lua_atpanic (lua_State *L, lua_CFunction panicf)
+    #ifdef USE_LUAU
+    void lua_setpanicfunc (lua_State *L, void (*panic)(lua_State* L, int errcode))
+    #endif
+
+    #ifdef USE_LUAU
+    void* lua_newuserdatadtor (lua_State* L, size_t sz, void (*dtor)(void*))
+    #else
+    #define lua_newuserdatadtor(L, sz, dtor) luaL_error(L, "lua_newuserdatadtor is not available")
+    #endif
 
     # basic stack manipulation
     int   lua_gettop (lua_State *L)
@@ -117,7 +126,11 @@ cdef extern from "lua.h" nogil:
     void  lua_pushstring (lua_State *L, char *s)
     char *lua_pushvfstring (lua_State *L, char *fmt, va_list argp)
     char *lua_pushfstring (lua_State *L, char *fmt, ...)
-    void  lua_pushcclosure (lua_State *L, lua_CFunction fn, int n)
+    #ifdef USE_LUAU
+    void  lua_pushcclosured (lua_State *L, lua_CFunction fn, int n)
+    #else
+    void  lua_pushcclosure (lua_State *L, lua_CFunction fn, int n) # Will be used to define lua_pushcclosured
+    #endif
     void  lua_pushboolean (lua_State *L, bint b)
     void  lua_pushlightuserdata (lua_State *L, void *p)
     int   lua_pushthread (lua_State *L)
@@ -168,7 +181,11 @@ cdef extern from "lua.h" nogil:
     int lua_gc (lua_State *L, int what, int data)
 
     # miscellaneous functions
+    #ifdef USE_LUAU
+    int   lua_errord (lua_State *L)
+    #else
     int   lua_error (lua_State *L)
+    #endif
     int   lua_next (lua_State *L, int idx)
     void  lua_concat (lua_State *L, int n)
     lua_Alloc lua_getallocf (lua_State *L, void **ud)
@@ -181,7 +198,11 @@ cdef extern from "lua.h" nogil:
     void lua_pop(lua_State *L, int n)    # lua_settop(L, -(n)-1)
     void lua_newtable(lua_State *L)      # lua_createtable(L, 0, 0)
     void  lua_register(lua_State *L, char* n, lua_CFunction f) # (lua_pushcfunction(L, (f)), lua_setglobal(L, (n)))
+    #ifdef USE_LUAU
+    void lua_pushcfunctiond(lua_State *L, lua_CFunction fn)
+    #else
     void lua_pushcfunction(lua_State *L, lua_CFunction fn) # lua_pushcclosure(L, (f), 0)
+    #endif
     size_t lua_strlen(lua_State *L, int i) # lua_objlen(L, (i))
 
     bint lua_isfunction(lua_State *L, int n)      # (lua_type(L, (n)) == LUA_TFUNCTION)
@@ -292,7 +313,12 @@ cdef extern from "lauxlib.h" nogil:
     int luaL_getmetafield (lua_State *L, int obj, char *e)
     int luaL_callmeta (lua_State *L, int obj, char *e)
     int luaL_typerror (lua_State *L, int narg, char *tname)
+
+    #ifdef USE_LUAU
+    int luaL_argerrord (lua_State *L, int numarg, char *extramsg)
+    #else
     int luaL_argerror (lua_State *L, int numarg, char *extramsg)
+    #endif
     char *luaL_checklstring (lua_State *L, int numArg, size_t *l)
     char *luaL_optlstring (lua_State *L, int numArg, char *default, size_t *l)
     lua_Number luaL_checknumber (lua_State *L, int numArg)
@@ -309,7 +335,12 @@ cdef extern from "lauxlib.h" nogil:
     void *luaL_checkudata (lua_State *L, int ud, char *tname)
 
     void luaL_where (lua_State *L, int lvl)
+
+    #ifdef USE_LUAU
+    int luaL_errord (lua_State *L, char *fmt, ...)
+    #else
     int luaL_error (lua_State *L, char *fmt, ...)
+    #endif
 
     int luaL_checkoption (lua_State *L, int narg, char *default, char *lst[])
 
@@ -423,7 +454,6 @@ cdef extern from "lualib.h":
 
     void luaL_openlibs(lua_State *L)
 
-
 cdef extern from * nogil:
     # Compatibility definitions for Lupa.
     """
@@ -431,7 +461,7 @@ cdef extern from * nogil:
     #define __lupa_lua_resume lua_resume
     #else
     LUA_API int __lupa_lua_resume (lua_State *L, lua_State *from, int nargs, int* nresults) {
-    #if LUA_VERSION_NUM >= 502
+    #if LUA_VERSION_NUM >= 502 || USE_LUAU
         int status = lua_resume(L, from, nargs);
     #else
         int status = lua_resume(L, nargs);
@@ -439,6 +469,14 @@ cdef extern from * nogil:
         *nresults = lua_gettop(L);
         return status;
     }
+    #endif
+
+    #ifndef USE_LUAU
+    #define lua_pushcclosured lua_pushcclosure
+    #define lua_pushcfunctiond lua_pushcfunction
+    #define luaL_errord luaL_error
+    #define lua_errord lua_error
+    #define luaL_argerrord luaL_argerror
     #endif
 
     #if LUA_VERSION_NUM >= 502
@@ -449,8 +487,11 @@ cdef extern from * nogil:
     #define lua_isinteger(L, i) (((void) i), 0)
     #endif
 
-    #if LUA_VERSION_NUM < 502
+    #if LUA_VERSION_NUM < 502 && !USE_LUAU
     #define lua_tointegerx(L, i, isnum) (*(isnum) = lua_isnumber(L, i), lua_tointeger(L, i))
+    #endif
+
+    #if LUA_VERSION_NUM < 502
     #define luaL_loadbufferx(L, buff, sz, name, mode)  (((void)mode), luaL_loadbuffer(L, buff, sz, name))
     #endif
 
@@ -463,12 +504,18 @@ cdef extern from * nogil:
     #else
     #error Lupa requires at least Lua 5.1 or LuaJIT 2.x
     #endif
+    #ifdef USE_LUAU
+    #define is_luau()  ((int) 1)
+    #else
+    #define is_luau()  ((int) 0)
+    #endif
 
     #if LUA_VERSION_NUM < 502
     #define lua_pushglobaltable(L)  lua_pushvalue(L, LUA_GLOBALSINDEX)
     #endif
     """
     int read_lua_version(lua_State *L)
+    int is_luau()
     int lua_isinteger(lua_State *L, int idx)
     lua_Integer lua_tointegerx (lua_State *L, int idx, int *isnum)
     void lua_pushglobaltable (lua_State *L)
