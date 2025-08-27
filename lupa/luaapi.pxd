@@ -79,6 +79,12 @@ cdef extern from "lua.h" nogil:
     void lua_setpanicfunc (lua_State *L, void (*panic)(lua_State* L, int errcode))
     #endif
 
+    #ifdef USE_LUAU
+    void* lua_newuserdatadtor (lua_State* L, size_t sz, void (*dtor)(void*))
+    #else
+    #define lua_newuserdatadtor(L, sz, dtor) luaL_error(L, "lua_newuserdatadtor is not available")
+    #endif
+
     # basic stack manipulation
     int   lua_gettop (lua_State *L)
     void  lua_settop (lua_State *L, int idx)

@@ -246,6 +246,7 @@ cdef class LuaRuntime:
     cdef object _attribute_setter
     cdef bint _unpack_returned_tuples
     cdef MemoryStatus _memory_status
+    cdef bint _luau_running_gc # It is not safe to run Luau VM operations if GC is running
 
     def __cinit__(self, encoding='UTF-8', source_encoding=None,
                   attribute_filter=None, attribute_handlers=None,
@@ -277,6 +278,7 @@ cdef class LuaRuntime:
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
         self._unpack_returned_tuples = unpack_returned_tuples
+        self._luau_running_gc = False
 
         if attribute_handlers:
             raise_error = False
@@ -405,6 +407,16 @@ cdef class LuaRuntime:
             py_to_lua(self, L, self._raised_exception[1])
         except:
             lua.lua_pushlstring(L, lua_error_msg, len(lua_error_msg))
+            raise
+        return 0
+
+    @cython.final
+    cdef int store_raised_exception_luaugc(self, bytes lua_error_msg) except -1:
+        # Special variant of store_raised_exception() for Luau's
+        # GC metamethod
+        try:
+            self._raised_exception = tuple(exc_info())
+        except:
             raise
         return 0
 
@@ -647,7 +659,10 @@ cdef class LuaRuntime:
 
         # register our own object metatable
         lua.luaL_newmetatable(L, POBJECT)          # lib metatbl
-        luaL_openlib(L, NULL, py_object_lib, 0)
+        if LUAU:
+            luaL_openlib(L, NULL, py_object_lib_luau, 0)
+        else:
+            luaL_openlib(L, NULL, py_object_lib, 0)
         lua.lua_pop(L, 1)                          # lib
 
         # create and store the python references table
@@ -895,7 +910,7 @@ cdef class _LuaObject:
             locked = lock_runtime(runtime, blocking=False)
             if locked:
                 lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
-                runtime.clean_up_pending_unrefs()  # just in case
+                runtime.clean_up_pending_unrefs()  # for non-luau, just in case, for luau, needed
                 unlock_runtime(runtime)
                 return
         runtime.add_pending_unref(ref)
@@ -1372,7 +1387,7 @@ cdef class _LuaIter:
             locked = lock_runtime(runtime, blocking=False)
             if locked:
                 lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
-                runtime.clean_up_pending_unrefs()  # just in case
+                runtime.clean_up_pending_unrefs()  # for non luau, just in case, for luau, needed
                 unlock_runtime(runtime)
                 return
         runtime.add_pending_unref(ref)
@@ -1687,7 +1702,10 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
             lua.lua_pop(L, 1)                               # tbl
 
         # create new wrapper for Python object
-        py_obj = <py_object*>lua.lua_newuserdata(L, sizeof(py_object))
+        if LUAU:
+            py_obj = <py_object*>lua.lua_newuserdatadtor(L, sizeof(py_object), py_object_gc_luau)
+        else:
+            py_obj = <py_object*>lua.lua_newuserdata(L, sizeof(py_object))
         py_obj.obj = <PyObject*>o            # tbl udata
         py_obj.runtime = <PyObject*>runtime
         py_obj.type_flags = type_flags
@@ -1917,10 +1935,10 @@ cdef object execute_lua_call(LuaRuntime runtime, lua_State *L, Py_ssize_t nargs)
                 lua.lua_replace(L, -2)
                 lua.lua_insert(L, 1)
                 has_lua_traceback_func = True
-        result_status = lua.lua_pcall(L, <int>nargs, lua.LUA_MULTRET, 0)
+        result_status = lua.lua_pcall(L, <int>nargs, lua.LUA_MULTRET, has_lua_traceback_func)
         if has_lua_traceback_func:
             lua.lua_remove(L, 1)
-    runtime.clean_up_pending_unrefs()
+    runtime.clean_up_pending_unrefs() # for luau, this acts as a safe place to clear out GC'd refs
     results = unpack_lua_results(runtime, L)
     if result_status:
         if isinstance(results, BaseException):
@@ -2091,6 +2109,34 @@ cdef int py_object_gc(lua_State* L) noexcept nogil:
         if py_object_gc_with_gil(py_obj, L):
             return lua.lua_errord(L)  # never returns!
     return 0
+
+cdef void py_object_gc_luau(void *ud) noexcept with gil:
+    # Note: Luau uses its own GC mechanism that does not use the __gc metamethod.
+    # This GC mechanism is special as it does not allow for performing any Luau operations
+    cdef _PyReference pyref
+    cdef py_object* py_obj = <py_object*>ud
+    runtime = <LuaRuntime>py_obj.runtime
+    runtime._luau_running_gc = True
+    try:
+        refkey = build_pyref_key(py_obj.obj, py_obj.type_flags)
+        pyref = <_PyReference>runtime._pyrefs_in_lua.pop(refkey)
+    except (TypeError, KeyError):
+        runtime._luau_running_gc = False
+        return  # runtime was already cleared during GC, nothing left to do
+    except:
+        try: runtime.store_raised_exception_luaugc(b'error while cleaning up a Python object')
+        finally: 
+            runtime._luau_running_gc = False
+            return
+    else:
+        # Luau GC does not support any VM operations within GC
+        #
+        # So, we need to delay the unref operation to a safe point
+        runtime.add_pending_unref(pyref._ref)
+    finally:
+        py_obj.obj = NULL
+        runtime._luau_running_gc = False
+
 
 # calling Python objects
 
@@ -2286,6 +2332,14 @@ cdef lua.luaL_Reg *py_object_lib = [
     lua.luaL_Reg(name = "__newindex", func = <lua.lua_CFunction> py_object_setindex),
     lua.luaL_Reg(name = "__tostring", func = <lua.lua_CFunction> py_object_str),
     lua.luaL_Reg(name = "__gc",       func = <lua.lua_CFunction> py_object_gc),
+    lua.luaL_Reg(name = NULL, func = NULL),
+]
+
+cdef lua.luaL_Reg *py_object_lib_luau = [
+    lua.luaL_Reg(name = "__call",     func = <lua.lua_CFunction> py_object_call),
+    lua.luaL_Reg(name = "__index",    func = <lua.lua_CFunction> py_object_getindex),
+    lua.luaL_Reg(name = "__newindex", func = <lua.lua_CFunction> py_object_setindex),
+    lua.luaL_Reg(name = "__tostring", func = <lua.lua_CFunction> py_object_str),
     lua.luaL_Reg(name = NULL, func = NULL),
 ]
 
