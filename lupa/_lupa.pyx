@@ -33,6 +33,23 @@ cdef extern from "stdint.h":
     cdef const long LONG_MIN, LONG_MAX
     cdef const long long PY_LLONG_MIN, PY_LLONG_MAX
 
+cdef extern from *:
+    # Adaptations for the Limited API.
+    """
+    #if defined(Py_LIMITED_API)
+        #define IN_LIMITED_API (1)
+        #define PyFloat_AS_DOUBLE(value)           PyFloat_AsDouble(value)
+        #define PyTuple_SET_ITEM(tuple, i, value)  PyTuple_SetItem(tuple, i, value)
+
+        #define PyMethod_Check(obj) (0)
+        #define PyMethod_GET_SELF(obj) (0)
+        #define PyMethod_GET_FUNCTION(obj) (0)
+    #else
+        #define IN_LIMITED_API (0)
+    #endif
+    """
+    cdef const bint IN_LIMITED_API
+
 cdef object exc_info
 from sys import exc_info
 
@@ -2088,17 +2105,22 @@ cdef bint call_python(LuaRuntime runtime, lua_State *L, py_object* py_obj) excep
             else:
                 args += (arg, )
 
-        if args and PyMethod_Check(f) and (<PyObject*>args[0]) is PyMethod_GET_SELF(f):
-            # Calling a bound method and self is already the first argument.
-            # Lua x:m(a, b) => Python as x.m(x, a, b) but should be x.m(a, b)
-            #
-            # Lua syntax is sensitive to method calls vs function lookups, while
-            # Python's syntax is not.  In a way, we are leaking Python semantics
-            # into Lua by duplicating the first argument from method calls.
-            #
-            # The method wrapper would only prepend self to the tuple again,
-            # so we just call the underlying function directly instead.
-            f = <object>PyMethod_GET_FUNCTION(f)
+        if args:
+            if not IN_LIMITED_API:
+                if PyMethod_Check(f) and (<PyObject*>args[0]) is PyMethod_GET_SELF(f):
+                    # Calling a bound method and self is already the first argument.
+                    # Lua x:m(a, b) => Python as x.m(x, a, b) but should be x.m(a, b)
+                    #
+                    # Lua syntax is sensitive to method calls vs function lookups, while
+                    # Python's syntax is not.  In a way, we are leaking Python semantics
+                    # into Lua by duplicating the first argument from method calls.
+                    #
+                    # The method wrapper would only prepend self to the tuple again,
+                    # so we just call the underlying function directly instead.
+                    f = <object>PyMethod_GET_FUNCTION(f)
+            elif getattr(f, '__self__', None) is args[0]:
+                # The same in slow, for the Limited API.
+                f = getattr(f, '__func__', f)
 
         lua.lua_settop(L, 0)  # FIXME
         result = f(*args, **kwargs)
