@@ -355,7 +355,7 @@ def check_limited_api_option(name):
     if value:
         return handle_arg(value)
 
-    env_var_name = name.lstrip('-').upper().replace("-", "_")
+    env_var_name = 'LUPA_' + name.lstrip('-').upper().replace("-", "_")
     env_var = os.environ.get(env_var_name)
     if env_var is None:
         return None
@@ -363,7 +363,7 @@ def check_limited_api_option(name):
 
 
 c_defines = [
-    ('CYTHON_CLINE_IN_TRACEBACK', 0),
+    ('CYTHON_CLINE_IN_TRACEBACK', '0'),
 ]
 if has_option('--without-assert'):
     c_defines.append(('CYTHON_WITHOUT_ASSERTIONS', None))
