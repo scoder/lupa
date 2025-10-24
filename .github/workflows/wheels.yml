@@ -42,17 +42,14 @@ jobs:
   sdist:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: write  # to create GitHub release (softprops/action-gh-release)
-
     steps:
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+    - uses: actions/checkout@v5
 
     - name: Check out recursively
       run: git submodule update --init --recursive
 
     - name: Set up Python
-      uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+      uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
       with:
         python-version: "3.x"
 
@@ -63,7 +60,7 @@ jobs:
       run: make sdist
 
     - name: Upload sdist
-      uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6 # v4.2.0
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: sdist
         path: dist/*.tar.gz
@@ -77,10 +74,12 @@ jobs:
     outputs:
       include: ${{ steps.set-matrix.outputs.include }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@v5
+
       - name: Install cibuildwheel
         # Nb. keep cibuildwheel version pin consistent with job below
-        run: pipx install cibuildwheel==3.0.0
+        run: pipx install cibuildwheel==3.2.1
+
       - id: set-matrix
         run: |
           MATRIX=$(
@@ -112,7 +111,7 @@ jobs:
       LUPA_WITH_LUA_DLOPEN: ${{ startsWith(matrix.os, 'windows') && 'false' || 'true' }}
 
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@v5
 
       - name: Check out recursively
         run: git submodule update --init --recursive
@@ -131,22 +130,22 @@ jobs:
 
       - name: Setup Visual Studio for x64
         if: contains(matrix.os, 'windows') && contains(matrix.only, 'win_amd64')
-        uses: TheMrMilchmann/setup-msvc-dev@v3
+        uses: TheMrMilchmann/setup-msvc-dev@v4
         with:
           arch: x64
 
       - name: Setup Visual Studio for x86
         if: contains(matrix.os, 'windows') && contains(matrix.only, 'win32')
-        uses: TheMrMilchmann/setup-msvc-dev@v3
+        uses: TheMrMilchmann/setup-msvc-dev@v4
         with:
           arch: x86
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.0.0
+        uses: pypa/cibuildwheel@v3.2.1
         with:
           only: ${{ matrix.only }}
 
-      - uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6 # v4.2.0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           path: ./wheelhouse/*.whl
           name: wheel-${{ matrix.only }}
@@ -162,7 +161,7 @@ jobs:
 
     steps:
       - name: Download bdist files
-        uses: actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935 # v4.1.1
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           path: ./bdist_downloads
           merge-multiple: true
@@ -170,7 +169,7 @@ jobs:
       - name: List downloaded artifacts
         run: ls -la ./bdist_downloads
 
-      - uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6 # v4.2.0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           path: ./bdist_downloads/*.whl
           name: wheels
@@ -197,15 +196,15 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+    - uses: actions/checkout@v5
 
     - name: Check out recursively
       run: git submodule update --init --recursive
 
     - name: Set up Python
-      uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+      uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
       with:
-        python-version: "3.12"
+        python-version: "3.x"
 
     - name: Install dependencies
       run: python -m pip install -r requirements.txt
@@ -215,7 +214,7 @@ jobs:
       env: { PYTHON_BUILD_VERSION: "${{ matrix.pyversion }}" }
 
     - name: Upload wheels
-      uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6 # v4.2.0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: wheels-${{ matrix.image }}
         path: wheelhouse_*/*-m*linux*.whl  # manylinux / musllinux
