@@ -319,9 +319,11 @@ def use_bundled_lua(path, macros):
 
 
 def get_option(name):
-    for i, arg in enumerate(sys.argv[1:-1], 1):
-        if arg == name:
-            sys.argv.pop(i)
+    for i, arg in enumerate(sys.argv[1:], 1):
+        if arg.startswith(name):
+            arg = sys.argv.pop(i)
+            if '=' in arg:
+                return arg.split('=', 1)[1]
             return sys.argv.pop(i)
     return ""
 
@@ -334,6 +336,32 @@ def has_option(name):
     return os.environ.get(envvar_name) == 'true'
 
 
+def check_limited_api_option(name):
+    def handle_arg(arg: str):
+        arg = arg.lower()
+        if arg == "true":
+            # The default Limited API version is 3.9, unless we're on a lower Python version
+            # (which is mainly for the sake of testing 3.8 on the CI)
+            if sys.version_info >= (3, 9):
+                return (3, 9)
+            else:
+                return sys.version_info[:2]
+        if arg == "false":
+            return None
+        major, minor = arg.split('.', 1)
+        return (int(major), int(minor))
+
+    value = get_option(name)
+    if value:
+        return handle_arg(value)
+
+    env_var_name = name.lstrip('-').upper().replace("-", "_")
+    env_var = os.environ.get(env_var_name)
+    if env_var is None:
+        return None
+    return handle_arg(env_var)
+
+
 c_defines = [
     ('CYTHON_CLINE_IN_TRACEBACK', 0),
 ]
@@ -344,6 +372,9 @@ if has_option('--with-lua-checks'):
 if has_option('--with-lua-dlopen'):
     c_defines.append(('LUA_USE_DLOPEN', None))
 
+option_limited_api = check_limited_api_option('--limited-api')
+if option_limited_api:
+    c_defines.append(('Py_LIMITED_API', f'0x{option_limited_api[0]:02x}{option_limited_api[1]:02x}0000'))
 
 # find Lua
 option_no_bundle = has_option('--no-bundle')
