@@ -1,6 +1,14 @@
 Lupa change log
 ===============
 
+2.6 (2025-10-24)
+----------------
+
+* The bundled LuaJIT versions were updated to the latest git branches.
+
+* Built with Cython 3.1.6.
+
+
 2.5 (2025-06-15)
 ----------------
 
