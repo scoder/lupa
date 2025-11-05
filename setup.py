@@ -214,6 +214,237 @@ def no_lua_error():
     print(error)
     return {}
 
+def use_bundled_luau(path, macros):    
+    import copy
+    libname = os.path.basename(path.rstrip(os.sep))
+    assert 'luau' in libname, libname
+    print('Using bundled luau in %s' % libname)
+    print('Building Luau for %r in %s' % (platform, libname))
+
+    build_env = dict(os.environ)
+    src_dir = path
+
+    if not os.path.exists(os.path.join(src_dir, "build")):
+        os.mkdir(os.path.join(src_dir, "build"))
+
+    base_cflags = [
+        "-fPIC", "-O0", "-DLUA_USE_LONGJMP=1", "-DLUA_VECTOR_SIZE=3", "-fno-math-errno", "-DLUAI_MAXCSTACK=8000", "-DLUA_API=extern \"C\"", "-DLUACODEGEN_API=extern \"C\"", "-DLUACODE_API=extern \"C\"",
+        "-fexceptions"
+    ]
+    base_cxxflags = base_cflags + ["-std=c++17"]
+
+    for lib in [
+        ("Ast", "luauast"),
+        ("CodeGen", "luaucodegen"),
+        ("Compiler", "luaucompiler"),
+        ("VM", "luauvm"),
+    ]:
+        if not os.path.exists(os.path.join(src_dir, "build", lib[1])):
+            os.mkdir(os.path.join(src_dir, "build", lib[1]))
+
+        # Skip if the library is already built
+        static_lib_path = os.path.join(src_dir, "build", "lib" + lib[1] + ".a")
+        if os.path.exists(static_lib_path):
+            print("Static library %s already exists, skipping build." % static_lib_path)
+            continue
+
+        lib_src_dir = os.path.join(src_dir, lib[0], "src")
+        lib_include_dir = os.path.join(src_dir, lib[0], "include")
+
+        lib_build_env = {
+            'CFLAGS': copy.copy(base_cflags),
+            'CXXFLAGS': copy.copy(base_cxxflags)
+        }
+
+        common_includes = [
+            os.path.join(src_dir, "Common", "include"),
+        ]
+
+        if lib[0] == "CodeGen": # Codegen needs VM includes (src of VM also includes headers needed by Codegen)
+            common_includes.append(os.path.join(src_dir, "VM", "include"))
+            common_includes.append(os.path.join(src_dir, "VM", "src"))
+        elif lib[0] == "Compiler": # Compiler needs Ast includes
+            common_includes.append(os.path.join(src_dir, "Ast", "include"))
+
+        lib_build_env["CFLAGS"].append("-I" + lib_include_dir)
+        lib_build_env["CFLAGS"].extend("-I" + inc for inc in common_includes)
+        lib_build_env["CXXFLAGS"].append("-I" + lib_include_dir)
+        lib_build_env["CXXFLAGS"].extend("-I" + inc for inc in common_includes)
+
+        # Find all cpp files in the src directory
+        cpp_files = []
+        for root, dirs, files in os.walk(lib_src_dir):
+            for file in files:
+                if file.endswith(".cpp"):
+                    cpp_files.append(os.path.join(root, file))
+        if not cpp_files:
+            raise RuntimeError("No .cpp files found in " + lib_src_dir)
+
+        # Compile the library
+        object_files = []
+        for cpp_file in cpp_files:
+            obj_file = os.path.splitext(os.path.basename(cpp_file))[0] + '.o'
+            obj_file_path = os.path.join(src_dir, "build", lib[1], obj_file)
+            compile_command = ["g++", "-c", cpp_file, "-o", obj_file_path] + lib_build_env['CXXFLAGS']
+            print("Compiling %s" % cpp_file)
+            output = subprocess.check_output(compile_command, cwd=lib_src_dir)
+            object_files.append(obj_file_path)
+        
+        # Create the static library
+        static_lib_path = os.path.join(src_dir, "build", "lib" + lib[1] + ".a")
+        ar_command = ["ar", "rcs", static_lib_path] + object_files
+        print("Creating static library %s" % static_lib_path)
+        output = subprocess.check_output(ar_command, cwd=lib_src_dir)
+        if b'error' in output.lower():
+            print("Creating static library Luau did not report success:")
+            print(output.decode().strip())
+            print("## Creating static library Luau may have failed ##")
+    
+    # This is a bit of a hack, but luau doesnt have a lauxlib.h, so we make a new lauxlib.h
+    # that merely includes lualib.h
+    lauxlib_h_path = os.path.join(src_dir, "build", "lauxlib.h")
+    if not os.path.exists(lauxlib_h_path):
+        with open(lauxlib_h_path, 'w', encoding='us-ascii') as f:
+            f.write("""
+#pragma once
+#include "lualib.h"
+#include "luacode.h"
+#include <stdbool.h>
+#define USE_LUAU 1
+#define LUA_VERSION_NUM 501
+
+#define ref_freelist	0
+
+// Polyfill for luaL_ref
+// From https://github.com/lua/lua/blob/v5-2/lauxlib.c
+LUALIB_API int luaL_ref (lua_State *L, int t) {
+  int ref;
+  if (lua_isnil(L, -1)) {
+    lua_pop(L, 1);  /* remove from stack */
+    return LUA_REFNIL;  /* `nil' has a unique fixed reference */
+  }
+  t = lua_absindex(L, t);
+  lua_rawgeti(L, t, ref_freelist);  /* get first free element */
+  ref = (int)lua_tointeger(L, -1);  /* ref = t[ref_freelist] */
+  lua_pop(L, 1);  /* remove it from stack */
+  if (ref != 0) {  /* any free element? */
+    lua_rawgeti(L, t, ref);  /* remove it from list */
+    lua_rawseti(L, t, ref_freelist);  /* (t[ref_freelist] = t[ref]) */
+  }
+  else  /* no free elements */
+    ref = (int)lua_objlen(L, t) + 1;  /* get a new reference */
+  lua_rawseti(L, t, ref);
+  return ref;
+}
+
+// Polyfill for luaL_unref
+// From https://github.com/lua/lua/blob/v5-2/lauxlib.c
+LUALIB_API void luaL_unref (lua_State *L, int t, int ref) {
+  if (ref >= 0) {
+    t = lua_absindex(L, t);
+    lua_rawgeti(L, t, ref_freelist);
+    lua_rawseti(L, t, ref);  /* t[ref] = t[ref_freelist] */
+    lua_pushinteger(L, ref);
+    lua_rawseti(L, t, ref_freelist);  /* t[ref_freelist] = ref */
+  }
+}
+
+// Define lua_pushcclosured using lua_pushcclosurek                    
+LUALIB_API void lua_pushcclosured (lua_State *L, lua_CFunction fn, int n) {
+    lua_pushcclosurek(L, fn, NULL, n, NULL);
+}
+                    
+// Define lua_pushcfunctiond using lua_pushcfunction
+LUALIB_API void lua_pushcfunctiond (lua_State *L, lua_CFunction fn) {
+    lua_pushcfunction(L, fn, NULL);
+}
+                    
+// Dummy implementation of lua_atpanic
+LUALIB_API lua_CFunction lua_atpanic (lua_State *L, lua_CFunction panicf) {
+    luaL_error(L, "lua_atpanic is not supported in Luau. Use lua_setpanicfunc instead.");
+    return NULL; // never reached
+}
+                                        
+LUALIB_API void lua_setpanicfunc (lua_State *L, void (*panic)(lua_State* L, int errcode)) {
+    lua_callbacks(L)->panic = panic;
+}
+                    
+// Define luaL_errord as luaL_error with return of int
+LUALIB_API int luaL_errord (lua_State *L, const char *fmt, ...) {
+    va_list argp;
+    va_start(argp, fmt);
+    luaL_error(L, fmt, argp);
+    va_end(argp);
+    return 0; // never reached
+}
+                    
+// Define lua_errord as lua_error with return of int
+LUALIB_API int lua_errord (lua_State *L) {
+    lua_error(L);
+    return 0; // never reached
+}
+
+// Define luaL_argerrord as luaL_argerror with return of int
+LUALIB_API int luaL_argerrord (lua_State *L, int arg, const char *extramsg) {
+    luaL_argerror(L, arg, extramsg);
+    return 0; // never reached
+}
+                    
+// Polyfill for lua_getstack via lua_getinfo on Luau
+// May not be fully correct but should be the Luau equivalent
+#define lua_getstack(L, level, ar) lua_getinfo(L, level, "", ar)
+
+// Compile with luau_compile
+// TODO: Compile using lupa's memory allocator
+// and support luau env parameter
+void chunk_dtor(void *ud) {
+    if(ud == NULL) {
+        return;
+    }
+    char* data_to_free = *(char**)ud;
+    if(data_to_free == NULL) {
+        return;
+    }
+    free(data_to_free); // This will always be called even on error etc.
+}
+
+// Polyfill for luaL_loadbuffer
+// Luau doesnt provide either luaL_loadbuffer or luaL_loadbufferx etc.
+LUALIB_API int luaL_loadbuffer (lua_State *L, const char *buffer, size_t size, const char *name) {
+    bool textChunk = (size == 0 || buffer[0] >= '\t');
+    if (textChunk) {
+        void* ud = lua_newuserdatadtor(L, sizeof(char*), chunk_dtor);
+        size_t outsize = 0;
+        char* data = luau_compile(buffer, size, NULL, &outsize);
+        // ptr::write(data_ud, data);
+        *(char**)ud = data; // Now, the dtor will always free this 
+        int status = luau_load(L, name, data, outsize, 0); // TODO: Support env parameter for optimized chunk environment loading
+        lua_replace(L, -2); // Replace the userdata with the result
+        return status;
+    } else {
+        // Binary chunk, load with luau_load
+        return luau_load(L, name, buffer, size, 0); // TODO:
+    }
+}
+""")
+
+    return {
+        'include_dirs': [
+            os.path.join(src_dir, "Common", "include"),
+            os.path.join(src_dir, "Ast", "include"), 
+            os.path.join(src_dir, "CodeGen", "include"), 
+            os.path.join(src_dir, "Compiler", "include"), 
+            os.path.join(src_dir, "VM", "include"),
+            os.path.join(src_dir, "VM", "src"),
+            os.path.join(src_dir, "build"),
+        ],
+        'extra_objects': [
+            os.path.join(src_dir, "build", "libluaucompiler.a"), 
+            os.path.join(src_dir, "build", "libluaucodegen.a"), 
+            os.path.join(src_dir, "build", "libluauast.a"), 
+            os.path.join(src_dir, "build", "libluauvm.a")],
+        'libversion': libname,
+    }
 
 def use_bundled_luajit(path, macros):
     libname = os.path.basename(path.rstrip(os.sep))
@@ -253,6 +484,8 @@ def use_bundled_lua(path, macros):
     libname = os.path.basename(path.rstrip(os.sep))
     if 'luajit' in libname:
         return use_bundled_luajit(path, macros)
+    elif 'luau' in libname:
+        return use_bundled_luau(path, macros)
 
     print('Using bundled Lua in %s' % libname)
 
@@ -380,22 +613,32 @@ if option_limited_api:
 option_no_bundle = has_option('--no-bundle')
 option_use_bundle = has_option('--use-bundle')
 option_no_luajit = has_option('--no-luajit')
+option_use_luau = has_option('--use-luau')
+if option_use_luau and option_no_bundle:
+    print("Cannot use --use-luau together with --no-bundle")
+    sys.exit(1)
 
 configs = get_lua_build_from_arguments()
 if not configs and not option_no_bundle:
-    configs = [
-        use_bundled_lua(lua_bundle_path, c_defines)
-        for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'lua*' + os.sep))
-        if not (
-            False
-            # LuaJIT 2.0 on macOS requires a CPython linked with "-pagezero_size 10000 -image_base 100000000"
-            # http://t-p-j.blogspot.com/2010/11/lupa-on-os-x-with-macports-python-26.html
-            # LuaJIT 2.1-alpha3 fails at runtime.
-            or (platform == 'darwin' and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
-            # Let's restrict LuaJIT to x86_64 for now.
-            or (get_machine() not in ("x86_64", "AMD64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
-        )
-    ]
+    if option_use_luau:
+        configs = [
+            use_bundled_luau(lua_bundle_path, c_defines)
+            for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'luau*' + os.sep))
+        ]
+    else:
+        configs = [
+            use_bundled_lua(lua_bundle_path, c_defines)
+            for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'lua*' + os.sep))
+            if not (
+                False
+                # LuaJIT 2.0 on macOS requires a CPython linked with "-pagezero_size 10000 -image_base 100000000"
+                # http://t-p-j.blogspot.com/2010/11/lupa-on-os-x-with-macports-python-26.html
+                # LuaJIT 2.1-alpha3 fails at runtime.
+                or (platform == 'darwin' and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
+                # Let's restrict LuaJIT to x86_64 for now.
+                or (get_machine() not in ("x86_64", "AMD64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
+            )
+        ]
 if not configs:
     configs = [
         (find_lua_build(no_luajit=option_no_luajit) if not option_use_bundle else {})
@@ -423,6 +666,7 @@ def prepare_extensions(use_cython=True):
             extra_objects=config.get('extra_objects'),
             include_dirs=config.get('include_dirs'),
             define_macros=c_defines,
+            libraries=['stdc++'] if option_use_luau else [],
         ))
 
         if not use_cython:

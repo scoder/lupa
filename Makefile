@@ -26,10 +26,15 @@ all:  local
 local:
 	LUPA_WITH_LUA_DLOPEN=$(WITH_LUA_DLOPEN) ${PYTHON} setup.py build_ext --inplace $(WITH_PARALLEL) $(WITH_CYTHON)
 
+local_luau:
+	LUPA_WITH_LUA_DLOPEN=$(WITH_LUA_DLOPEN) ${PYTHON} setup.py --use-luau build_ext --inplace $(WITH_PARALLEL) $(WITH_CYTHON)
+
 sdist dist/lupa-$(VERSION).tar.gz:
 	${PYTHON} setup.py sdist
 
 test: local
+	PYTHONPATH=. $(PYTHON) -m unittest -v lupa.tests.suite
+test_luau: local_luau
 	PYTHONPATH=. $(PYTHON) -m unittest -v lupa.tests.suite
 
 clean:
