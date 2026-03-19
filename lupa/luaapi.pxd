@@ -69,7 +69,6 @@ cdef extern from "lua.h" nogil:
     ctypedef float lua_Number  # type of numbers in Lua
     ctypedef int lua_Integer   # type for integer functions
 
-    lua_State *lua_newstate (lua_Alloc f, void *ud)
     void       lua_close (lua_State *L)
     lua_State *lua_newthread (lua_State *L)
     const lua_Number *lua_version(lua_State *L)
@@ -467,11 +466,23 @@ cdef extern from * nogil:
     #if LUA_VERSION_NUM < 502
     #define lua_pushglobaltable(L)  lua_pushvalue(L, LUA_GLOBALSINDEX)
     #endif
+
+    #if LUA_VERSION_NUM >= 505
+    #define __lupa_lua_newstate(alloc, us, seed) lua_newstate(alloc, us, seed)
+    #define __lupa_luaL_makeseed(lua_state)  luaL_makeseed(lua_state)
+    #else
+    #define __lupa_lua_newstate(alloc, us, seed) lua_newstate(alloc, us)
+    #define __lupa_luaL_makeseed(lua_state)  (0U)
+    #endif
     """
     int read_lua_version(lua_State *L)
     int lua_isinteger(lua_State *L, int idx)
     lua_Integer lua_tointegerx (lua_State *L, int idx, int *isnum)
     void lua_pushglobaltable (lua_State *L)
+
+    lua_State *lua_newstate "__lupa_lua_newstate" (lua_Alloc f, void *ud, unsigned int seed)
+    unsigned int luaL_makeseed "__lupa_luaL_makeseed" (lua_State *L)
+
 
 cdef extern from *:
     # Limits for Lua integers (in Lua<5.3: PTRDIFF_MIN, PTRDIFF_MAX)

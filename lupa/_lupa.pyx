@@ -237,6 +237,9 @@ cdef class LuaRuntime:
       Note: Not supported on 64bit LuaJIT.
       (default: None, i.e. no limitation. New in Lupa 2.0)
 
+    * ``string_hash_seed``: hash seed for Lua strings.
+      (default: randomly initialised. Ignored in Lua < 5.5.)
+
     Example usage::
 
       >>> from lupa import LuaRuntime
@@ -268,14 +271,19 @@ cdef class LuaRuntime:
                   attribute_filter=None, attribute_handlers=None,
                   bint register_eval=True, bint unpack_returned_tuples=False,
                   bint register_builtins=True, overflow_handler=None,
-                  max_memory=None):
+                  max_memory=None, string_hash_seed=None):
         cdef lua_State* L
 
-        if max_memory is None:
+        if max_memory is None and string_hash_seed is None:
             L = lua.luaL_newstate()
             self._memory_status.limit = <size_t> -1
         else:
-            L = lua.lua_newstate(<lua.lua_Alloc>&_lua_alloc_restricted, <void*>&self._memory_status)
+            L = lua.lua_newstate(
+                <lua.lua_Alloc>&_lua_alloc_restricted,
+                <void*>&self._memory_status,
+                lua.luaL_makeseed(NULL) if string_hash_seed is None else <unsigned int> string_hash_seed,
+            )
+
         if L is NULL:
             raise LuaError("Failed to initialise Lua runtime")
 
