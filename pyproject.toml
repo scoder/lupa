@@ -4,7 +4,12 @@ requires = ["Cython>=3.1.6", "setuptools", "wheel"]
 [tool.cibuildwheel]
 build-verbosity = 2
 environment = {LUPA_USE_BUNDLE = "true"}
-skip = ["pp*-manylinux_aarch64", "pp*-manylinux_i686", "cp38-macosx_universal2"]
+skip = [
+    "pp*-manylinux_aarch64",
+    "pp*-manylinux_i686",
+    "cp38-macosx_universal2",
+    "cp31?t-*_i686",  # crashes for some reason
+    ]
 enable = "cpython-prerelease"
 test-skip = ["*-macosx_*"]
 test-command = "python -c \"import lupa\" && python -c \"import lupa.lua54\" "
