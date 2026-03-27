@@ -37,7 +37,7 @@ Major features
 
 * tested with Python 3.8 and later
 
-* ships with Lua 5.1, 5.2, 5.3 and 5.4
+* ships with Lua 5.1, 5.2, 5.3, 5.4 and 5.5
   as well as LuaJIT 2.0 and 2.1 on systems that support it.
 
 * easy to hack on and extend as it is written in Cython, not C
