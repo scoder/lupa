@@ -873,13 +873,21 @@ shared memory setup.
 Restricting Lua access to Python objects
 ----------------------------------------
 
+.. note::
+    Any Lupa deployment that allows untrusted Lua code to be executed
+    should disable the access to Python's builtin functions,
+    as shown below.  This includes functions like ``eval()``, ``exec()``
+    or ``__import__()`` that allow arbitrary code execution,
+    but also seemingly innocent helpers like ``getattr()``
+    which provides unrestricted access to arbitrary Python attributes
+    that is not guarded by the attribute access control described below.
+
 ..
         >>> try: unicode = unicode
         ... except NameError: unicode = str
 
 Lupa provides a simple mechanism to control access to Python objects.
-Each attribute access can be passed through a filter function as
-follows:
+Each attribute access can be passed through a filter function as follows:
 
 .. code:: python
 
@@ -890,16 +898,16 @@ follows:
         ...     raise AttributeError('access denied')
 
         >>> lua = lupa.LuaRuntime(
-        ...           register_eval=False,
-        ...           attribute_filter=filter_attribute_access)
+        ...     register_eval=False,      # disallow python.eval('...')
+        ...     register_builtins=False,  # disallow python.builtins.*
+        ...     attribute_filter=filter_attribute_access)
         >>> func = lua.eval('function(x) return x.__class__ end')
         >>> func(lua)
         Traceback (most recent call last):
          ...
         AttributeError: access denied
 
-The ``is_setting`` flag indicates whether the attribute is being read
-or set.
+The ``is_setting`` flag indicates whether the attribute is being read or set.
 
 Note that the attributes of Python functions provide access to the
 current ``globals()`` and therefore to the builtins etc.  If you want
@@ -934,7 +942,10 @@ setter function implementations for a ``LuaRuntime``:
 
         >>> x = X()
 
-        >>> lua = lupa.LuaRuntime(attribute_handlers=(getter, setter))
+        >>> lua = lupa.LuaRuntime(
+        ...     register_eval=False,      # disallow python.eval('...')
+        ...     register_builtins=False,  # disallow python.builtins.*
+        ...     attribute_handlers=(getter, setter))
         >>> func = lua.eval('function(x) return x.yes end')
         >>> func(x)  # getting 'yes'
         123
