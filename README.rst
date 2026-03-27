@@ -109,14 +109,6 @@ Examples
 ..
       >>> import lupa.lua54 as lupa
 
-      ## doctest helpers:
-      >>> try: _ = sorted
-      ... except NameError:
-      ...     def sorted(seq):
-      ...         l = list(seq)
-      ...         l.sort()
-      ...         return l
-
 .. code:: python
 
       >>> from lupa.lua54 import LuaRuntime
