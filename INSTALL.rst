@@ -66,6 +66,17 @@ Building with LuaJIT2
 .. _`distutils documentation`: http://docs.python.org/install/index.html#install-index
 .. _`hints on building extension modules`: http://docs.python.org/install/index.html#building-extensions-tips-and-tricks
 
+Starting with Lupa 2.7, ``abi3`` wheels can be built by passing the ``setup.py``
+option ``--limited-api`` or by setting the environment variable ``LUPA_LIMITED_API``.
+
+Examples are::
+
+     # build for the ABI version of the currently running Python
+     python3.11 setup.py build_wheel --limited-api=true
+
+     # build for a specific Python ABI version, e.g. Python 3.9
+     python3 setup.py build_wheel --limited-api=3.9
+
 
 Building with Lua 5.x
 ---------------------
@@ -73,10 +84,10 @@ Building with Lua 5.x
 It also works to use Lupa with the standard (non-JIT) Lua
 runtime. The easiest way is to use the bundled lua submodule:
 
-#) Clone the submodule::
+#) Clone the respective submodule, e.g. Lua 5.4::
 
-     $ git submodule update --init third-party/lua
-     
+     $ git submodule update --init third-party/lua54
+
 #) Build Lupa::
 
      $ python3 setup.py bdist_wheel --use-bundle --with-cython
