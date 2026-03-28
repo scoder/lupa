@@ -59,7 +59,7 @@ environment.CFLAGS = "-O3 -g1 -pipe -fPIC -flto"
 [[tool.cibuildwheel.overrides]]
 select = "*i686 *musllinux* *win32 *win_arm64 *macosx_x86_64 *armv7l"
 inherit.environment = "append"
-environment.CYTHON_LIMITED_API = "true"
+environment.LUPA_LIMITED_API = "true"
 inherit.test-requires = "append"
 test-requires = ["abi3audit>=0.0.25"]
 inherit.test-command = "append"
