@@ -1,6 +1,16 @@
 name: Continuous Integration
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - '**'
+      - '!.github/**'
+      - .github/workflows/ci.yml
+  pull_request:
+    paths:
+      - '**'
+      - '!.github/**'
+      - .github/workflows/ci.yml
 
 jobs:
   build:
