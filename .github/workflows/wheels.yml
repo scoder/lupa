@@ -174,9 +174,36 @@ jobs:
       - name: Checkout Cython
         uses: actions/checkout@v6
 
+      - name: Check out recursively
+        run: git submodule update --init --recursive
+
       - uses: actions/setup-python@v6.2.0
         with:
           python-version: '3.13'
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Install MacOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install automake libtool
+          ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
+
+      - name: Setup Visual Studio for x64
+        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win_amd64')
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: x64
+
+      - name: Setup Visual Studio for x86
+        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win32')
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: x86
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
