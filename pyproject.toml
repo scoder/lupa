@@ -26,14 +26,16 @@ test-command = "python -c \"import lupa\" && python -c \"import lupa.lua54\" "
 archs = ["x86_64", "aarch64", "i686", "armv7l"]
 repair-wheel-command = "auditwheel repair --strip -w {dest_dir} {wheel}"
 
-[tool.cibuildwheel.linux.environment]
-CFLAGS = "-O3 -g0 -mtune=generic -pipe -fPIC -flto"
-LDFLAGS = "-fPIC -flto"
-LD = "gcc-ld"
-AR = "gcc-ar"
-NM = "gcc-nm"
-RANLIB = "gcc-ranlib"
-LUPA_WITH_LUA_DLOPEN = "true"
+[[tool.cibuildwheel.overrides]]
+select = "*linux_i686 *linux_x86_64"
+inherit.environment = "append"
+environment.CFLAGS = "-O3 -g0 -mtune=generic -pipe -fPIC -flto"
+environment.LDFLAGS = "-fPIC -flto"
+environment.LD = "gcc-ld"
+environment.AR = "gcc-ar"
+environment.NM = "gcc-nm"
+environment.RANLIB = "gcc-ranlib"
+environment.LUPA_WITH_LUA_DLOPEN = "true"
 
 [[tool.cibuildwheel.overrides]]
 select = "*i686 *musllinux* *win32 *win_arm64 *macosx_x86_64 *armv7l"
@@ -47,6 +49,10 @@ test-command = ["abi3audit --strict --report {wheel}"]
 [[tool.cibuildwheel.overrides]]
 select = "*aarch64"
 environment = {CFLAGS = "-O3 -g1 -pipe -fPIC -flto -march=armv8-a -mtune=cortex-a72", AR = "gcc-ar", NM = "gcc-nm", RANLIB = "gcc-ranlib", LDFLAGS = "-fPIC -flto", LUPA_USE_BUNDLE = "true", LUPA_WITH_LUA_DLOPEN = "true"}
+
+[[tool.cibuildwheel.overrides]]
+select = "*armv7l"
+environment = {CFLAGS = "-O3 -g1 -pipe -fPIC -flto", AR = "gcc-ar", NM = "gcc-nm", RANLIB = "gcc-ranlib", LDFLAGS = "-fPIC -flto", LUPA_USE_BUNDLE = "true", LUPA_WITH_LUA_DLOPEN = "true"}
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64", "x86"]
