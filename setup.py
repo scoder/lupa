@@ -377,6 +377,10 @@ option_limited_api = check_limited_api_option('--limited-api')
 if option_limited_api:
     c_defines.append(('Py_LIMITED_API', f'0x{option_limited_api[0]:02x}{option_limited_api[1]:02x}0000'))
 
+    setup_options = extra_setup_args.setdefault('options', {})
+    bdist_wheel_options = setup_options.setdefault('bdist_wheel', {})
+    bdist_wheel_options['py_limited_api'] = f'cp{option_limited_api[0]}{option_limited_api[1]}'
+
 # find Lua
 option_no_bundle = has_option('--no-bundle')
 option_use_bundle = has_option('--use-bundle')
@@ -408,6 +412,11 @@ if not configs:
 def prepare_extensions(use_cython=True):
     ext_modules = []
     ext_libraries = []
+
+    extra_extension_args = {}
+    if option_limited_api:
+        extra_extension_args['py_limited_api'] = True
+
     for config in configs:
         ext_name = config.get('libversion', 'lua')
         src, dst = os.path.join('lupa', '_lupa.pyx'), os.path.join('lupa', ext_name + '.pyx')
@@ -424,6 +433,7 @@ def prepare_extensions(use_cython=True):
             extra_objects=config.get('extra_objects'),
             include_dirs=config.get('include_dirs'),
             define_macros=c_defines,
+            **extra_extension_args,
         ))
 
         if not use_cython:
