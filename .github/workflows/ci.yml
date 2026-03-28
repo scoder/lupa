@@ -5,11 +5,13 @@ on:
     paths:
       - '**'
       - '!.github/**'
+      - '!pyproject.toml'
       - .github/workflows/ci.yml
   pull_request:
     paths:
       - '**'
       - '!.github/**'
+      - '!pyproject.toml'
       - .github/workflows/ci.yml
 
 jobs:
