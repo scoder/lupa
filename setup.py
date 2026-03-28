@@ -236,9 +236,10 @@ def use_bundled_luajit(path, macros):
         else:
             build_env['CFLAGS'] = "-fPIC"
 
-    output = subprocess.check_output(build_script, cwd=src_dir, env=build_env)
-    print(output.decode().strip())
-    if lib_file.encode("ascii") not in output:
+    result = subprocess.run(build_script, cwd=src_dir, env=build_env, capture_output=True)
+    if result.returncode or lib_file.encode("ascii") not in result.stdout:
+        print("Building LuaJIT did not report success:")
+        print(result.stderr.decode().strip())
         print("## Building LuaJIT may have failed ##")
 
     return {
