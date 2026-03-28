@@ -1,5 +1,5 @@
 [build-system]
-requires = ["Cython>=3.1.6", "setuptools", "wheel"]
+requires = ["Cython>=3.2.4", "setuptools", "wheel"]
 
 [tool.cibuildwheel]
 build-verbosity = 2
@@ -15,7 +15,7 @@ test-skip = ["*-macosx_*"]
 test-command = "python -c \"import lupa\" && python -c \"import lupa.lua54\" "
 
 [tool.cibuildwheel.linux]
-archs = ["x86_64", "aarch64", "i686"]
+archs = ["x86_64", "aarch64", "i686", "armv7l"]
 repair-wheel-command = "auditwheel repair --strip -w {dest_dir} {wheel}"
 
 [tool.cibuildwheel.linux.environment]
@@ -26,6 +26,15 @@ AR = "gcc-ar"
 NM = "gcc-nm"
 RANLIB = "gcc-ranlib"
 LUPA_WITH_LUA_DLOPEN = "true"
+
+[[tool.cibuildwheel.overrides]]
+select = "*i686 *musllinux* *win32 *win_arm64 *macosx_x86_64 *armv7l"
+inherit.environment = "append"
+environment.CYTHON_LIMITED_API = "true"
+inherit.test-requires = "append"
+test-requires = ["abi3audit>=0.0.25"]
+inherit.test-command = "append"
+test-command = ["abi3audit --strict --report {wheel}"]
 
 [[tool.cibuildwheel.overrides]]
 select = "*aarch64"

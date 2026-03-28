@@ -78,18 +78,19 @@ jobs:
 
       - name: Install cibuildwheel
         # Nb. keep cibuildwheel version pin consistent with job below
-        run: pipx install cibuildwheel==3.2.1
+        run: pipx install cibuildwheel==3.3.1
 
       - id: set-matrix
         run: |
           MATRIX=$(
             {
-              cibuildwheel --print-build-identifiers --platform linux \
+              cibuildwheel --print-build-identifiers --platform linux --archs "x86_64,aarch64" \
+              | grep -v musllinux \
               | jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
               | sed -e '/aarch64/s|ubuntu-latest|ubuntu-24.04-arm|' \
-              && cibuildwheel --print-build-identifiers --platform macos \
+              && cibuildwheel --print-build-identifiers --platform macos --archs arm64 \
               | jq -nRc '{"only": inputs, "os": "macos-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform windows \
+              && cibuildwheel --print-build-identifiers --platform windows --archs AMD64 \
               | jq -nRc '{"only": inputs, "os": "windows-latest"}'
             } | jq -sc
           )
@@ -141,7 +142,7 @@ jobs:
           arch: x86
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.2.1
+        uses: pypa/cibuildwheel@v3.3.1
         with:
           only: ${{ matrix.only }}
 
