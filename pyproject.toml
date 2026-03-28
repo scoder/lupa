@@ -55,7 +55,7 @@ select = "*armv7l"
 environment = {CFLAGS = "-O3 -g1 -pipe -fPIC -flto", AR = "gcc-ar", NM = "gcc-nm", RANLIB = "gcc-ranlib", LDFLAGS = "-fPIC -flto", LUPA_USE_BUNDLE = "true", LUPA_WITH_LUA_DLOPEN = "true"}
 
 [tool.cibuildwheel.windows]
-archs = ["AMD64", "x86"]
+archs = ["AMD64", "x86", "ARM64"]
 test-command = "python -c \"import lupa\" && python -c \"import lupa.lua54\" && python -c \"import lupa.luajit21\" "
 
 [tool.cibuildwheel.macos]
