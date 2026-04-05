@@ -4,6 +4,7 @@ requires = ["Cython>=3.2.4", "setuptools", "wheel"]
 [tool.cibuildwheel]
 build-verbosity = 2
 environment = {LUPA_USE_BUNDLE = "true"}
+environment-pass = ["LUPA_LIMITED_API"]
 skip = [
     "pp*-manylinux_aarch64",
     "pp*-manylinux_i686",
