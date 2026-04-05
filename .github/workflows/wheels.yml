@@ -152,7 +152,7 @@ jobs:
           name: wheel-${{ matrix.only }}
 
   build_limited_api_wheels:
-    name: Build Stable ABI wheels on ${{ matrix.os }}
+    name: Build ${{ matrix.os }} Stable ABI ${{ matrix.lapiversion }} wheels
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'release' ||
