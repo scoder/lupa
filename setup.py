@@ -239,8 +239,8 @@ def use_bundled_luajit(path, macros):
     result = subprocess.run(build_script, cwd=src_dir, env=build_env, capture_output=True)
     if result.returncode or lib_file.encode("ascii") not in result.stdout:
         print("Building LuaJIT did not report success:")
-        print(result.stdout.decode().strip())
-        print(result.stderr.decode().strip())
+        print(result.stdout.decode().strip().replace('\r\n', '\n'))
+        print(result.stderr.decode().strip().replace('\r\n', '\n'))
         print("## Building LuaJIT may have failed ##")
 
     return {
