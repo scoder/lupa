@@ -217,6 +217,7 @@ jobs:
                 matrix.os == 'macos-latest' && '*macosx_x86_64' ||
                 matrix.os == 'windows-11-arm' && '*win_arm64' ||
             '' }}
+          CIBW_SKIP: "cp31*t-* cp38-* pp*"
 
       - name: Check wheel
         run: |
