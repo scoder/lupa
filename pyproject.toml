@@ -39,7 +39,7 @@ archs = ["x86_64", "arm64", "universal2"]
 LUPA_WITH_LUA_DLOPEN = "true"
 
 [tool.cibuildwheel.linux]
-archs = ["x86_64", "aarch64", "i686", "armv7l", " *linux_ppc64le *linux_riscv64"]
+archs = ["x86_64", "aarch64", "i686", "armv7l", "ppc64le", "riscv64"]
 repair-wheel-command = "auditwheel repair --strip -w {dest_dir} {wheel}"
 environment = {AR = "gcc-ar", NM = "gcc-nm", RANLIB = "gcc-ranlib", LDFLAGS = "-fPIC -flto", LUPA_USE_BUNDLE = "true", LUPA_WITH_LUA_DLOPEN = "true"}
 
