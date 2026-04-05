@@ -10,11 +10,13 @@ skip = [
     # abit3 targets require at least Py3.9
     "cp38-*linux_i686",
     "cp38-musllinux*",
-    "cp38-win32",
-    "cp38-win_arm64",
+    #"cp38-win32",
+    #"cp38-win_arm64",
     "cp38-macosx_universal2",
     "cp38-macosx_x86_64",
     "cp38-*armv7l",
+    "cp38-*ppc64le",
+    "cp38-*riscv64",
     # FT on i686 crashes for some reason
     "cp31?t-*_i686",
     ]
@@ -37,7 +39,7 @@ archs = ["x86_64", "arm64", "universal2"]
 LUPA_WITH_LUA_DLOPEN = "true"
 
 [tool.cibuildwheel.linux]
-archs = ["x86_64", "aarch64", "i686", "armv7l"]
+archs = ["x86_64", "aarch64", "i686", "armv7l", " *linux_ppc64le *linux_riscv64"]
 repair-wheel-command = "auditwheel repair --strip -w {dest_dir} {wheel}"
 environment = {AR = "gcc-ar", NM = "gcc-nm", RANLIB = "gcc-ranlib", LDFLAGS = "-fPIC -flto", LUPA_USE_BUNDLE = "true", LUPA_WITH_LUA_DLOPEN = "true"}
 
@@ -57,9 +59,8 @@ inherit.environment = "append"
 environment.CFLAGS = "-O3 -g1 -pipe -fPIC -flto"
 
 [[tool.cibuildwheel.overrides]]
-select = "*i686 *musllinux* *win32 *win_arm64 *macosx_x86_64 *armv7l"
-inherit.environment = "append"
-environment.LUPA_LIMITED_API = "true"
+#select = "*i686 *musllinux* *win32 *win_arm64 *macosx_x86_64 *armv7l"
+select = "*i686 *musllinux* *macosx_x86_64 *armv7l *ppc64le *riscv64"
 inherit.test-requires = "append"
 test-requires = ["abi3audit>=0.0.25"]
 inherit.test-command = "append"
