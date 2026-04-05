@@ -321,7 +321,7 @@ def use_bundled_lua(path, macros):
 
 def get_option(name):
     for i, arg in enumerate(sys.argv[1:], 1):
-        if arg.startswith(name):
+        if arg == name or arg.startswith(name + '='):
             arg = sys.argv.pop(i)
             if '=' in arg:
                 return arg.split('=', 1)[1]
