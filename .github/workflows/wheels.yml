@@ -188,6 +188,11 @@ jobs:
             lapiversion: '3.9'
           - os: 'windows-11-arm'
             lapiversion: '3.9'
+        include:
+          - os: 'windows-latest'
+            lapiversion: '3.10'
+          - os: 'windows-11-arm'
+            lapiversion: '3.10'
 
     steps:
       - name: Check out project
@@ -238,7 +243,8 @@ jobs:
                 matrix.os == 'windows-11-arm' && '*win_arm64' ||
                 matrix.os == 'macos-latest' && '*macosx_x86_64' ||
             '' }}
-          CIBW_SKIP: "cp31*t-* cp38-* ${{ matrix.lapiversion != '3.9' && 'cp39-* cp310-* cp311-*' || '' }}"
+          CIBW_SKIP: "cp31*t-*"
+          CIBW_PROJECT_REQUIRES_PYTHON: ">=${{ matrix.lapiversion }}"
           LUPA_LIMITED_API: "${{ matrix.lapiversion }}"
 
       - name: Check wheel
