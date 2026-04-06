@@ -12,6 +12,8 @@ Lupa change log
 
 * Lupa can now be built as abi3 wheel.
 
+* Some lesser used platforms are now served with abi3 wheels.
+
 * Built with Cython 3.2.4.
 
 
