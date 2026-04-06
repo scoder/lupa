@@ -398,7 +398,7 @@ if not configs and not option_no_bundle:
             # LuaJIT 2.1-alpha3 fails at runtime.
             or (platform == 'darwin' and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
             # Let's restrict LuaJIT to x86_64/Arm64 for now.
-            or (get_machine() not in ("x86_64", "AMD64", "aarch64", "ARM64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
+            or (get_machine().lower() not in ("x86_64", "amd64", "aarch64", "arm64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
     ]
 if not configs:
