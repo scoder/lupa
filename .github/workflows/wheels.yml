@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout project
+    - name: Check out project
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - name: Check out submodules
@@ -75,7 +75,7 @@ jobs:
     outputs:
       include: ${{ steps.set-matrix.outputs.include }}
     steps:
-      - name: Checkout project
+      - name: Check out project
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install cibuildwheel
@@ -114,7 +114,7 @@ jobs:
       LUPA_WITH_LUA_DLOPEN: ${{ startsWith(matrix.os, 'windows') && 'false' || 'true' }}
 
     steps:
-      - name: Checkout project
+      - name: Check out project
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Check out submodules
@@ -185,7 +185,7 @@ jobs:
             lapiversion: '3.9'
 
     steps:
-      - name: Checkout project
+      - name: Check out project
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Check out submodules
@@ -292,7 +292,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout project
+    - name: Check out project
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - name: Check out submodules
