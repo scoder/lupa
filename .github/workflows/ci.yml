@@ -73,7 +73,7 @@ jobs:
       LUPA_WITH_LUA_DLOPEN: ${{ startsWith(matrix.os, 'windows') && 'false' || 'true' }}
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - name: Check out recursively
       run: git submodule update --init --recursive
@@ -94,7 +94,7 @@ jobs:
 
     - name: Setup Visual Studio
       if: contains(matrix.os, 'windows')
-      uses: TheMrMilchmann/setup-msvc-dev@v4
+      uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
       with:
         arch: x64
 
@@ -113,7 +113,7 @@ jobs:
 
     - name: Upload wheels
       if: matrix.lua-version == 'bundle' && matrix.os == 'macos-latest'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: wheels-${{ matrix.os }}-${{ matrix.python-version }}
         path: dist/*.whl
