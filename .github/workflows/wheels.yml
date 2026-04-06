@@ -43,9 +43,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Checkout project
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-    - name: Check out recursively
+    - name: Check out submodules
       run: git submodule update --init --recursive
 
     - name: Set up Python
@@ -74,7 +75,8 @@ jobs:
     outputs:
       include: ${{ steps.set-matrix.outputs.include }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout project
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install cibuildwheel
         # Nb. keep cibuildwheel version pin consistent with job below
@@ -112,9 +114,10 @@ jobs:
       LUPA_WITH_LUA_DLOPEN: ${{ startsWith(matrix.os, 'windows') && 'false' || 'true' }}
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout project
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Check out recursively
+      - name: Check out submodules
         run: git submodule update --init --recursive
 
       - name: Set up QEMU
@@ -146,7 +149,8 @@ jobs:
         with:
           only: ${{ matrix.only }}
 
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      - name: Upload wheels
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: ./wheelhouse/*.whl
           name: wheel-${{ matrix.only }}
@@ -181,9 +185,10 @@ jobs:
             lapiversion: '3.9'
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout project
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Check out recursively
+      - name: Check out submodules
         run: git submodule update --init --recursive
 
       - name: Set up Python
@@ -235,7 +240,8 @@ jobs:
           python -m pip install twine
           python -m twine check ./wheelhouse/*.whl
 
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      - name: Upload wheels
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: Stable-ABI-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
@@ -259,7 +265,8 @@ jobs:
       - name: List downloaded artifacts
         run: ls -la ./bdist_downloads
 
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      - name: Upload wheels
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: ./bdist_downloads/*.whl
           name: wheels
@@ -285,9 +292,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Checkout project
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-    - name: Check out recursively
+    - name: Check out submodules
       run: git submodule update --init --recursive
 
     - name: Set up Python
