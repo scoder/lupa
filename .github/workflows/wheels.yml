@@ -144,6 +144,7 @@ jobs:
       - name: Fix link in Windows
         if: contains(matrix.os, 'windows')
         # Prevent 'link' from being found before 'link.exe'
+        shell: bash
         run: rm -f /usr/bin/link
 
       - name: Build wheels
@@ -216,6 +217,7 @@ jobs:
       - name: Fix link in Windows
         if: contains(matrix.os, 'windows')
         # Prevent 'link' from being found before 'link.exe'
+        shell: bash
         run: rm -f /usr/bin/link
 
       - name: Build wheels
