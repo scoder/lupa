@@ -129,17 +129,11 @@ jobs:
           brew install automake libtool
           ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
 
-      - name: Setup Visual Studio for x64
-        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win_amd64')
-        uses: TheMrMilchmann/setup-msvc-dev@v4
+      - name: Setup Visual Studio
+        if: contains(matrix.os, 'windows')
+        uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
         with:
-          arch: x64
-
-      - name: Setup Visual Studio for x86
-        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win32')
-        uses: TheMrMilchmann/setup-msvc-dev@v4
-        with:
-          arch: x86
+          arch: ${{ contains(matrix.only, 'win_amd64') && 'x64' || contains(matrix.only, 'win32') && 'x86' || contains(matrix.only, 'arm') && 'arm64' || '' }}
 
       - name: Fix link in Windows
         if: contains(matrix.os, 'windows')
@@ -202,17 +196,11 @@ jobs:
           brew install automake libtool
           ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
 
-      - name: Setup Visual Studio for x64
-        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win_amd64')
+      - name: Setup Visual Studio
+        if: contains(matrix.os, 'windows')
         uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
         with:
-          arch: x64
-
-      - name: Setup Visual Studio for x86
-        if: contains(matrix.os, 'windows') && contains(matrix.only, 'win32')
-        uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
-        with:
-          arch: x86
+          arch: ${{ contains(matrix.only, 'win_amd64') && 'x64' || contains(matrix.only, 'win32') && 'x86' || contains(matrix.only, 'arm') && 'arm64' || '' }}
 
       - name: Fix link in Windows
         if: contains(matrix.os, 'windows')
