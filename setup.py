@@ -393,6 +393,8 @@ if not configs and not option_no_bundle:
         for lua_bundle_path in glob.glob(os.path.join(basedir, 'third-party', 'lua*' + os.sep))
         if not (
             False
+            # Allow disabling LuaJIT manually.
+            or (option_no_luajit and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
             # LuaJIT 2.0 on macOS requires a CPython linked with "-pagezero_size 10000 -image_base 100000000"
             # http://t-p-j.blogspot.com/2010/11/lupa-on-os-x-with-macports-python-26.html
             # LuaJIT 2.1-alpha3 fails at runtime.
@@ -401,8 +403,6 @@ if not configs and not option_no_bundle:
             or (get_machine().lower() not in ("x86_64", "amd64", "aarch64", "arm64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
             # LuaJIT 2.0 does not support aarch64.
             or (get_machine().lower() in ("aarch64", "arm64") and 'luajit20' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
-            # Cannot currently build LuaJIT on Windows-ARM.
-            or (platform.startswith('win') and get_machine().lower() in ("aarch64", "arm64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
     ]
 if not configs:
