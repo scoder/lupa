@@ -60,7 +60,7 @@ jobs:
       run: make sdist
 
     - name: Upload sdist
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: sdist
         path: dist/*.tar.gz
@@ -146,7 +146,7 @@ jobs:
         with:
           only: ${{ matrix.only }}
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: ./wheelhouse/*.whl
           name: wheel-${{ matrix.only }}
@@ -235,7 +235,7 @@ jobs:
           python -m pip install twine
           python -m twine check ./wheelhouse/*.whl
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: Stable-ABI-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
@@ -251,7 +251,7 @@ jobs:
 
     steps:
       - name: Download bdist files
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: ./bdist_downloads
           merge-multiple: true
@@ -259,7 +259,7 @@ jobs:
       - name: List downloaded artifacts
         run: ls -la ./bdist_downloads
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: ./bdist_downloads/*.whl
           name: wheels
@@ -303,7 +303,7 @@ jobs:
       env: { PYTHON_BUILD_VERSION: "${{ matrix.pyversion }}" }
 
     - name: Upload wheels
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: wheels-${{ matrix.image }}
         path: wheelhouse_*/*-m*linux*.whl  # manylinux / musllinux
