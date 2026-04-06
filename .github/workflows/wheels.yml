@@ -141,6 +141,11 @@ jobs:
         with:
           arch: x86
 
+      - name: Fix link in Windows
+        if: contains(matrix.os, 'windows')
+        # Prevent 'link' from being found before 'link.exe'
+        run: rm -f /usr/bin/link
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
         with:
@@ -166,8 +171,8 @@ jobs:
         os:
           - 'ubuntu-latest'
           - 'ubuntu-24.04-arm'
-          #- 'windows-latest'
-          #- 'windows-11-arm'
+          - 'windows-latest'
+          - 'windows-11-arm'
           - 'macos-latest'
         lapiversion:
           - "3.9"
@@ -207,6 +212,11 @@ jobs:
         uses: TheMrMilchmann/setup-msvc-dev@v4
         with:
           arch: x86
+
+      - name: Fix link in Windows
+        if: contains(matrix.os, 'windows')
+        # Prevent 'link' from being found before 'link.exe'
+        run: rm -f /usr/bin/link
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
