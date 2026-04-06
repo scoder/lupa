@@ -208,7 +208,7 @@ def find_lua_build(no_luajit=False):
 
 
 def no_lua_error():
-    error = ("Neither LuaJIT2 nor Lua 5.[1234] were found. Please install "
+    error = ("Neither LuaJIT2 nor Lua 5.1 or later were found. Please install "
              "Lua and its development packages, "
              "or put a local build into the lupa main directory.")
     print(error)
