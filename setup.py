@@ -401,6 +401,8 @@ if not configs and not option_no_bundle:
             or (get_machine().lower() not in ("x86_64", "amd64", "aarch64", "arm64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
             # LuaJIT 2.0 does not support aarch64.
             or (get_machine().lower() in ("aarch64", "arm64") and 'luajit20' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
+            # Cannot currently build LuaJIT on Windows-ARM.
+            or (platform.startswith('win') and get_machine().lower() in ("aarch64", "arm64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
     ]
 if not configs:

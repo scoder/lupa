@@ -151,7 +151,6 @@ jobs:
         env:
           # Skip abi3 targets here:
           CIBW_SKIP: "cp31[23456789]-win_arm64  cp31[23456789]-win32"
-          CIBW_ENVIRONMENT_WINDOWS: PATH="$VS170COMNTOOLS:$PATH"
 
       - name: Upload wheels
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
