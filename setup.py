@@ -399,6 +399,8 @@ if not configs and not option_no_bundle:
             or (platform == 'darwin' and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
             # Let's restrict LuaJIT to x86_64/Arm64 for now.
             or (get_machine().lower() not in ("x86_64", "amd64", "aarch64", "arm64") and 'luajit' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
+            # LuaJIT 2.0 does not support aarch64.
+            or (get_machine().lower() in ("aarch64", "arm64") and 'luajit20' in os.path.basename(lua_bundle_path.rstrip(os.sep)))
         )
     ]
 if not configs:
