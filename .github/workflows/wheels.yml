@@ -227,7 +227,7 @@ jobs:
                 matrix.os == 'windows-11-arm' && '*win_arm64' ||
                 matrix.os == 'macos-latest' && '*macosx_x86_64' ||
             '' }}
-          CIBW_SKIP: "cp31*t-* cp38-* ${{ matrix.lapiversion == '3.11' && 'cp39-* cp310-*' || '' }}"
+          CIBW_SKIP: "cp31*t-* cp38-* ${{ matrix.lapiversion != '3.9' && 'cp39-* cp310-* cp311-*' || '' }}"
           LUPA_LIMITED_API: "${{ matrix.lapiversion }}"
 
       - name: Check wheel
