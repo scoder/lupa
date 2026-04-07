@@ -1,18 +1,18 @@
 Lupa change log
 ===============
 
-2.7 (2026-0?-??)
+2.7 (2026-04-07)
 ----------------
 
 * In Lua 5.5, the string hash seed can be configured for each ``LuaRuntime``.
 
 * The bundled LuaJIT versions were updated to the latest git branches.
 
-* Lua 5.5 is now included in the binary wheels.
+* Lua 5.5 is included in the binary wheels.
 
-* Lupa can now be built as abi3 wheel.
+* Lupa can be built as abi3 wheel.
 
-* Some lesser used platforms are now served with abi3 wheels.
+* Some lesser used platforms are served with abi3 wheels.
 
 * Built with Cython 3.2.4.
 
