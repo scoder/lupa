@@ -1,3 +1,8 @@
+[project]
+name = "lupa"
+requires-python = ">=3.8"
+dynamic = ["version"]
+
 [build-system]
 requires = ["Cython>=3.2.4", "setuptools", "wheel"]
 
