@@ -250,7 +250,7 @@ jobs:
         uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         env:
           CIBW_BUILD: "*${{ matrix.target }}"
-          CIBW_SKIP: "cp31*t-*"
+          CIBW_SKIP: "cp31*t-*  pp3*"
           CIBW_PROJECT_REQUIRES_PYTHON: ">=${{ matrix.lapiversion }}"
           LUPA_LIMITED_API: "${{ matrix.lapiversion }}"
 
