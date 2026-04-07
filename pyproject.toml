@@ -21,7 +21,10 @@ skip = [
     # FT on i686 crashes for some reason
     "cp31?t-*_i686",
     ]
-enable = "cpython-prerelease"
+enable = [
+    "cpython-prerelease",
+    "pypy",
+    ]
 test-skip = ["*-macosx_*"]
 test-command = "python -c \"import lupa\" && python -c \"import lupa.lua54\" "
 
