@@ -481,7 +481,7 @@ long_description = '\n\n'.join([
     read_file(os.path.join(basedir, text_file))
     for text_file in ['README.rst', 'INSTALL.rst', 'CHANGES.rst', "LICENSE.txt"]])
 
-write_file(os.path.join(basedir, 'lupa', 'version.py'), u"__version__ = '%s'\n" % VERSION)
+write_file(os.path.join(basedir, 'lupa', 'version.py'), f"__version__ = '{VERSION}'\n")
 
 dll_files = []
 for config in configs:
