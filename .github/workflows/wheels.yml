@@ -160,7 +160,7 @@ jobs:
           name: wheel-${{ matrix.only }}
 
   build_limited_api_wheels:
-    name: Build ${{ matrix.os }} Stable ABI ${{ matrix.lapiversion }} wheels
+    name: Build ${{ matrix.target }} Stable ABI ${{ matrix.lapiversion }} wheels
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'release' ||
@@ -191,14 +191,14 @@ jobs:
 
         exclude:
           # Py3.9-abi3 on Windows lacks "PyThread" API.
-          - os: 'windows-latest'
+          - target: 'win32'
             lapiversion: '3.9'
-          - os: 'windows-11-arm'
+          - target: 'win_arm64'
             lapiversion: '3.9'
         include:
-          - os: 'windows-latest'
+          - target: 'win32'
             lapiversion: '3.10'
-          - os: 'windows-11-arm'
+          - target: 'win_arm64'
             lapiversion: '3.10'
 
     runs-on: ${{
