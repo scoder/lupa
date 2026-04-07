@@ -166,18 +166,25 @@ jobs:
       github.event_name == 'release' ||
       (github.event_name == 'schedule' && github.repository == 'cython/cython') ||
       github.event_name == 'workflow_dispatch'
-    runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - 'ubuntu-latest'
-          - 'ubuntu-24.04'
-          - 'ubuntu-24.04-arm'
-          - 'windows-latest'
-          - 'windows-11-arm'
-          - 'macos-latest'
+        target:
+          # Smaller set of platforms that we only provide Stable ABI wheels for:
+          - 'musllinux_x86_64'
+          - 'musllinux_aarch64'
+          - 'manylinux_i686'
+          - 'musllinux_i686'
+          - 'manylinux_ppc64le'
+          - 'musllinux_ppc64le'
+          - 'manylinux_riscv64'
+          - 'musllinux_riscv64'
+          - 'manylinux_armv7l'
+          - 'musllinux_armv7l'
+          - 'macosx_x86_64'
+          - 'win32'
+          - 'win_arm64'
         lapiversion:
           - "3.9"
           - "3.12"
@@ -193,6 +200,15 @@ jobs:
             lapiversion: '3.10'
           - os: 'windows-11-arm'
             lapiversion: '3.10'
+
+    runs-on: ${{
+      contains(matrix.target, 'aarch64') && 'ubuntu-24.04-arm' ||
+      contains(matrix.target, 'armv7l') && 'ubuntu-24.04-arm' ||
+      contains(matrix.target, 'win_arm64') && 'windows-11-arm' ||
+      contains(matrix.target, 'win32') && 'windows-latest' ||
+      contains(matrix.target, 'macosx') && 'macos-latest' ||
+      'ubuntu-latest'
+      }}
 
     steps:
       - name: Check out project
@@ -219,13 +235,13 @@ jobs:
           ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
 
       - name: Setup Visual Studio on Windows
-        if: contains(matrix.os, 'windows')
+        if: startsWith(matrix.target, 'win')
         uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
         with:
-          arch: ${{ matrix.os == 'windows-latest' && 'x86' || matrix.os == 'windows-11-arm' && 'arm64' || '' }}
+          arch: ${{ matrix.target == 'win32' && 'x86' || matrix.target == 'win_arm64' && 'arm64' || matrix.target == 'win_amd64' && 'amd64' || '' }}
 
       - name: Fix link in Windows
-        if: contains(matrix.os, 'windows')
+        if: startsWith(matrix.target, 'win')
         # Prevent 'link' from being found before 'link.exe'
         shell: bash
         run: rm -f /usr/bin/link
@@ -233,16 +249,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         env:
-          # Smaller set of platforms that we only provide Stable ABI wheels for
-          CIBW_BUILD: |
-            ${{
-                matrix.os == 'ubuntu-24.04-arm' && '*armv7l *musllinux_aarch64' ||
-                matrix.os == 'ubuntu-24.04' && '*linux_i686 *linux_ppc64le' ||
-                matrix.os == 'ubuntu-latest' && '*musllinux_x86_64  *linux_riscv64' ||
-                matrix.os == 'windows-latest' && '*win32' ||
-                matrix.os == 'windows-11-arm' && '*win_arm64' ||
-                matrix.os == 'macos-latest' && '*macosx_x86_64' ||
-            '' }}
+          CIBW_BUILD: "*${{ matrix.target }}"
           CIBW_SKIP: "cp31*t-*"
           CIBW_PROJECT_REQUIRES_PYTHON: ">=${{ matrix.lapiversion }}"
           LUPA_LIMITED_API: "${{ matrix.lapiversion }}"
@@ -255,7 +262,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: Stable-ABI-${{ matrix.os }}-${{ matrix.lapiversion }}
+          name: Stable-ABI-${{ matrix.target }}-${{ matrix.lapiversion }}
           path: ./wheelhouse/*.whl
 
   upload_release_assets:
