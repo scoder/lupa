@@ -8,16 +8,8 @@ environment-pass = ["LUPA_LIMITED_API"]
 skip = [
     "pp*-manylinux_aarch64",
     "pp*-manylinux_i686",
-    # abit3 targets require at least Py3.9
-    "cp38-*linux_i686",
-    "cp38-musllinux*",
-    #"cp38-win32",
-    #"cp38-win_arm64",
-    "cp38-macosx_universal2",
-    "cp38-macosx_x86_64",
-    "cp38-*armv7l",
-    "cp38-*ppc64le",
-    "cp38-*riscv64",
+    # Minimum Python version (for wheels) is 3.9.
+    "cp38*",
     # FT on i686 crashes for some reason
     "cp31?t-*_i686",
     ]
