@@ -4,3 +4,4 @@ include setup.py setup.cfg pyproject.toml tox.ini
 include logo/logo-220x200.png
 recursive-include lupa *.py *.pyx *.pxd *.pxi *.c
 recursive-include third-party *
+global-exclude *.so *.dll *.pyd *.a *.o
