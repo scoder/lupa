@@ -1,6 +1,16 @@
 Lupa change log
 ===============
 
+2.8 (2026-04-15)
+----------------
+
+* GH#288: No changes in source or functionality, just removed files from the
+  sdist content that prevented it from building on non-x86_64 platforms.
+
+* Py3.8 wheels were excluded due to lack of usage.  The package still builds
+  and is tested on Py3.8, but no pre-built wheels are provided.
+
+
 2.7 (2026-04-07)
 ----------------
 
