@@ -295,7 +295,7 @@ jobs:
         if-no-files-found: ignore
 
   validate_wheels:
-    name: Upload Release Wheels
+    name: Validate Wheels
     needs: [ build_wheels, build_limited_api_wheels, manylinux2014 ]
     runs-on: ubuntu-latest
 
