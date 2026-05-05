@@ -161,11 +161,6 @@ jobs:
 
   build_limited_api_wheels:
     name: Build ${{ matrix.target }} Stable ABI ${{ matrix.lapiversion }} wheels
-    if: >-
-      github.event_name == 'push' ||
-      github.event_name == 'release' ||
-      (github.event_name == 'schedule' && github.repository == 'cython/cython') ||
-      github.event_name == 'workflow_dispatch'
 
     strategy:
       fail-fast: false
@@ -254,48 +249,11 @@ jobs:
           CIBW_PROJECT_REQUIRES_PYTHON: ">=${{ matrix.lapiversion }}"
           LUPA_LIMITED_API: "${{ matrix.lapiversion }}"
 
-      - name: Check wheel
-        run: |
-          python -m pip install twine
-          python -m twine check ./wheelhouse/*.whl
-
       - name: Upload wheels
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: Stable-ABI-${{ matrix.target }}-${{ matrix.lapiversion }}
+          name: wheels-Stable-ABI-${{ matrix.target }}-${{ matrix.lapiversion }}
           path: ./wheelhouse/*.whl
-
-  upload_release_assets:
-    name: Upload Release Wheels
-    needs: [ sdist, build_wheels, build_limited_api_wheels, manylinux2014 ]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags')
-
-    permissions:
-      contents: write  # to create GitHub release (softprops/action-gh-release)
-
-    steps:
-      - name: Download bdist files
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: ./bdist_downloads
-          merge-multiple: true
-
-      - name: List downloaded artifacts
-        run: ls -la ./bdist_downloads
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          path: ./bdist_downloads/*.whl
-          name: wheels
-
-      - name: Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
-        with:
-          files: |
-            ./bdist_downloads/*.whl
-            ./bdist_downloads/*.tar.gz
 
   manylinux2014:
     strategy:
@@ -335,3 +293,65 @@ jobs:
         name: wheels-${{ matrix.image }}
         path: wheelhouse_*/*-m*linux*.whl  # manylinux / musllinux
         if-no-files-found: ignore
+
+  validate_wheels:
+    name: Upload Release Wheels
+    needs: [ build_wheels, build_limited_api_wheels, manylinux2014 ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download bdist files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wheels-*
+          path: ./bdist_downloads
+          merge-multiple: true
+
+      - name: List downloaded artifacts
+        run: ls -la ./bdist_downloads
+
+      - name: abi3audit wheels
+        run: |
+          python -m pip install abi3audit
+          ERRORS=0
+          for wheel in ./dist_downloads/*abi3*.whl; do abi3audit --strict --report ${wheel} || ERRORS=$((ERRORS + 1)); done
+          exit $ERRORS
+
+      - name: Twine-check wheels
+        run: |
+          python -m pip install twine
+          ERRORS=0
+          for wheel in ./dist_downloads/*.whl; do twine check ${wheel} || ERRORS=$((ERRORS + 1)); done
+          exit $ERRORS
+
+  upload_release_assets:
+    name: Upload Release Wheels
+    needs: [ sdist, validate_wheels ]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags')
+
+    permissions:
+      contents: write  # to create GitHub release (softprops/action-gh-release)
+
+    steps:
+      - name: Download bdist files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ./bdist_downloads
+          merge-multiple: true
+
+      - name: List downloaded artifacts
+        run: ls -la ./bdist_downloads
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          path: ./bdist_downloads/*.whl
+          name: wheels
+
+      - name: Release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
+        with:
+          files: |
+            ./bdist_downloads/*.whl
+            ./bdist_downloads/*.tar.gz

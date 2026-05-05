@@ -1,5 +1,5 @@
 [build-system]
-requires = ["Cython>=3.2.4", "setuptools", "wheel"]
+requires = ["Cython>=3.2.4", "setuptools"]
 
 [tool.cibuildwheel]
 build-verbosity = 2
@@ -53,11 +53,3 @@ environment.CFLAGS = "-O3 -g1 -pipe -fPIC -flto -march=armv8-a -mtune=cortex-a72
 select = "*armv7l"
 inherit.environment = "append"
 environment.CFLAGS = "-O3 -g1 -pipe -fPIC -flto"
-
-[[tool.cibuildwheel.overrides]]
-#select = "*i686 *musllinux* *win32 *win_arm64 *macosx_x86_64 *armv7l"
-select = "*i686 *musllinux* *macosx_x86_64 *armv7l *ppc64le *riscv64"
-inherit.test-requires = "append"
-test-requires = ["abi3audit>=0.0.25"]
-inherit.test-command = "append"
-test-command = ["abi3audit --strict --report {wheel}"]
