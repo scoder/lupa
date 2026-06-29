@@ -218,7 +218,7 @@ Python does, so the Lua operations ``obj[x]`` and ``obj.x`` both map
 to indexing.  To decide which Python protocol to use for Lua wrapped
 objects, Lupa employs a simple heuristic.
 
-Pratically all Python objects allow attribute access, so if the object
+Practically all Python objects allow attribute access, so if the object
 also has a ``__getitem__`` method, it is preferred when turning it
 into an indexable Lua object.  Otherwise, it becomes a simple object
 that uses attribute access for indexing from inside Lua.

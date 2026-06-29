@@ -2072,7 +2072,7 @@ class TestThreading(LupaTestCase):
         self.assertEqual(type(result_bytes), type(empty_bytes_string))
         self.assertEqual(image_size*image_size//8, len(result_bytes))
 
-        # plausability checks - make sure it's not all white or all black
+        # plausibility checks - make sure it's not all white or all black
         self.assertEqual('\0'.encode('ASCII')*(image_size//8//2),
                          result_bytes[:image_size//8//2])
         self.assertTrue(b'\xFF' in result_bytes)

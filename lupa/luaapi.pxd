@@ -235,7 +235,7 @@ cdef extern from "lua.h" nogil:
     ctypedef struct lua_Debug  # activation record
 
 
-    # Functions to be called by the debuger in specific events
+    # Functions to be called by the debugger in specific events
     ctypedef void (*lua_Hook) (lua_State *L, lua_Debug *ar)
 
     int lua_getstack (lua_State *L, int level, lua_Debug *ar)
