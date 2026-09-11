@@ -1737,6 +1737,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
         pyref = _PyReference.__new__(_PyReference)
         pyref._ref = runtime.allocate_pyref_in_lua(L)  # tbl udata
         pyref._obj = o
+        lua.lua_remove(L, -2)                          # udata
 
         # originally, we just used:
         #cpython.ref.Py_INCREF(o)
