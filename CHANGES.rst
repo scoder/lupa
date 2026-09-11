@@ -1,6 +1,15 @@
 Lupa change log
 ===============
 
+2.9 (2026-??-??)
+----------------
+
+* GH#294: In Lua 5.5, passing Python objects temporarily into Lua could make the wrong
+  object show up inside of Lua due to a timing issue between marking the object as unused
+  and the following garbage collection run that frees it.  This issue surfaced due to
+  changes in the garbage collector of Lua 5.5.
+
+
 2.8 (2026-04-15)
 ----------------
 

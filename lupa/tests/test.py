@@ -3111,6 +3111,55 @@ class TestMissingReference(SetupLuaRuntimeMixin, LupaTestCase):
         self.testmissingref({}, self.lupa.as_attrgetter) # attribute getter protocol
 
 
+class TestSafeObjectRoundtrip(SetupLuaRuntimeMixin, LupaTestCase):
+    lua_runtime_kwargs = {'max_memory': 0}  # Track memory allocations.
+
+    def setUp(self):
+        try:
+            super().setUp()
+        except self.lupa.LuaError:
+            # LuaJIT 2.0 doesn't support 'max_memory' option.
+            self.lua_runtime_kwargs = {}
+            super().setUp()
+
+    def test_python_object_identity_roundtrip_with_temporary_table_argument(self):
+        # Repeated object passing into Lua must not overwrite dead but uncollected objects.
+        # Make sure we don't leak memory when we handle that case.
+        # Issue reported in https://github.com/scoder/lupa/issues/294
+        lua = self.lua
+        if 'luajit' not in lua.lua_implementation.lower():
+            self.assertTrue(self.lua_runtime_kwargs, "Standard Lua should support 'max_memory' option.")
+
+        echo = lua.eval('function(entity, event) return entity end')
+        mktable = lua.table
+        objects = [object(), object(), object()]
+
+        def pass_objects_through_lua(chunk_size=100, obj_count=len(objects)):
+            for index in range(chunk_size):
+                expected = objects[index % obj_count]
+                actual = echo(expected, mktable(name="update"))
+                self.assertIs(actual, expected, (index, id(expected), id(actual)))
+
+        lua.gccollect()
+        peak_memory_initial = lua.get_memory_used()
+
+        pass_objects_through_lua()
+
+        lua.gccollect()
+        if self.lua_runtime_kwargs:
+            peak_memory_initial = max(peak_memory_initial, lua.get_memory_used())
+
+        peak_memory = peak_memory_initial
+        for _ in range(200):
+            pass_objects_through_lua()
+            lua.gccollect()
+            if self.lua_runtime_kwargs:
+                peak_memory = max(peak_memory, lua.get_memory_used())
+
+        if self.lua_runtime_kwargs:
+            self.assertLessEqual(peak_memory, int(peak_memory_initial * 1.05))  # at most 5% memory growth
+
+
 ################################################################################
 # test Lua object __str__ method
 
