@@ -2075,6 +2075,7 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) noexcept with gi
     else:
         lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
         lua.luaL_unref(L, -1, pyref._ref)                    # tbl
+        lua.lua_pop(L, 1)
         return 0
     finally:
         py_obj.obj = NULL
