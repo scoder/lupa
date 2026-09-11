@@ -81,6 +81,7 @@ cdef enum WrappedObjectFlags:
     OBJ_AS_INDEX = 1 # prefers the getitem protocol (over getattr)
     OBJ_UNPACK_TUPLE = 2 # unpacks into separate values if it is a tuple
     OBJ_ENUMERATOR = 4 # iteration uses native enumerate() implementation
+    # Remember to change "build_pyref_key" when adding new flags here!
 
 cdef struct py_object:
     PyObject* obj
@@ -1669,8 +1670,12 @@ cdef int push_encoded_unicode_string(LuaRuntime runtime, lua_State *L, unicode u
     return 1
 
 
-cdef inline tuple build_pyref_key(PyObject* o, int type_flags):
-    return (<object><uintptr_t>o, <object>type_flags)
+cdef inline object build_pyref_key(PyObject* o, int type_flags):
+    """
+    Build a PyLong hash key from an object ID (i.e. its PyObject*) and its WrappedObjectFlags.
+    """
+    # assert type_flags < 8, type_flags
+    return ((<object><uintptr_t> o) << 3) | type_flags
 
 
 cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_flags) except -1:
