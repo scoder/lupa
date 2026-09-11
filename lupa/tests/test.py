@@ -1306,6 +1306,15 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, LupaTestCase):
         self.assertEqual('userdata', lua_type(GetAttr()))
         self.assertNotEqual(None, lua_get_index(GetAttr()))
 
+    def test_python_object_identity_roundtrip_with_temporary_table_argument(self):
+        echo = self.lua.eval('function(entity, event) return entity end')
+        objects = [object(), object(), object()]
+
+        for index in range(20000):
+            expected = objects[index % len(objects)]
+            actual = echo(expected, self.lua.table(name="update"))
+            self.assertIs(actual, expected, (index, id(expected), id(actual)))
+
     def test_pylist(self):
         getitem = self.lua.eval('function(L, i) return L[i] end')
         self.assertEqual(3, getitem([1,2,3], 2))
