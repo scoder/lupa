@@ -2043,7 +2043,7 @@ cdef int _lua_panic(lua_State *L) noexcept nogil:
 ## Lua's C level error handling is different from that of Python.  It
 ## uses long jumps instead of returning from an error function.  The
 ## places where this can happen are marked with a comment.  Note that
-## this only never happen inside of a 'nogil' function, as a long jump
+## this must only ever happen inside of a 'nogil' function, as a long jump
 ## out of a function that handles Python objects would kill their
 ## reference counting.
 
