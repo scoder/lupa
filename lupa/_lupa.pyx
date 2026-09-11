@@ -257,6 +257,8 @@ cdef class LuaRuntime:
     cdef lua_State *_state
     cdef FastRLock _lock
     cdef dict _pyrefs_in_lua
+    cdef list _pyrefs_in_lua_free_refs
+    cdef int _pyrefs_in_lua_next_ref
     cdef tuple _raised_exception
     cdef list _pending_unrefs
     cdef bytes _encoding
@@ -290,6 +292,8 @@ cdef class LuaRuntime:
         self._state = L
         self._lock = FastRLock()
         self._pyrefs_in_lua = {}
+        self._pyrefs_in_lua_free_refs = []
+        self._pyrefs_in_lua_next_ref = 1
         self._encoding = _asciiOrNone(encoding)
         self._source_encoding = _asciiOrNone(source_encoding) or self._encoding or b'UTF-8'
         if attribute_filter is not None and not callable(attribute_filter):
@@ -348,6 +352,29 @@ cdef class LuaRuntime:
         L = self._state
         for ref in pending_unrefs:
             lua.luaL_unref(L, lua.LUA_REGISTRYINDEX, ref)
+        return 0
+
+    @cython.final
+    cdef int allocate_pyref_in_lua(self, lua_State* L) except -1:
+        cdef int ref
+        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # udata tbl
+        if self._pyrefs_in_lua_free_refs:
+            ref = <int>self._pyrefs_in_lua_free_refs.pop()
+        else:
+            ref = self._pyrefs_in_lua_next_ref
+            self._pyrefs_in_lua_next_ref += 1
+        lua.lua_pushvalue(L, -2)                            # udata tbl udata
+        lua.lua_rawseti(L, -2, ref)                         # udata tbl
+        lua.lua_pop(L, 1)                                   # udata
+        return ref
+
+    @cython.final
+    cdef int release_pyref_in_lua(self, lua_State* L, int ref) except -1:
+        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
+        lua.lua_pushnil(L)                                   # tbl nil
+        lua.lua_rawseti(L, -2, ref)                          # tbl
+        lua.lua_pop(L, 1)
+        self._pyrefs_in_lua_free_refs.append(ref)
         return 0
 
     def __dealloc__(self):
@@ -667,6 +694,9 @@ cdef class LuaRuntime:
         lua.lua_pop(L, 1)                          # lib
 
         # create and store the python references table
+        # values stay weak so unreachable userdata can be collected, but
+        # reference slot allocation happens in Python to avoid reusing a
+        # table hole before the corresponding __gc has released it.
         lua.lua_newtable(L)                                  # lib tbl
         lua.lua_createtable(L, 0, 1)                         # lib tbl metatbl
         lua.lua_pushlstring(L, "v", 1)                       # lib tbl metatbl "v"
@@ -1704,11 +1734,10 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
         py_obj.type_flags = type_flags
         lua.luaL_getmetatable(L, POBJECT)    # tbl udata metatbl
         lua.lua_setmetatable(L, -2)          # tbl udata
-        lua.lua_pushvalue(L, -1)             # tbl udata udata
         pyref = _PyReference.__new__(_PyReference)
-        pyref._ref = lua.luaL_ref(L, -3)     # tbl udata
+        pyref._ref = runtime.allocate_pyref_in_lua(L)  # tbl udata
         pyref._obj = o
-        lua.lua_remove(L, -2)                # udata
+        lua.lua_remove(L, -2)                          # udata
 
         # originally, we just used:
         #cpython.ref.Py_INCREF(o)
@@ -2073,8 +2102,7 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) noexcept with gi
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
         finally: return -1
     else:
-        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
-        lua.luaL_unref(L, -1, pyref._ref)                    # tbl
+        runtime.release_pyref_in_lua(L, pyref._ref)
         return 0
     finally:
         py_obj.obj = NULL
