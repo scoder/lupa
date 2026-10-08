@@ -1697,9 +1697,11 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
             pyref = <_PyReference>runtime._pyrefs_in_lua[refkey]
             lua.lua_rawgeti(L, -1, pyref._ref)              # tbl udata
             py_obj = <py_object*>lua.lua_touserdata(L, -1)
-            if py_obj:
+            if py_obj and py_obj.obj is <PyObject*> o:
                 lua.lua_remove(L, -2)                       # udata
                 return 1  # values pushed
+
+            # Object reference is no longer up to date. Create a new one.
             lua.lua_pop(L, 1)                               # tbl
 
         # create new wrapper for Python object
@@ -2078,6 +2080,10 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) noexcept with gi
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
         finally: return -1
     else:
+        if py_obj.obj is not <PyObject*> pyref._obj:
+            # Object reference has been reused already. Nothing to clean up.
+            return 0
+
         lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
         lua.luaL_unref(L, -1, pyref._ref)                    # tbl
         lua.lua_pop(L, 1)
