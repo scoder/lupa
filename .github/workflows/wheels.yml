@@ -202,6 +202,7 @@ jobs:
       contains(matrix.target, 'win_arm64') && 'windows-11-arm' ||
       contains(matrix.target, 'win32') && 'windows-latest' ||
       contains(matrix.target, 'macosx') && 'macos-latest' ||
+      contains(matrix.target, 'linux_i686') && 'ubuntu-24.04' ||
       'ubuntu-latest'
       }}
 
@@ -266,7 +267,7 @@ jobs:
           - manylinux2014_i686
         pyversion: ["*"]
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Check out project
