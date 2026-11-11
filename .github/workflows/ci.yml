@@ -66,7 +66,7 @@ jobs:
           - os: macos-latest
             lua-version: luajit-5.1
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && (matrix.python-version == '3.8' || matrix.python-version == '3.9') && 'ubuntu-24.04' || matrix.os }}
 
     env:
       CFLAGS_LTO: ${{ contains(matrix.lua-version, 'bundle')  && (contains(matrix.os, 'windows') && '/LTCG' || '-flto') || '' }}
