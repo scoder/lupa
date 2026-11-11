@@ -679,7 +679,7 @@ cdef class LuaRuntime:
 
         # and the strong table that hands out the slot numbers of those references
         lua.lua_newtable(L)                                     # lib tbl
-        if _LUA_VERSION < 504:
+        if lua.LUA_VERSION_NUM < 504:
             # Seed the free list head of luaL_ref(), as Lua 5.4+ do on first use, so
             # that luaL_unref() in a finalizer never has to allocate.
             lua.lua_pushinteger(L, 0)                           # lib tbl 0
