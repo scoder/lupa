@@ -47,6 +47,10 @@ jobs:
           - "lua5.3"
           - "luajit-5.1"
 
+        include:
+          - python-version: '3.16-dev'
+            allowed_failure: true
+
         exclude:
           - os: windows-latest
             lua-version: lua5.2
