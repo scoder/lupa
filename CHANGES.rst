@@ -9,6 +9,8 @@ Lupa change log
   and the following garbage collection run that frees it.  This issue surfaced due to
   changes in the garbage collector of Lua 5.5.
 
+* The Lua garbage collection callback was not cleaning up the Lua stack explicitly.
+
 
 2.8 (2026-04-15)
 ----------------
