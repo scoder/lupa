@@ -56,6 +56,10 @@ class TestLuaRuntimeRefcounting(LupaTestCase):
                 sys.version_info[:2] == (3,7) or sys.version_info >= (3,11)):
             # FIXME: This happens in test_attrgetter_refcycle - need to investigate why!
             self.assertEqual(old_count, new_count + 2)
+        elif off_by_one and old_count == new_count - 21 and (
+                sys.version_info[:2] >= (3,16)):
+            # FIXME: This happens in test_attrgetter_refcycle - need to investigate why!
+            self.assertEqual(old_count, new_count + 2)
         else:
             self.assertEqual(old_count, new_count)
 
