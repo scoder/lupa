@@ -3128,6 +3128,8 @@ class TestSafeObjectRoundtrip(SetupLuaRuntimeMixin, LupaTestCase):
     lua_runtime_kwargs = {'max_memory': 0}  # Track memory allocations.
 
     def setUp(self):
+        if IS_PYPY:
+            self.skipTest("not applicable to PyPy's memory handling")
         try:
             super().setUp()
         except self.lupa.LuaError:
