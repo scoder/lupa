@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 import unittest
+import weakref
 
 import lupa
 import lupa.tests
@@ -3158,6 +3159,81 @@ class TestSafeObjectRoundtrip(SetupLuaRuntimeMixin, LupaTestCase):
 
         if self.lua_runtime_kwargs:
             self.assertLessEqual(peak_memory, int(peak_memory_initial * 1.05))  # at most 5% memory growth
+
+
+class TestPushWhileFinalizing(SetupLuaRuntimeMixin, LupaTestCase):
+    # Lua clears a dead wrapper from PYREFST before it runs the wrapper's __gc.
+    # 'while_finalizing(push_old, callback)' calls 'callback' inside that window:
+    # finalizers run in reverse order of creation, so the __gc of the proxy/table
+    # created right after the wrapper runs before the wrapper's own __gc.
+    # See https://github.com/scoder/lupa/issues/293
+
+    class Owned:  # weak-referenceable, unlike object()
+        pass
+
+    def setUp(self):
+        super().setUp()
+        self.lua.execute('''
+            function while_finalizing(push_old, callback)
+                local function drop_wrapper()
+                    local wrapper = push_old()
+                    if newproxy then  -- Lua 5.1 and LuaJIT
+                        getmetatable(newproxy(true)).__gc = callback
+                    else
+                        setmetatable({}, {__gc = callback})
+                    end
+                end
+                drop_wrapper()
+                collectgarbage()
+                collectgarbage()
+            end
+        ''')
+
+    def test_same_object(self):
+        owner = [self.Owned()]
+        owned = weakref.ref(owner[0])
+        self.lua.execute('''
+            local push = ...
+            while_finalizing(push, function() NEW_WRAPPER = push() end)
+        ''', lambda: owner[0])
+        owner.clear()
+        # The old wrapper's __gc must not drop the new wrapper's _pyrefs_in_lua entry ...
+        self.assertIsNotNone(owned())
+        # ... so pushing the object again finds the same userdata.
+        self.assertTrue(self.lua.eval('rawequal(NEW_WRAPPER, ...)', owned()))
+        # The new wrapper's own __gc releases the object.
+        self.lua.execute('NEW_WRAPPER = nil; collectgarbage()')
+        self.assertIsNone(owned())
+
+    def test_other_object(self):
+        owner = [self.Owned()]
+        owned = weakref.ref(owner[0])
+        new = object()
+        self.lua.execute('''
+            local push_old, push_new = ...
+            while_finalizing(push_old, function() NEW_WRAPPER = push_new() end)
+        ''', lambda: owner[0], lambda: new)
+        # The old wrapper's __gc releases its own object ...
+        owner.clear()
+        self.assertIsNone(owned())
+        # ... and leaves the slot of the new wrapper alone.
+        self.assertTrue(self.lua.eval('rawequal(NEW_WRAPPER, ...)', new))
+
+    def test_collect_while_finalizing(self):
+        # On Lua 5.1 and LuaJIT, collectgarbage() starts a new cycle while __gc calls
+        # are still pending.  Two pending wrappers must not end up freeing one slot.
+        a, b, c, d = object(), object(), object(), object()
+        self.lua.execute('''
+            local push_a, push_b = ...
+            while_finalizing(push_a, function()
+                local wrapper = push_b()
+                wrapper = nil
+                collectgarbage()
+            end)
+        ''', lambda: a, lambda: b)
+        self.lua.execute('C, D = ...', c, d)
+        self.assertTrue(self.lua.eval('rawequal(C, ...)', c))
+        self.assertTrue(self.lua.eval('rawequal(D, ...)', d))
 
 
 ################################################################################

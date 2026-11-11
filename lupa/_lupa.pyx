@@ -75,6 +75,7 @@ except ImportError:
 DEF POBJECT = b"POBJECT" # as used by LunaticPython
 DEF LUPAOFH = b"LUPA_NUMBER_OVERFLOW_CALLBACK_FUNCTION"
 DEF PYREFST = b"LUPA_PYTHON_REFERENCES_TABLE"
+DEF PYREFSLOTS = b"LUPA_PYTHON_REFERENCE_SLOTS"
 
 cdef enum WrappedObjectFlags:
     # flags that determine the behaviour of a wrapped object:
@@ -87,6 +88,7 @@ cdef struct py_object:
     PyObject* obj
     PyObject* runtime
     int type_flags  # or-ed set of WrappedObjectFlags
+    int ref  # slot in PYREFSLOTS owned by this wrapper, also its key in PYREFST
 
 
 include "lock.pxi"
@@ -674,6 +676,15 @@ cdef class LuaRuntime:
         lua.lua_setfield(L, -2, "__mode")                    # lib tbl metatbl
         lua.lua_setmetatable(L, -2)                          # lib tbl
         lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # lib
+
+        # and the strong table that hands out the slot numbers of those references
+        lua.lua_newtable(L)                                     # lib tbl
+        if lua.LUA_VERSION_NUM < 504:
+            # Seed the free list head of luaL_ref(), as Lua 5.4+ do on first use, so
+            # that luaL_unref() in a finalizer never has to allocate.
+            lua.lua_pushinteger(L, 0)                           # lib tbl 0
+            lua.lua_rawseti(L, -2, 0)                           # lib tbl
+        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, PYREFSLOTS)  # lib
 
         # register global names in the module
         self.register_py_object(b'Py_None',  b'none', None)
@@ -1688,7 +1699,7 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
     cdef py_object* py_obj
     refkey = build_pyref_key(<PyObject*>o, type_flags)
     cdef _PyReference pyref
-    check_lua_stack(L, 3)
+    check_lua_stack(L, 4)
     old_top = lua.lua_gettop(L)
     try:
         # check if Python object is already referenced in Lua
@@ -1709,11 +1720,23 @@ cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_
         py_obj.obj = <PyObject*>o            # tbl udata
         py_obj.runtime = <PyObject*>runtime
         py_obj.type_flags = type_flags
+        py_obj.ref = lua.LUA_NOREF           # no slot yet, in case we fail below
         lua.luaL_getmetatable(L, POBJECT)    # tbl udata metatbl
         lua.lua_setmetatable(L, -2)          # tbl udata
+
+        # Take the slot number from the strong PYREFSLOTS table, not from the weak
+        # table.  The GC clears a dead wrapper from the weak table before it runs the
+        # wrapper's finalizer, so luaL_ref() on that table could hand the same slot to
+        # a new wrapper in between.  A PYREFSLOTS slot stays ours until our finalizer
+        # frees it.
+        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFSLOTS)  # tbl udata slots
+        lua.lua_pushboolean(L, 1)            # tbl udata slots true
+        py_obj.ref = lua.luaL_ref(L, -2)     # tbl udata slots
+        lua.lua_pop(L, 1)                    # tbl udata
         lua.lua_pushvalue(L, -1)             # tbl udata udata
+        lua.lua_rawseti(L, -3, py_obj.ref)   # tbl udata
         pyref = _PyReference.__new__(_PyReference)
-        pyref._ref = lua.luaL_ref(L, -3)     # tbl udata
+        pyref._ref = py_obj.ref
         pyref._obj = o
         lua.lua_remove(L, -2)                # udata
 
@@ -2073,23 +2096,20 @@ cdef int py_object_gc_with_gil(py_object *py_obj, lua_State* L) noexcept with gi
     runtime = <LuaRuntime>py_obj.runtime
     try:
         refkey = build_pyref_key(py_obj.obj, py_obj.type_flags)
-        pyref = <_PyReference>runtime._pyrefs_in_lua.pop(refkey)
+        pyref = <_PyReference>runtime._pyrefs_in_lua[refkey]
+        if pyref._ref == py_obj.ref:  # not replaced by a newer wrapper of the same object
+            del runtime._pyrefs_in_lua[refkey]
     except (TypeError, KeyError):
-        return 0  # runtime was already cleared during GC, nothing left to do
+        pass  # nothing left to remove, e.g. the runtime is being torn down
     except:
         try: runtime.store_raised_exception(L, b'error while cleaning up a Python object')
         finally: return -1
-    else:
-        if py_obj.obj is not <PyObject*> pyref._obj:
-            # Object reference has been reused already. Nothing to clean up.
-            return 0
-
-        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFST)  # tbl
-        lua.luaL_unref(L, -1, pyref._ref)                    # tbl
-        lua.lua_pop(L, 1)
-        return 0
     finally:
         py_obj.obj = NULL
+        lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, PYREFSLOTS)  # slots
+        lua.luaL_unref(L, -1, py_obj.ref)                       # slots
+        lua.lua_pop(L, 1)
+    return 0
 
 cdef int py_object_gc(lua_State* L) noexcept nogil:
     if not lua.lua_isuserdata(L, 1):

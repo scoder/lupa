@@ -9,6 +9,10 @@ Lupa change log
   and the following garbage collection run that frees it.  This issue surfaced due to
   changes in the garbage collector of Lua 5.5.
 
+* GH#293: Python objects that were passed into Lua while the Lua garbage collector was
+  cleaning up unused Python object references could stop being equal to themselves inside
+  of Lua, or get deallocated while Lua still used them.
+
 * The Lua garbage collection callback was not cleaning up the Lua stack explicitly.
 
 
