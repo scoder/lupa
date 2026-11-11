@@ -20,7 +20,11 @@ Issues = "https://github.com/scoder/lupa/issues"
 Changelog = "https://github.com/scoder/lupa/blob/master/CHANGES.rst"
 
 [build-system]
-requires = ["Cython>=3.2.4", "setuptools"]
+requires = [
+    "Cython>=3.3.1 ; python_version >= '3.9'",
+    "Cython~=3.2.9 ; python_version < '3.9'",
+    "setuptools",
+]
 
 [tool.cibuildwheel]
 build-verbosity = 2
