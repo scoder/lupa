@@ -13,6 +13,8 @@ Lupa change log
   cleaning up unused Python object references could stop being equal to themselves inside
   of Lua, or get deallocated while Lua still used them.
 
+* The Lua garbage collection callback was not cleaning up the Lua stack explicitly.
+
 
 2.8 (2026-04-15)
 ----------------
